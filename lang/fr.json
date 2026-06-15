@@ -1,0 +1,43 @@
+{
+  "table-companion": {
+    "common": {
+      "yes": "Oui",
+      "no": "Non",
+      "close": "Fermer",
+      "done": "Terminé",
+      "refresh": "Actualiser"
+    },
+    "setup": {
+      "title": "Table Companion — Configuration",
+      "openButton": "Table Companion",
+      "intro": "Reliez ce monde à l'application Table Companion. Créez l'utilisateur Companion dédié une seule fois, puis copiez son mot de passe dans l'application pour relier votre table.",
+      "ownershipHint": "Astuce : donnez à l'utilisateur Companion la permission Observateur (pour afficher) ou Propriétaire (pour modifier) sur les personnages de vos joueurs, afin que l'application puisse afficher et mettre à jour leurs feuilles.",
+      "button": {
+        "create": "Créer l'utilisateur Companion"
+      },
+      "status": {
+        "userExists": "Utilisateur Companion",
+        "userOnline": "Companion connecté",
+        "link": "Lien avec l'app",
+        "linkLive": "Actif",
+        "linkIdle": "En attente"
+      },
+      "notify": {
+        "exists": "L'utilisateur {name} existe déjà — rien n'a changé."
+      },
+      "password": {
+        "title": "Mot de passe Companion",
+        "intro": "L'utilisateur {name} a été créé. Copiez ce mot de passe dans l'application Table Companion maintenant — il n'est affiché qu'une seule fois.",
+        "warning": "Ne vous connectez jamais à Foundry en tant que {name} : Foundry n'autorise qu'une session par utilisateur, donc le faire déconnecte l'application.",
+        "copy": "Copier le mot de passe",
+        "copied": "Mot de passe copié dans le presse-papiers.",
+        "copyManual": "Copie automatique impossible — sélectionnez le mot de passe ci-dessus et copiez-le manuellement.",
+        "recover": "Perdu plus tard ? Supprimez l'utilisateur {name} dans la configuration des joueurs de Foundry et relancez la configuration pour en générer un nouveau."
+      },
+      "error": {
+        "gmOnly": "Seul un Maître de Jeu peut lancer la configuration de Table Companion.",
+        "createFailed": "Impossible de créer l'utilisateur Companion."
+      }
+    }
+  }
+}

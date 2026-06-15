@@ -1,0 +1,24 @@
+{
+  "name": "table-companion-module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Optional Foundry VTT module that amplifies the Table Companion agent: one-click Companion-user setup, link status, and a versioned RPC channel.",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "watch": "vite build --watch",
+    "lint": "eslint \"src/**/*.ts\" && tsc --noEmit",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "author": "Heiiji",
+  "license": "MIT",
+  "devDependencies": {
+    "@league-of-foundry-developers/foundry-vtt-types": "^13.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "table-companion": {
+    "common": {
+      "yes": "Yes",
+      "no": "No",
+      "close": "Close",
+      "done": "Done",
+      "refresh": "Refresh"
+    },
+    "setup": {
+      "title": "Table Companion — Setup",
+      "openButton": "Table Companion",
+      "intro": "Connect this world to the Table Companion app. Create the dedicated Companion user once, then paste its password into the app to link your table.",
+      "ownershipHint": "Tip: give the Companion user Observer (to display) or Owner (to edit) permission on your players' characters, so the app can show and update their sheets.",
+      "button": {
+        "create": "Create Companion user"
+      },
+      "status": {
+        "userExists": "Companion user",
+        "userOnline": "Companion connected",
+        "link": "App link",
+        "linkLive": "Live",
+        "linkIdle": "Waiting"
+      },
+      "notify": {
+        "exists": "The {name} user already exists — nothing changed."
+      },
+      "password": {
+        "title": "Companion password",
+        "intro": "The {name} user was created. Copy this password into the Table Companion app now — it is shown only once.",
+        "warning": "Never log in to Foundry as {name} yourself: Foundry allows one session per user, so doing so disconnects the app.",
+        "copy": "Copy password",
+        "copied": "Password copied to clipboard.",
+        "copyManual": "Could not copy automatically — select the password above and copy it manually.",
+        "recover": "Lost it later? Delete the {name} user in Foundry's player configuration and run setup again to generate a new one."
+      },
+      "error": {
+        "gmOnly": "Only a Gamemaster can run Table Companion setup.",
+        "createFailed": "Could not create the Companion user."
+      }
+    }
+  }
+}

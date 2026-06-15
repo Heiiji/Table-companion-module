@@ -1,0 +1,53 @@
+.tca-setup .tca-hint,
+.tca-password .tca-warn {
+  font-size: var(--font-size-12, 12px);
+  opacity: 0.85;
+}
+
+.tca-status {
+  margin: 0.5rem 0;
+  border: 1px solid var(--color-border-light-tertiary, #bbb);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+}
+
+.tca-status-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.15rem 0;
+}
+
+.tca-status-row .tca-ok {
+  color: var(--color-level-success, #18520b);
+}
+
+.tca-status-row .tca-off {
+  color: var(--color-text-dark-secondary, #7a7971);
+}
+
+.tca-password-box {
+  margin: 0.5rem 0;
+  padding: 0.5rem;
+  text-align: center;
+  background: var(--color-bg-option, #00000010);
+  border-radius: 4px;
+}
+
+.tca-password-box code {
+  font-size: var(--font-size-18, 18px);
+  letter-spacing: 1px;
+  user-select: all;
+}
+
+.tca-password .tca-warn {
+  color: var(--color-level-warning, #aa5502);
+}
+
+.tca-settings-block {
+  margin-top: 0.5rem;
+}
+
+.tca-settings-block button {
+  width: 100%;
+}
