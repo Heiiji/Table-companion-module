@@ -63,6 +63,11 @@ export class Channel {
     );
   }
 
+  /** Proactively push an event to the agent (module → agent). */
+  emitEvent(proc: string, payload: unknown): void {
+    this.emit(makeEnvelope("event", { proc, payload, peer: this.selfPeer() }));
+  }
+
   getStatus(): LinkStatus {
     return { ...this.status, isResponder: isResponder() };
   }

@@ -3,6 +3,7 @@ import { MODULE_ID } from "./constants.js";
 import { registerBuiltinProcedures } from "./procedures/index.js";
 import { Channel } from "./rpc/channel.js";
 import { ProcedureRegistry } from "./rpc/registry.js";
+import { startPresenceWatcher } from "./setup/presence.js";
 import { openSetupApp } from "./ui/SetupApp.js";
 import { localize, log } from "./util/log.js";
 
@@ -32,6 +33,7 @@ Hooks.once("ready", () => {
   // Socket is available from init, but we wait for `ready` so game state exists
   // for GM election and for procedures that touch documents.
   channel?.start();
+  if (channel) startPresenceWatcher(channel);
 });
 
 // Add a control to the Settings sidebar so a GM can open setup any time. The
