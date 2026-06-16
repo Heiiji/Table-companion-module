@@ -12,7 +12,11 @@ unlocks richer, system-aware features over time.
   password and shows it once to paste into the app.
 - **Link status** — a panel showing whether the app is connected to your world.
 - **Capability channel** — a small, versioned link the app's backend uses to add
-  higher-fidelity features (native system rolls, …) in future updates.
+  higher-fidelity features (native system rolls, …) in future updates. The agent
+  signs every message (Ed25519); the module pins the agent's public key on first
+  contact and verifies it thereafter, so another logged-in client cannot
+  impersonate the agent. The paired key's fingerprint is shown in **Settings →
+  Table Companion**, with a **Reset pairing** button if you ever need to re-pair.
 
 ## Install
 

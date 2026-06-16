@@ -1,4 +1,4 @@
-import { ENVELOPE_VERSION } from "../constants.js";
+import { ENVELOPE_VERSION, MAX_ENVELOPE_BYTES } from "../constants.js";
 
 /** Envelope message types. Additive: new types may be added in later envelope
  * versions; receivers MUST ignore types they do not recognize. */
@@ -20,6 +20,10 @@ export interface PeerInfo {
   /** Lowest / highest envelope version the sender can speak. */
   minEnvelope: number;
   maxEnvelope: number;
+  /** Base64 raw Ed25519 public key — present on the agent's hello/hello.ack so
+   * the module can pin it (trust-on-first-use) and verify the agent's
+   * signatures. Absent for the module (it does not sign). */
+  pubKey?: string;
 }
 
 /** The single message shape exchanged on the `module.table-companion` channel.
@@ -52,6 +56,9 @@ export interface Envelope {
  * the two we branch on (`type`, `v`). */
 export function parseEnvelope(raw: unknown): Envelope | null {
   if (typeof raw !== "object" || raw === null) return null;
+  // Bound the message size before doing any further work, so a malicious peer
+  // can't cheaply force large allocations on every connected client.
+  if (oversized(raw)) return null;
   const e = raw as Record<string, unknown>;
   if (typeof e.type !== "string") return null;
   if (typeof e.v !== "number") return null;
@@ -77,6 +84,16 @@ export function makeEnvelope(
   return { v: ENVELOPE_VERSION, type, ts: Date.now(), ...fields };
 }
 
+/** True when the message serializes to more than MAX_ENVELOPE_BYTES. Returns
+ * true (reject) if it can't be serialized at all (e.g. circular refs). */
+function oversized(raw: object): boolean {
+  try {
+    return JSON.stringify(raw).length > MAX_ENVELOPE_BYTES;
+  } catch {
+    return true;
+  }
+}
+
 function isPeerInfo(x: unknown): x is PeerInfo {
   if (typeof x !== "object" || x === null) return false;
   const p = x as Record<string, unknown>;
@@ -84,7 +101,8 @@ function isPeerInfo(x: unknown): x is PeerInfo {
     (p.role === "agent" || p.role === "module") &&
     typeof p.version === "string" &&
     typeof p.minEnvelope === "number" &&
-    typeof p.maxEnvelope === "number"
+    typeof p.maxEnvelope === "number" &&
+    (p.pubKey === undefined || typeof p.pubKey === "string")
   );
 }
 

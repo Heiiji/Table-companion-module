@@ -1,4 +1,5 @@
-import { CHANNEL, ENVELOPE_VERSION } from "../constants.js";
+import { CHANNEL, ENVELOPE_VERSION, SETTING_AGENT_KEY } from "../constants.js";
+import { MODULE_ID } from "../constants.js";
 import { isResponder } from "../setup/election.js";
 import { log } from "../util/log.js";
 import {
@@ -8,6 +9,11 @@ import {
   PeerInfo,
 } from "./envelope.js";
 import { ProcedureRegistry, RpcContext } from "./registry.js";
+import {
+  fingerprint,
+  parseSignedMessage,
+  verifySignature,
+} from "./signing.js";
 
 /** Snapshot of the agent <-> module link, surfaced to the status UI and the
  * public API. */
@@ -21,6 +27,22 @@ export interface LinkStatus {
 }
 
 type EventListener = (proc: string, payload: unknown) => void;
+
+// fvtt-types models settings only for keys registered through its own typed
+// surface; our world setting is accessed structurally (no `any`) at this one
+// boundary. Registration happens in module.ts at init.
+type SettingsLike = {
+  get(namespace: string, key: string): unknown;
+  set(namespace: string, key: string, value: unknown): Promise<unknown>;
+};
+
+/** Pairing state surfaced to the setup UI. */
+export interface Pairing {
+  /** Whether an agent signing key has been pinned for this world. */
+  paired: boolean;
+  /** Short human-comparable fingerprint of the pinned key, or "" if unpaired. */
+  fingerprint: string;
+}
 
 /**
  * Owns the `module.table-companion` socket conversation: answers the agent's
@@ -72,6 +94,35 @@ export class Channel {
     return { ...this.status, isResponder: isResponder() };
   }
 
+  /** The pinned agent public key (base64), or "" if not yet paired. */
+  private pinnedKey(): string {
+    const settings = game.settings as unknown as SettingsLike | undefined;
+    const v = settings?.get(MODULE_ID, SETTING_AGENT_KEY);
+    return typeof v === "string" ? v : "";
+  }
+
+  private async setPinnedKey(b64: string): Promise<void> {
+    const settings = game.settings as unknown as SettingsLike | undefined;
+    try {
+      await settings?.set(MODULE_ID, SETTING_AGENT_KEY, b64);
+    } catch (err) {
+      log.warn("could not persist the agent signing key", err);
+    }
+  }
+
+  /** Current pairing state, for the setup UI. */
+  async getPairing(): Promise<Pairing> {
+    const key = this.pinnedKey();
+    return { paired: !!key, fingerprint: key ? await fingerprint(key) : "" };
+  }
+
+  /** Forget the pinned agent key so the next agent contact re-pairs (GM only —
+   * writing the world setting requires GM rights). */
+  async resetPairing(): Promise<void> {
+    await this.setPinnedKey("");
+    log.info("agent pairing reset");
+  }
+
   private noteAgent(peer: PeerInfo): void {
     this.status.lastAgentHelloAt = Date.now();
     this.status.agentPeer = peer;
@@ -97,18 +148,16 @@ export class Channel {
   }
 
   private async onMessage(raw: unknown): Promise<void> {
-    const env = parseEnvelope(raw);
+    // Every inbound type we handle is agent-originated, and Foundry's relay
+    // cannot prove the sender. We therefore act only on a cryptographically
+    // verified agent envelope; unsigned traffic and spoofed `peer.role:"agent"`
+    // messages from a malicious player are dropped here.
+    const env = await this.verifiedAgentEnvelope(raw);
     if (!env) return;
-    // We only understand our current major envelope version; ignore the rest so
-    // a newer agent can roll forward without breaking older modules.
-    if (env.v !== ENVELOPE_VERSION) return;
 
     switch (env.type) {
       case "hello":
-        // Only the agent's greeting counts as a link; ignore other module
-        // clients echoing their own hello on the shared channel.
-        if (env.peer?.role !== "agent") break;
-        this.noteAgent(env.peer);
+        this.noteAgent(env.peer!);
         if (isResponder()) {
           this.emit(
             makeEnvelope("hello.ack", {
@@ -122,7 +171,7 @@ export class Channel {
 
       case "hello.ack":
         // The agent acking the hello we sent on start — pure liveness signal.
-        if (env.peer?.role === "agent") this.noteAgent(env.peer);
+        this.noteAgent(env.peer!);
         break;
 
       case "ping":
@@ -152,6 +201,44 @@ export class Channel {
       default:
         break;
     }
+  }
+
+  /** Verify that `raw` is a signed envelope from the paired agent, returning the
+   * parsed envelope on success or null (drop) otherwise. Pins the agent's key on
+   * first contact (trust-on-first-use); only a GM/responder establishes the
+   * pairing, so non-GM clients act on agent events only after a GM has paired. */
+  private async verifiedAgentEnvelope(raw: unknown): Promise<Envelope | null> {
+    const signed = parseSignedMessage(raw);
+    if (!signed) return null; // legacy/unsigned traffic or another module's hello
+
+    let inner: unknown;
+    try {
+      inner = JSON.parse(signed.body);
+    } catch {
+      return null;
+    }
+    const env = parseEnvelope(inner);
+    if (!env || env.v !== ENVELOPE_VERSION) return null;
+    if (env.peer?.role !== "agent") return null; // only the agent signs
+
+    const pinned = this.pinnedKey();
+    if (pinned) {
+      if (await verifySignature(pinned, signed)) return env;
+      log.warn("dropped agent envelope with an invalid signature");
+      return null;
+    }
+
+    // Not yet paired. Establish the pairing on a GM client only, using the key
+    // the agent advertises — verifying the signature also proves it holds the
+    // matching private key (so a bare advertised key can't be replayed).
+    if (!isResponder() || !env.peer.pubKey) return null;
+    if (!(await verifySignature(env.peer.pubKey, signed))) {
+      log.warn("dropped unpaired agent envelope with an invalid signature");
+      return null;
+    }
+    await this.setPinnedKey(env.peer.pubKey);
+    log.info(`paired agent signing key (${await fingerprint(env.peer.pubKey)})`);
+    return env;
   }
 
   private async handleRequest(env: Envelope): Promise<void> {

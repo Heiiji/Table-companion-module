@@ -1,5 +1,5 @@
 import { buildApi } from "./api.js";
-import { MODULE_ID } from "./constants.js";
+import { MODULE_ID, SETTING_AGENT_KEY } from "./constants.js";
 import { registerBuiltinProcedures } from "./procedures/index.js";
 import { Channel } from "./rpc/channel.js";
 import { ProcedureRegistry } from "./rpc/registry.js";
@@ -10,6 +10,20 @@ import { localize, log } from "./util/log.js";
 let channel: Channel | undefined;
 
 Hooks.once("init", () => {
+  // Pinned agent signing key (trust-on-first-use). Hidden from the settings form
+  // (config:false); managed by the channel and the setup UI. fvtt-types models
+  // settings only for keys it knows, so we register through a structural cast.
+  (
+    game.settings as unknown as {
+      register(ns: string, key: string, data: unknown): void;
+    }
+  )?.register(MODULE_ID, SETTING_AGENT_KEY, {
+    scope: "world",
+    config: false,
+    type: String,
+    default: "",
+  });
+
   const registry = new ProcedureRegistry();
   registerBuiltinProcedures(registry);
 

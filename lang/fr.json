@@ -13,17 +13,22 @@
       "intro": "Reliez ce monde à l'application Table Companion. Créez l'utilisateur Companion dédié une seule fois, puis copiez son mot de passe dans l'application pour relier votre table.",
       "ownershipHint": "Astuce : donnez à l'utilisateur Companion la permission Observateur (pour afficher) ou Propriétaire (pour modifier) sur les personnages de vos joueurs, afin que l'application puisse afficher et mettre à jour leurs feuilles.",
       "button": {
-        "create": "Créer l'utilisateur Companion"
+        "create": "Créer l'utilisateur Companion",
+        "resetPairing": "Réinitialiser l'appairage"
       },
       "status": {
         "userExists": "Utilisateur Companion",
         "userOnline": "Companion connecté",
         "link": "Lien avec l'app",
         "linkLive": "Actif",
-        "linkIdle": "En attente"
+        "linkIdle": "En attente",
+        "pairing": "Identité de l'agent",
+        "paired": "Appairé",
+        "notPaired": "Non appairé"
       },
       "notify": {
-        "exists": "L'utilisateur {name} existe déjà — rien n'a changé."
+        "exists": "L'utilisateur {name} existe déjà — rien n'a changé.",
+        "pairingReset": "Appairage de l'agent réinitialisé — la prochaine connexion de l'agent réappairera."
       },
       "password": {
         "title": "Mot de passe Companion",

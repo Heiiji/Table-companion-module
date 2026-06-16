@@ -13,17 +13,22 @@
       "intro": "Connect this world to the Table Companion app. Create the dedicated Companion user once, then paste its password into the app to link your table.",
       "ownershipHint": "Tip: give the Companion user Observer (to display) or Owner (to edit) permission on your players' characters, so the app can show and update their sheets.",
       "button": {
-        "create": "Create Companion user"
+        "create": "Create Companion user",
+        "resetPairing": "Reset pairing"
       },
       "status": {
         "userExists": "Companion user",
         "userOnline": "Companion connected",
         "link": "App link",
         "linkLive": "Live",
-        "linkIdle": "Waiting"
+        "linkIdle": "Waiting",
+        "pairing": "Agent identity",
+        "paired": "Paired",
+        "notPaired": "Not paired"
       },
       "notify": {
-        "exists": "The {name} user already exists — nothing changed."
+        "exists": "The {name} user already exists — nothing changed.",
+        "pairingReset": "Agent pairing reset — the next agent connection will re-pair."
       },
       "password": {
         "title": "Companion password",

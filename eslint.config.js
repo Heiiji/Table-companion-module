@@ -12,9 +12,10 @@ export default [
     plugins: { "@typescript-eslint": tseslint },
     rules: {
       ...tseslint.configs.recommended.rules,
-      // We touch a few untyped Foundry globals (DialogV2 generics); allow the
-      // explicit escape hatch at those boundaries.
-      "@typescript-eslint/no-explicit-any": "off",
+      // Keep `any` flagged everywhere; the one untyped Foundry boundary
+      // (DialogV2 generics in SetupApp.ts) opts out with a scoped inline
+      // eslint-disable rather than disabling the rule project-wide.
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_" },

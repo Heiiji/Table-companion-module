@@ -1,9 +1,20 @@
+import { MODULE_ID } from "../constants.js";
 import { generatePassword } from "../util/password.js";
 import { localize, log } from "../util/log.js";
 
 /** The service-user name the agent logs in as. Mirrored in the agent README and
  * docs/foundry-protocol.md ("Companion"). */
 export const COMPANION_USER_NAME = "Companion";
+
+/** Flag key stamped on the user we create, so we can find it again even if a GM
+ * renames it (the name is neither unique nor stable). */
+const COMPANION_FLAG = "companion";
+
+// fvtt-types models flags only for known core scopes, so our own module scope
+// ("table-companion") is legitimately unknown to it. We read/write it through
+// narrow structural types (no `any`) at this single boundary.
+type FlagReader = { getFlag(scope: string, key: string): unknown };
+type UserCreateData = Parameters<typeof User.create>[0];
 
 export interface CompanionResult {
   /** The freshly created (or pre-existing) Companion user's id. */
@@ -15,25 +26,40 @@ export interface CompanionResult {
   existed: boolean;
 }
 
-/** Find an existing Companion user, if any. */
+/** Find an existing Companion user. Prefers the module flag we stamp on
+ * creation (survives a rename); falls back to the name for users created before
+ * the flag existed. */
 export function findCompanionUser(): User | undefined {
-  return game.users?.find((u) => u.name === COMPANION_USER_NAME) ?? undefined;
+  const users = game.users;
+  if (!users) return undefined;
+  return (
+    users.find(
+      (u) =>
+        (u as unknown as FlagReader).getFlag(MODULE_ID, COMPANION_FLAG) === true,
+    ) ??
+    users.find((u) => u.name === COMPANION_USER_NAME) ??
+    undefined
+  );
 }
 
 /**
  * Create the Companion service user with a crypto-strong generated password and
- * the TRUSTED role (lowest role that can hold OWNER ownership of actors, which
- * the agent needs for resource writes; the GM still grants per-actor ownership).
- * If the user already exists we leave it untouched and return its id — we never
- * reset a password the GM may already have linked into the app.
+ * the TRUSTED role. Note ownership is independent of role: any role can be
+ * granted OWNER on a specific actor. TRUSTED is chosen as a conservative default
+ * because it grants a small bundle of world-level permissions over PLAYER; the
+ * agent's actual reach still comes from the per-actor ownership the GM grants
+ * and the world's role-permission config. We stamp a module flag so the user
+ * remains findable after a rename. If the user already exists we leave it
+ * untouched and return its id — we never reset a password the GM may already
+ * have linked into the app.
  *
  * Returns the plaintext password so the UI can show it once. We never persist or
  * log it.
  */
 export async function ensureCompanionUser(): Promise<CompanionResult> {
   const existing = findCompanionUser();
-  if (existing) {
-    return { userId: existing.id!, existed: true };
+  if (existing?.id) {
+    return { userId: existing.id, existed: true };
   }
 
   const password = generatePassword();
@@ -41,7 +67,8 @@ export async function ensureCompanionUser(): Promise<CompanionResult> {
     name: COMPANION_USER_NAME,
     password,
     role: CONST.USER_ROLES.TRUSTED,
-  })) as User | undefined;
+    flags: { [MODULE_ID]: { [COMPANION_FLAG]: true } },
+  } as unknown as UserCreateData)) as User | undefined;
 
   if (!created?.id) {
     throw new Error(localize("setup.error.createFailed"));

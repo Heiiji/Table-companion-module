@@ -15,3 +15,13 @@ export const ENVELOPE_VERSION = 1;
 
 /** How recent a `hello` from the agent must be for the link to read "live". */
 export const LINK_STALE_MS = 90_000;
+
+/** Upper bound on a single inbound envelope's serialized size. This is a control
+ * channel carrying small JSON messages; anything larger is malformed or hostile
+ * (a flood/DoS attempt) and is dropped before parsing. Generous on purpose. */
+export const MAX_ENVELOPE_BYTES = 64 * 1024;
+
+/** World-setting key holding the pinned agent Ed25519 public key (base64). Empty
+ * until the module pairs with an agent on first contact. config:false — it is
+ * managed by the module/setup UI, not shown in Foundry's settings form. */
+export const SETTING_AGENT_KEY = "agentPublicKey";

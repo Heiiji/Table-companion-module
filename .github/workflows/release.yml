@@ -20,19 +20,30 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # The tag (vX.Y.Z) is the source of the release version: stamp it into
+      # package.json so the build bakes it into dist/module.json, keeping the
+      # published manifest, the zip, and the tag in lockstep.
+      - name: Set version from tag
+        run: npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
+
       - run: npm run lint
+      - run: npm run test
       - run: npm run build
 
       # Package the drop-in module folder: built JS/CSS + manifest + i18n.
+      # Exclude sourcemaps so they don't ship to end users.
       - name: Assemble module.zip
         run: |
           cd dist
-          zip -r ../module.zip .
+          zip -r ../module.zip . -x '*.map'
           cd ..
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          # Publish the built manifest (version stamped from the tag), not the
+          # repo copy — they share everything but the version.
           files: |
-            module.json
+            dist/module.json
             module.zip

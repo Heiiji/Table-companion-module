@@ -5,29 +5,20 @@ import {
   ensureCompanionUser,
   findCompanionUser,
 } from "../setup/companion-user.js";
+import { escapeHtml } from "../util/html.js";
 import { localize, log } from "../util/log.js";
 
 // The ApplicationV2/DialogV2 generics in fvtt-types are intentionally loose to
 // keep this UI robust across Foundry 13/14 point releases; we touch only the
 // stable, documented surface (DialogV2.wait + buttons + a content string).
-const DialogV2 = (foundry as any).applications.api.DialogV2;
+// Accessed lazily (not at module load) so the bundle imports cleanly even before
+// the `foundry` global exists.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const DialogV2 = () => (foundry as any).applications.api.DialogV2;
 
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[c]!,
-  );
-}
-
-function statusHtml(channel: Channel): string {
+async function statusHtml(channel: Channel): Promise<string> {
   const status = channel.getStatus();
+  const pairing = await channel.getPairing();
   const companion = findCompanionUser();
   const online = companion?.active ?? false;
   const last = status.lastAgentHelloAt;
@@ -40,6 +31,10 @@ function statusHtml(channel: Channel): string {
   const agentVer = status.agentPeer?.version
     ? ` (v${status.agentPeer.version})`
     : "";
+
+  const pairingValue = pairing.paired
+    ? `${localize("setup.status.paired")} · ${pairing.fingerprint}`
+    : localize("setup.status.notPaired");
 
   return (
     `<div class="tca-status">` +
@@ -60,6 +55,7 @@ function statusHtml(channel: Channel): string {
         : localize("setup.status.linkIdle"),
       linkLive,
     ) +
+    row(localize("setup.status.pairing"), pairingValue, pairing.paired) +
     `</div>`
   );
 }
@@ -74,11 +70,11 @@ export async function openSetupApp(channel: Channel): Promise<void> {
   const content =
     `<section class="tca-setup">` +
     `<p>${localize("setup.intro")}</p>` +
-    statusHtml(channel) +
+    (await statusHtml(channel)) +
     `<p class="tca-hint">${localize("setup.ownershipHint")}</p>` +
     `</section>`;
 
-  await DialogV2.wait({
+  await DialogV2().wait({
     window: { title: localize("setup.title"), icon: "fa-solid fa-dice-d20" },
     content,
     buttons: [
@@ -99,6 +95,17 @@ export async function openSetupApp(channel: Channel): Promise<void> {
         // The dialog renders a one-time snapshot; re-open for a fresh read of
         // the live link status.
         callback: async () => {
+          await openSetupApp(channel);
+        },
+      },
+      {
+        action: "resetPairing",
+        label: localize("setup.button.resetPairing"),
+        icon: "fa-solid fa-link-slash",
+        // Forget the pinned agent key; the next agent connection re-pairs.
+        callback: async () => {
+          await channel.resetPairing();
+          ui.notifications?.info(localize("setup.notify.pairingReset"));
           await openSetupApp(channel);
         },
       },
@@ -138,7 +145,7 @@ async function showPassword(password: string): Promise<void> {
     `<p class="tca-hint">${localize("setup.password.recover", { name: COMPANION_USER_NAME })}</p>` +
     `</section>`;
 
-  await DialogV2.wait({
+  await DialogV2().wait({
     window: {
       title: localize("setup.password.title"),
       icon: "fa-solid fa-key",

@@ -1,5 +1,15 @@
 import { defineConfig } from "vite";
-import { copyFileSync, mkdirSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+
+// package.json is the single source of truth for the version; we stamp it into
+// the copied module.json at build time so the two never drift.
+const pkgVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
 
 // Foundry loads the built ESM bundle referenced by module.json (esmodules:
 // ["module.js"]). We build to dist/ and copy the static assets that ship in the
@@ -21,10 +31,22 @@ export default defineConfig({
       name: "tca-copy-static",
       closeBundle() {
         mkdirSync("dist/lang", { recursive: true });
-        copyFileSync("module.json", "dist/module.json");
+
+        // Stamp the package.json version into the shipped manifest so the
+        // release artifact's version is never out of sync with the source.
+        const manifest = JSON.parse(readFileSync("module.json", "utf8"));
+        manifest.version = pkgVersion;
+        writeFileSync("dist/module.json", JSON.stringify(manifest, null, 2) + "\n");
+
         copyFileSync("styles/module.css", "dist/module.css");
-        copyFileSync("lang/en.json", "dist/lang/en.json");
-        copyFileSync("lang/fr.json", "dist/lang/fr.json");
+
+        // Copy every declared locale by globbing the dir, so adding a language
+        // needs no edit here — module.json's `languages` array stays the source.
+        for (const file of readdirSync("lang")) {
+          if (file.endsWith(".json")) {
+            copyFileSync(`lang/${file}`, `dist/lang/${file}`);
+          }
+        }
       },
     },
   ],
