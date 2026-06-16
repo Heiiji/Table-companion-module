@@ -6,6 +6,11 @@ Table Companion already works **without** this module — the app connects to yo
 Foundry world on its own. Installing this module just makes setup one click and
 unlocks richer, system-aware features over time.
 
+> This module is a **Foundry-only enhancement**. The app treats Foundry as one
+> (optional) external-VTT provider among others it may support later (e.g. Roll20,
+> "Let's Role"); those providers have no equivalent module, and this module sits
+> outside that provider abstraction. It is never required for a table to work.
+
 ## What it does
 
 - **One-click setup** — creates the dedicated `Companion` user with a strong
