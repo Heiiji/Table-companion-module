@@ -44,6 +44,22 @@
   color: var(--color-level-warning, #aa5502);
 }
 
+.tca-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.tca-actions button {
+  flex: 1 1 auto;
+}
+
+.tca-password .tca-copy {
+  width: 100%;
+  margin: 0.25rem 0 0.5rem;
+}
+
 .tca-settings-block {
   margin-top: 0.5rem;
 }
