@@ -256,13 +256,29 @@ async function showPassword(password: string): Promise<void> {
  * app registers. Best-effort: if generation fails the QR block is removed and the
  * password text + Copy button remain the way to pair. (Until the app registers
  * the `tablecompanion://` scheme, a scan still yields the password verbatim.) */
+/** The Foundry server origin the GM's browser is on (e.g. "https://foundry.example.com",
+ * including any non-default port), as a ready-to-append `&h=` query param — or "" if
+ * unavailable. This is the same server URL the app/agent must connect to, so carrying it
+ * in the pairing QR lets a single scan fully connect instead of asking the GM to retype
+ * the host. Best-effort: a missing/odd `window.location` just omits the param. */
+function pairingHostParam(): string {
+  try {
+    const origin = window.location?.origin;
+    if (!origin || origin === "null") return "";
+    return `&h=${encodeURIComponent(origin)}`;
+  } catch {
+    return "";
+  }
+}
+
 function renderPairingQr(password: string, root: HTMLElement): void {
   const host = root.querySelector('[data-tca="qr"]');
   if (!host) return;
   try {
     const link =
       `tablecompanion://pair?u=${encodeURIComponent(COMPANION_USER_NAME)}` +
-      `&p=${encodeURIComponent(password)}`;
+      `&p=${encodeURIComponent(password)}` +
+      pairingHostParam();
     const qr = qrcode(0, "M");
     qr.addData(link);
     qr.make();

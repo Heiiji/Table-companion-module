@@ -29,6 +29,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   live).
 - Non-destructive **Reset password** action for the Companion user.
 - QR-code pairing in the password dialog for one-scan setup from the mobile app.
+- The pairing deep link now carries the Foundry server origin (`&h=`), so a single
+  scan fully connects the app without the GM retyping the host.
 - First direct test coverage of the RPC channel (signature gate, pairing,
   responder gating, replay), and a push/pull-request CI workflow.
 - Accessibility and onboarding refinements in the setup dialog.
