@@ -7,16 +7,21 @@
   "scripts": {
     "build": "vite build",
     "watch": "vite build --watch",
-    "lint": "eslint \"src/**/*.ts\" && tsc --noEmit",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" && tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "format": "prettier --write \"src/**/*.ts\""
   },
   "author": "Heiiji",
   "license": "MIT",
+  "dependencies": {
+    "qrcode-generator": "^2.0.4"
+  },
   "devDependencies": {
     "@league-of-foundry-developers/foundry-vtt-types": "^13.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "@vitest/coverage-v8": "^4.1.9",
     "eslint": "^9.0.0",
     "prettier": "^3.0.0",
     "typescript": "^5.6.0",

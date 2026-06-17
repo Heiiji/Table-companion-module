@@ -1,4 +1,10 @@
-import { CHANNEL, ENVELOPE_VERSION, SETTING_AGENT_KEY } from "../constants.js";
+import {
+  CHANNEL,
+  ENVELOPE_VERSION,
+  REPLAY_WINDOW_MS,
+  SEEN_ID_CACHE_MAX,
+  SETTING_AGENT_KEY,
+} from "../constants.js";
 import { MODULE_ID } from "../constants.js";
 import { isResponder } from "../setup/election.js";
 import { log } from "../util/log.js";
@@ -58,6 +64,9 @@ export class Channel {
     isResponder: isResponder(),
   };
   private readonly eventListeners = new Set<EventListener>();
+  // Anti-replay: ids of recently-accepted agent envelopes, so a verbatim replay
+  // of a signed rpc.request can't re-trigger its handler. Bounded FIFO.
+  private readonly seenIds = new Set<string>();
 
   constructor(
     private readonly registry: ProcedureRegistry,
@@ -221,11 +230,29 @@ export class Channel {
     if (!env || env.v !== ENVELOPE_VERSION) return null;
     if (env.peer?.role !== "agent") return null; // only the agent signs
 
+    // A4: only the elected responder ever acts on rpc.request/ping, so every
+    // other client drops them here — before the per-message signature verify —
+    // rather than verifying work it will never use. hello/hello.ack/event still
+    // verify on all clients (they drive status + events everywhere).
+    if ((env.type === "rpc.request" || env.type === "ping") && !isResponder()) {
+      return null;
+    }
+
+    // Anti-replay (1/2): drop stale envelopes before spending a signature verify.
+    // A replayed capture carries its original `ts`, so it ages out of the window;
+    // this also bounds how long a replayed `hello` can keep faking link liveness.
+    if (Math.abs(Date.now() - env.ts) > REPLAY_WINDOW_MS) {
+      log.warn("dropped agent envelope outside the freshness window");
+      return null;
+    }
+
     const pinned = this.pinnedKey();
     if (pinned) {
-      if (await verifySignature(pinned, signed)) return env;
-      log.warn("dropped agent envelope with an invalid signature");
-      return null;
+      if (!(await verifySignature(pinned, signed))) {
+        log.warn("dropped agent envelope with an invalid signature");
+        return null;
+      }
+      return this.notReplayed(env) ? env : null;
     }
 
     // Not yet paired. Establish the pairing on a GM client only, using the key
@@ -238,7 +265,26 @@ export class Channel {
     }
     await this.setPinnedKey(env.peer.pubKey);
     log.info(`paired agent signing key (${await fingerprint(env.peer.pubKey)})`);
-    return env;
+    return this.notReplayed(env) ? env : null;
+  }
+
+  /** Anti-replay (2/2): true unless this envelope's `id` was already accepted.
+   * Envelopes without an id (e.g. a broadcast hello) are always allowed —
+   * freshness alone guards those. New ids are recorded in a bounded FIFO set so
+   * a verbatim replay of a signed rpc.request can't re-run its handler. */
+  private notReplayed(env: Envelope): boolean {
+    const id = env.id;
+    if (!id) return true;
+    if (this.seenIds.has(id)) {
+      log.warn(`dropped replayed agent envelope (id ${id})`);
+      return false;
+    }
+    this.seenIds.add(id);
+    if (this.seenIds.size > SEEN_ID_CACHE_MAX) {
+      const oldest = this.seenIds.values().next().value;
+      if (oldest !== undefined) this.seenIds.delete(oldest);
+    }
+    return true;
   }
 
   private async handleRequest(env: Envelope): Promise<void> {

@@ -22,4 +22,19 @@ export default [
       ],
     },
   },
+  {
+    // Tests legitimately cast through `unknown` to stub Foundry globals, so the
+    // strict src rules (no-explicit-any) don't apply here; we still surface
+    // unused vars as a non-blocking hint.
+    files: ["test/**/*.ts"],
+    languageOptions: {
+      parser: tsparser,
+      ecmaVersion: "latest",
+      sourceType: "module",
+    },
+    plugins: { "@typescript-eslint": tseslint },
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+    },
+  },
 ];

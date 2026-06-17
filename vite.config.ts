@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import {
   copyFileSync,
+  existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -20,6 +21,10 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     sourcemap: true,
+    // Floor the output to a baseline the verified-v13 Electron/Chromium parses,
+    // so emit can't outrun a supported client and hard-fail module load. (tsconfig
+    // keeps `target: ESNext` for type-checking; this governs the actual emit.)
+    target: "es2022",
     lib: {
       entry: "src/module.ts",
       formats: ["es"],
@@ -38,6 +43,11 @@ export default defineConfig({
         manifest.version = pkgVersion;
         writeFileSync("dist/module.json", JSON.stringify(manifest, null, 2) + "\n");
 
+        if (!existsSync("styles/module.css")) {
+          throw new Error(
+            "tca-copy-static: styles/module.css is missing (run from the repo root)",
+          );
+        }
         copyFileSync("styles/module.css", "dist/module.css");
 
         // Copy every declared locale by globbing the dir, so adding a language

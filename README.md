@@ -31,23 +31,26 @@ In Foundry: **Add-on Modules → Install Module**, then paste this manifest URL:
 https://github.com/Heiiji/Table-companion-module/releases/latest/download/module.json
 ```
 
-Enable it in your world, then open **Settings → Table Companion** to run setup.
+Enable it in your world, then open **Settings → Configure Settings → Table
+Companion** to run setup.
 
 ## Setup (one minute)
 
-1. Open **Settings → Table Companion** (Gamemaster only).
+1. Open **Settings → Configure Settings → Table Companion** (Gamemaster only).
 2. Click **Create Companion user** and copy the generated password.
-3. Paste that password into the Table Companion app to link your table.
+3. Paste that password into the Table Companion app — or scan the QR code shown —
+   to link your table.
 4. Give the `Companion` user *Observer* (display) or *Owner* (edit) permission on
    your players' characters.
 
 > **Important:** never log in to Foundry as the `Companion` user yourself —
 > Foundry allows one session per user, so it would disconnect the app.
 
-The password is shown only once. If you lose it, delete the `Companion` user in
-Foundry's player configuration and run setup again to generate a new one. If the
-**Settings → Table Companion** button is ever missing, a Gamemaster can open
-setup from the console with `game.modules.get("table-companion").api.openSetup()`.
+The password is shown only once. If you lose it, open setup and click **Reset
+password** to generate a new one — no need to delete the user or re-grant
+permissions. If the **Table Companion** settings entry is ever missing, a
+Gamemaster can open setup from the console with
+`game.modules.get("table-companion").api.openSetup()`.
 
 ## Compatibility
 

@@ -10,10 +10,16 @@
     "setup": {
       "title": "Table Companion — Setup",
       "openButton": "Table Companion",
-      "intro": "Connect this world to the Table Companion app. Create the dedicated Companion user once, then paste its password into the app to link your table.",
+      "menu": {
+        "name": "Table Companion",
+        "label": "Open setup",
+        "hint": "Set up the Companion user and view the app link status."
+      },
+      "intro": "Connect this world to the Table Companion app. Create the dedicated Companion user once, then paste its password (or scan the QR code) into the app to link your table.",
       "ownershipHint": "Tip: give the Companion user Observer (to display) or Owner (to edit) permission on your players' characters, so the app can show and update their sheets.",
       "button": {
         "create": "Create Companion user",
+        "resetPassword": "Reset password",
         "resetPairing": "Reset pairing"
       },
       "status": {
@@ -24,24 +30,28 @@
         "linkIdle": "Waiting",
         "pairing": "Agent identity",
         "paired": "Paired",
-        "notPaired": "Not paired"
+        "notPaired": "Not paired",
+        "linkedHint": "Linked — the app is connected to this world."
       },
       "notify": {
         "exists": "The {name} user already exists — nothing changed.",
-        "pairingReset": "Agent pairing reset — the next agent connection will re-pair."
+        "pairingReset": "Agent pairing reset — the next agent connection will re-pair.",
+        "noUser": "Create the Companion user first, then you can reset its password."
       },
       "password": {
         "title": "Companion password",
         "intro": "The {name} user was created. Copy this password into the Table Companion app now — it is shown only once.",
+        "scanHint": "Or scan this with the Table Companion app to pair instantly:",
         "warning": "Never log in to Foundry as {name} yourself: Foundry allows one session per user, so doing so disconnects the app.",
         "copy": "Copy password",
         "copied": "Password copied to clipboard.",
         "copyManual": "Could not copy automatically — select the password above and copy it manually.",
-        "recover": "Lost it later? Delete the {name} user in Foundry's player configuration and run setup again to generate a new one."
+        "recover": "Lost it later? Open this setup and use Reset password to generate a new one — no need to delete the user or re-grant permissions."
       },
       "error": {
         "gmOnly": "Only a Gamemaster can run Table Companion setup.",
-        "createFailed": "Could not create the Companion user."
+        "createFailed": "Could not create the Companion user.",
+        "resetFailed": "Could not reset the Companion password."
       }
     }
   }

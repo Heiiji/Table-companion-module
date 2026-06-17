@@ -1,4 +1,4 @@
-import { ENVELOPE_VERSION, MAX_ENVELOPE_BYTES } from "../constants.js";
+import { ENVELOPE_VERSION } from "../constants.js";
 
 /** Envelope message types. Additive: new types may be added in later envelope
  * versions; receivers MUST ignore types they do not recognize. */
@@ -56,9 +56,6 @@ export interface Envelope {
  * the two we branch on (`type`, `v`). */
 export function parseEnvelope(raw: unknown): Envelope | null {
   if (typeof raw !== "object" || raw === null) return null;
-  // Bound the message size before doing any further work, so a malicious peer
-  // can't cheaply force large allocations on every connected client.
-  if (oversized(raw)) return null;
   const e = raw as Record<string, unknown>;
   if (typeof e.type !== "string") return null;
   if (typeof e.v !== "number") return null;
@@ -82,16 +79,6 @@ export function makeEnvelope(
   fields: Partial<Omit<Envelope, "v" | "type" | "ts">> = {},
 ): Envelope {
   return { v: ENVELOPE_VERSION, type, ts: Date.now(), ...fields };
-}
-
-/** True when the message serializes to more than MAX_ENVELOPE_BYTES. Returns
- * true (reject) if it can't be serialized at all (e.g. circular refs). */
-function oversized(raw: object): boolean {
-  try {
-    return JSON.stringify(raw).length > MAX_ENVELOPE_BYTES;
-  } catch {
-    return true;
-  }
 }
 
 function isPeerInfo(x: unknown): x is PeerInfo {

@@ -1,0 +1,50 @@
+# Changelog
+
+All notable changes to this module are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
+to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Security
+- Drop oversized socket messages by their wire size **before** parsing, closing a
+  denial-of-service vector where any connected client could force a large
+  allocation/parse on every browser at the table.
+- Reject stale and replayed agent envelopes (a timestamp-freshness window plus a
+  bounded seen-id cache), so a captured signed envelope can no longer be replayed
+  to re-trigger a procedure or fake link liveness.
+- Bound `roll.execute` formula length and dice count before evaluation, so an
+  oversized formula can't freeze the responding GM's browser.
+- Create the Companion service user with the least-privilege **PLAYER** role
+  instead of TRUSTED (its reach still comes from per-actor ownership).
+
+### Changed
+- Non-responder clients no longer verify `rpc.request`/`ping` traffic they would
+  never act on.
+- The **Settings → Table Companion** entry is now registered through Foundry's
+  settings-menu API instead of being injected into the sidebar DOM.
+
+### Added
+- Live-updating link-status panel (no more manual Refresh to see the link go
+  live).
+- Non-destructive **Reset password** action for the Companion user.
+- QR-code pairing in the password dialog for one-scan setup from the mobile app.
+- First direct test coverage of the RPC channel (signature gate, pairing,
+  responder gating, replay), and a push/pull-request CI workflow.
+- Accessibility and onboarding refinements in the setup dialog.
+
+## [0.2.1]
+
+### Added
+- `roll.execute` RPC procedure: evaluates a formula through Foundry's own dice
+  pipeline so the app can obtain system-exact rolls.
+
+### Fixed
+- Single-instance setup dialog and more robust password copy.
+
+## [0.2.0]
+
+### Added
+- Authenticated agent channel: Ed25519 message signing with trust-on-first-use
+  key pinning, an active-GM presence signal pushed to the agent, and release
+  hardening.

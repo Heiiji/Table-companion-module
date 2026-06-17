@@ -19,6 +19,8 @@
  * then parses them.
  */
 
+import { MAX_ENVELOPE_BYTES } from "../constants.js";
+
 /** The wire shape of a signed message: the serialized envelope plus a detached
  * signature over its bytes. */
 export interface SignedMessage {
@@ -34,6 +36,10 @@ export function parseSignedMessage(raw: unknown): SignedMessage | null {
   if (typeof raw !== "object" || raw === null) return null;
   const m = raw as Record<string, unknown>;
   if (typeof m.sig !== "string" || typeof m.body !== "string") return null;
+  // Bound the serialized size on the raw wire string, BEFORE anyone JSON.parses
+  // `body`, so a malicious peer can't force a large allocation/parse on every
+  // connected client by flooding oversized messages.
+  if (m.body.length > MAX_ENVELOPE_BYTES) return null;
   return { sig: m.sig, body: m.body };
 }
 

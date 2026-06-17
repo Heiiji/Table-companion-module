@@ -5,6 +5,7 @@ import {
   verifySignature,
   type SignedMessage,
 } from "../src/rpc/signing.js";
+import { MAX_ENVELOPE_BYTES } from "../src/constants.js";
 
 function toB64(bytes: ArrayBuffer | Uint8Array): string {
   const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
@@ -50,6 +51,14 @@ describe("parseSignedMessage", () => {
     expect(parseSignedMessage({ sig: 1, body: "{}" })).toBeNull();
     // A legacy unsigned envelope is not a signed wrapper.
     expect(parseSignedMessage({ v: 1, type: "hello" })).toBeNull();
+  });
+
+  it("rejects an oversized body before parsing", () => {
+    const body = "x".repeat(MAX_ENVELOPE_BYTES + 1);
+    expect(parseSignedMessage({ sig: "abc", body })).toBeNull();
+    // A body at the limit is still accepted.
+    const atLimit = "x".repeat(MAX_ENVELOPE_BYTES);
+    expect(parseSignedMessage({ sig: "abc", body: atLimit })).not.toBeNull();
   });
 });
 

@@ -66,21 +66,6 @@ describe("parseEnvelope", () => {
     expect(env!.id).toBeUndefined();
     expect(env!.proc).toBeUndefined();
   });
-
-  it("rejects an oversized envelope before parsing", () => {
-    const big = parseEnvelope({
-      type: "event",
-      v: 1,
-      payload: "x".repeat(64 * 1024 + 1),
-    });
-    expect(big).toBeNull();
-  });
-
-  it("rejects an unserializable (circular) message", () => {
-    const circular: Record<string, unknown> = { type: "ping", v: 1 };
-    circular.self = circular;
-    expect(parseEnvelope(circular)).toBeNull();
-  });
 });
 
 describe("makeEnvelope", () => {

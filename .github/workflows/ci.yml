@@ -1,0 +1,39 @@
+name: CI
+
+# Verify every push and pull request. The release workflow re-runs these same
+# gates on a tag, but this catches problems on branches and PRs long before a
+# release is cut.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# Cancel an in-progress run when a newer commit lands on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Guard the single hand-synced field: the repo manifest version must match
+      # package.json (the source of truth the build stamps from).
+      - name: Check module.json/package.json version match
+        run: |
+          node -e "const p=require('./package.json').version,m=require('./module.json').version; if(p!==m){console.error('version mismatch: package.json '+p+' vs module.json '+m);process.exit(1)}"
+
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build

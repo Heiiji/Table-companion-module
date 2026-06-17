@@ -35,6 +35,11 @@ Hooks.once("init", () => {
     if (channel) void openSetupApp(channel);
   };
 
+  // GM-only setup entry under Settings → Configure Settings, via Foundry's own
+  // settings-menu API (layout-stable across v13/v14, unlike injecting into the
+  // sidebar DOM). The API's openSetup() remains a fallback entry point.
+  registerSetupMenu(openSetup);
+
   // Publish the public API as early as possible so dependents can read it.
   if (mod) {
     (mod as { api?: unknown }).api = buildApi(version, registry, channel, openSetup);
@@ -50,35 +55,35 @@ Hooks.once("ready", () => {
   if (channel) startPresenceWatcher(channel);
 });
 
-// Add a control to the Settings sidebar so a GM can open setup any time. The
-// `html` arg is a jQuery object on v13 and a raw HTMLElement on v14; the sidebar
-// layout also differs, so we normalize, append defensively, and never let a
-// layout change throw inside the hook (the API's openSetup() is the fallback).
-Hooks.on("renderSettings", (_app: unknown, html: unknown) => {
-  if (!game.user?.isGM || !channel) return;
+/** Register the setup launcher as a settings menu. The menu's `type` is a minimal
+ * ApplicationV2 whose render just opens our DialogV2 setup panel and returns, so
+ * the button behaves as a launcher. Defined here (not at import) because the
+ * `foundry` global only exists once `init` runs. Never throws into init — the
+ * public-API openSetup() is the fallback. */
+function registerSetupMenu(openSetup: () => void): void {
   try {
-    const root = normalizeHtml(html);
-    if (!root || root.querySelector(`.${MODULE_ID}-settings-block`)) return;
-
-    const btn = document.createElement("button");
-    btn.type = "button";
-    const icon = document.createElement("i");
-    icon.className = "fa-solid fa-dice-d20";
-    btn.append(icon, " ", localize("setup.openButton"));
-    btn.addEventListener("click", () => void openSetupApp(channel!));
-
-    const section = document.createElement("div");
-    section.classList.add(`${MODULE_ID}-settings-block`, "tca-settings-block");
-    section.appendChild(btn);
-    root.appendChild(section);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AppV2 = (foundry as any)?.applications?.api?.ApplicationV2;
+    if (!AppV2) return;
+    class SetupLauncher extends AppV2 {
+      async render(): Promise<unknown> {
+        openSetup();
+        return this;
+      }
+    }
+    (
+      game.settings as unknown as {
+        registerMenu(ns: string, key: string, data: unknown): void;
+      }
+    )?.registerMenu(MODULE_ID, "setupMenu", {
+      name: localize("setup.menu.name"),
+      label: localize("setup.menu.label"),
+      hint: localize("setup.menu.hint"),
+      icon: "fa-solid fa-dice-d20",
+      type: SetupLauncher,
+      restricted: true,
+    });
   } catch (err) {
-    // Non-fatal: the GM can still open setup via the public API.
-    log.warn("could not add the settings button", err);
+    log.warn("could not register the setup menu", err);
   }
-});
-
-function normalizeHtml(html: unknown): HTMLElement | null {
-  if (html instanceof HTMLElement) return html;
-  const arr = html as ArrayLike<HTMLElement> | undefined; // jQuery on v13
-  return arr && arr.length ? arr[0] : null;
 }

@@ -60,10 +60,26 @@
   margin: 0.25rem 0 0.5rem;
 }
 
-.tca-settings-block {
-  margin-top: 0.5rem;
+.tca-qr {
+  display: flex;
+  justify-content: center;
+  margin: 0.25rem 0 0.5rem;
 }
 
-.tca-settings-block button {
-  width: 100%;
+.tca-qr img {
+  width: 160px;
+  height: 160px;
+  image-rendering: pixelated;
+  background: #fff;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.tca-password .tca-scan {
+  text-align: center;
+  margin-bottom: 0.25rem;
+}
+
+.tca-linked {
+  color: var(--color-level-success, #18520b);
 }

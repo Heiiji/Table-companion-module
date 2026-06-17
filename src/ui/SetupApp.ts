@@ -1,9 +1,11 @@
+import qrcode from "qrcode-generator";
 import type { Channel } from "../rpc/channel.js";
 import { LINK_STALE_MS } from "../constants.js";
 import {
   COMPANION_USER_NAME,
   ensureCompanionUser,
   findCompanionUser,
+  resetCompanionPassword,
 } from "../setup/companion-user.js";
 import { escapeHtml } from "../util/html.js";
 import { localize, log } from "../util/log.js";
@@ -70,7 +72,12 @@ async function statusHtml(channel: Channel): Promise<string> {
       linkLive,
     ) +
     row(localize("setup.status.pairing"), pairingValue, pairing.paired) +
-    `</div>`
+    `</div>` +
+    (linkLive
+      ? `<p class="tca-hint tca-linked">` +
+        `<i class="fa-solid fa-circle-check" aria-hidden="true"></i> ` +
+        `${escapeHtml(localize("setup.status.linkedHint"))}</p>`
+      : "")
   );
 }
 
@@ -79,14 +86,19 @@ function setupContent(statusBlock: string): string {
   // them never dismisses the dialog — we update the status in place instead.
   const btn = (action: string, icon: string, label: string) =>
     `<button type="button" data-tca="${action}">` +
-    `<i class="${icon}"></i> ${escapeHtml(label)}</button>`;
+    `<i class="${icon}" aria-hidden="true"></i> ${escapeHtml(label)}</button>`;
 
   return (
     `<section class="tca-setup">` +
     `<p>${localize("setup.intro")}</p>` +
-    `<div class="tca-status-host">${statusBlock}</div>` +
+    `<div class="tca-status-host" role="status" aria-live="polite">${statusBlock}</div>` +
     `<div class="tca-actions">` +
     btn("create", "fa-solid fa-user-plus", localize("setup.button.create")) +
+    btn(
+      "resetPassword",
+      "fa-solid fa-key",
+      localize("setup.button.resetPassword"),
+    ) +
     btn("refresh", "fa-solid fa-rotate", localize("common.refresh")) +
     btn(
       "reset",
@@ -101,8 +113,32 @@ function setupContent(statusBlock: string): string {
 
 /** Replace just the status panel in the open dialog, leaving wired buttons. */
 async function refreshStatus(channel: Channel, dialog: DialogInstance): Promise<void> {
-  const host = dialog.element.querySelector(".tca-status-host");
+  const host = dialog.element?.querySelector(".tca-status-host");
   if (host) host.innerHTML = await statusHtml(channel);
+}
+
+/** Keep the open panel current: repaint on a light interval (covers the
+ * time-relative "Live/Waiting" decay) and on user connect/disconnect (Companion
+ * online/offline). Torn down once the dialog closes, detected via
+ * `dialog.rendered` on the next tick. */
+function startLiveRefresh(channel: Channel, dialog: DialogInstance): void {
+  const hooks = Hooks as unknown as {
+    on(hook: string, fn: () => void): number;
+    off(hook: string, id: number): void;
+  };
+  const refresh = () => void refreshStatus(channel, dialog);
+  const ids: Array<[string, number]> = [
+    ["userConnected", hooks.on("userConnected", refresh)],
+    ["userDisconnected", hooks.on("userDisconnected", refresh)],
+  ];
+  const timer = setInterval(() => {
+    if (dialog.rendered) {
+      refresh();
+      return;
+    }
+    clearInterval(timer);
+    for (const [hook, id] of ids) hooks.off(hook, id);
+  }, 4000);
 }
 
 function wireSetupActions(channel: Channel, dialog: DialogInstance): void {
@@ -115,6 +151,22 @@ function wireSetupActions(channel: Channel, dialog: DialogInstance): void {
   on("create", async () => {
     await runCreate();
     await refreshStatus(channel, dialog);
+  });
+  on("resetPassword", async () => {
+    // Friendly pre-check so the destructive-sounding error never appears for the
+    // common "no user yet" case.
+    if (!findCompanionUser()) {
+      ui.notifications?.warn(localize("setup.notify.noUser"));
+      return;
+    }
+    try {
+      const password = await resetCompanionPassword();
+      await showPassword(password);
+      await refreshStatus(channel, dialog);
+    } catch (err) {
+      log.error("reset password failed", err);
+      ui.notifications?.error(localize("setup.error.resetFailed"));
+    }
   });
   on("refresh", () => refreshStatus(channel, dialog));
   on("reset", async () => {
@@ -147,6 +199,7 @@ export async function openSetupApp(channel: Channel): Promise<void> {
     setupDialog = dialog;
     await dialog.render({ force: true });
     wireSetupActions(channel, dialog);
+    startLiveRefresh(channel, dialog);
   } catch (err) {
     setupDialog = undefined;
     log.error("could not open setup dialog", err);
@@ -176,10 +229,12 @@ async function showPassword(password: string): Promise<void> {
   const content =
     `<section class="tca-password">` +
     `<p>${localize("setup.password.intro", { name: COMPANION_USER_NAME })}</p>` +
-    `<div class="tca-password-box"><code>${escapeHtml(password)}</code></div>` +
+    `<div class="tca-password-box"><code tabindex="0">${escapeHtml(password)}</code></div>` +
     `<button type="button" data-tca="copy" class="tca-copy">` +
-    `<i class="fa-solid fa-copy"></i> ${escapeHtml(localize("setup.password.copy"))}</button>` +
-    `<p class="tca-warn"><i class="fa-solid fa-triangle-exclamation"></i> ` +
+    `<i class="fa-solid fa-copy" aria-hidden="true"></i> ${escapeHtml(localize("setup.password.copy"))}</button>` +
+    `<p class="tca-hint tca-scan">${escapeHtml(localize("setup.password.scanHint"))}</p>` +
+    `<div class="tca-qr" data-tca="qr"></div>` +
+    `<p class="tca-warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ` +
     `${localize("setup.password.warning", { name: COMPANION_USER_NAME })}</p>` +
     `<p class="tca-hint">${localize("setup.password.recover", { name: COMPANION_USER_NAME })}</p>` +
     `</section>`;
@@ -193,6 +248,47 @@ async function showPassword(password: string): Promise<void> {
   dialog.element
     .querySelector('[data-tca="copy"]')
     ?.addEventListener("click", () => void copyPassword(password, dialog.element));
+  renderPairingQr(password, dialog.element);
+  selectPasswordCode(dialog.element);
+}
+
+/** Render a pairing QR the Table Companion app can scan, encoding a deep link the
+ * app registers. Best-effort: if generation fails the QR block is removed and the
+ * password text + Copy button remain the way to pair. (Until the app registers
+ * the `tablecompanion://` scheme, a scan still yields the password verbatim.) */
+function renderPairingQr(password: string, root: HTMLElement): void {
+  const host = root.querySelector('[data-tca="qr"]');
+  if (!host) return;
+  try {
+    const link =
+      `tablecompanion://pair?u=${encodeURIComponent(COMPANION_USER_NAME)}` +
+      `&p=${encodeURIComponent(password)}`;
+    const qr = qrcode(0, "M");
+    qr.addData(link);
+    qr.make();
+    host.innerHTML = qr.createImgTag(4, 8);
+    host.querySelector("img")?.setAttribute("alt", localize("setup.password.scanHint"));
+  } catch (err) {
+    host.remove();
+    log.warn("could not render the pairing QR code", err);
+  }
+}
+
+/** Select the password text on open so a screen reader announces it and Ctrl-C
+ * copies it without reaching for the button (it is shown only once). */
+function selectPasswordCode(root: HTMLElement): void {
+  const code = root.querySelector<HTMLElement>(".tca-password-box code");
+  if (!code) return;
+  try {
+    code.focus();
+    const range = document.createRange();
+    range.selectNodeContents(code);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  } catch {
+    // Non-fatal: selection is only a convenience.
+  }
 }
 
 /** Copy the password, trying the async Clipboard API then a legacy selection

@@ -16,12 +16,35 @@ export const ENVELOPE_VERSION = 1;
 /** How recent a `hello` from the agent must be for the link to read "live". */
 export const LINK_STALE_MS = 90_000;
 
-/** Upper bound on a single inbound envelope's serialized size. This is a control
+/** Anti-replay: reject any signed envelope whose `ts` is outside ±this window
+ * from now. Foundry relays every `module.*` emission to all sessions, so a
+ * malicious player could otherwise capture a signed agent envelope and replay it
+ * verbatim (the signature still verifies). Reusing the link-stale window keeps a
+ * single notion of "recent." Requires the agent to stamp a fresh `ts`. */
+export const REPLAY_WINDOW_MS = LINK_STALE_MS;
+
+/** Anti-replay: how many recently-accepted envelope `id`s the responder keeps to
+ * drop duplicate (replayed) rpc.requests. Bounded FIFO — the oldest id is
+ * evicted past this size, so the set can't grow without limit. */
+export const SEEN_ID_CACHE_MAX = 256;
+
+/** Upper bound on a single inbound message's serialized size. This is a control
  * channel carrying small JSON messages; anything larger is malformed or hostile
- * (a flood/DoS attempt) and is dropped before parsing. Generous on purpose. */
+ * (a flood/DoS attempt). We check the raw signed `body` string length BEFORE
+ * `JSON.parse`, so an oversized message is dropped without allocating/parsing it
+ * (see parseSignedMessage in rpc/signing.ts). Generous on purpose. */
 export const MAX_ENVELOPE_BYTES = 64 * 1024;
 
 /** World-setting key holding the pinned agent Ed25519 public key (base64). Empty
  * until the module pairs with an agent on first contact. config:false — it is
  * managed by the module/setup UI, not shown in Foundry's settings form. */
 export const SETTING_AGENT_KEY = "agentPublicKey";
+
+/** roll.execute guard: reject formulas longer than this many characters, a cheap
+ * first bound on complexity before we even construct a Roll. */
+export const MAX_ROLL_FORMULA_LEN = 500;
+
+/** roll.execute guard: reject a formula whose total dice count exceeds this, so a
+ * request like "999999d6" (from a buggy/compromised agent, or a replay) can't
+ * freeze the responder GM's browser inside `Roll#evaluate`. */
+export const MAX_ROLL_DICE = 1000;

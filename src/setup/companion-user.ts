@@ -44,14 +44,16 @@ export function findCompanionUser(): User | undefined {
 
 /**
  * Create the Companion service user with a crypto-strong generated password and
- * the TRUSTED role. Note ownership is independent of role: any role can be
- * granted OWNER on a specific actor. TRUSTED is chosen as a conservative default
- * because it grants a small bundle of world-level permissions over PLAYER; the
- * agent's actual reach still comes from the per-actor ownership the GM grants
- * and the world's role-permission config. We stamp a module flag so the user
- * remains findable after a rename. If the user already exists we leave it
- * untouched and return its id — we never reset a password the GM may already
- * have linked into the app.
+ * the PLAYER role (least privilege). Ownership is independent of role: the
+ * agent's actual reach comes from the per-actor OWNER/OBSERVER permission the GM
+ * grants, not from the role — so PLAYER is the right default. It deliberately
+ * avoids the world-level permissions TRUSTED adds over PLAYER (measured-template
+ * / drawing creation and, where a world enables it for TRUSTED, FILES_UPLOAD —
+ * writing media to the Foundry host's filesystem), which an automated account
+ * whose password is handed to an external app should not carry. We stamp a
+ * module flag so the user remains findable after a rename. If the user already
+ * exists we leave it untouched and return its id — we never reset a password the
+ * GM may already have linked into the app.
  *
  * Returns the plaintext password so the UI can show it once. We never persist or
  * log it.
@@ -66,7 +68,7 @@ export async function ensureCompanionUser(): Promise<CompanionResult> {
   const created = (await User.create({
     name: COMPANION_USER_NAME,
     password,
-    role: CONST.USER_ROLES.TRUSTED,
+    role: CONST.USER_ROLES.PLAYER,
     flags: { [MODULE_ID]: { [COMPANION_FLAG]: true } },
   } as unknown as UserCreateData)) as User | undefined;
 
@@ -75,4 +77,22 @@ export async function ensureCompanionUser(): Promise<CompanionResult> {
   }
   log.info(`created service user "${COMPANION_USER_NAME}" (${created.id})`);
   return { userId: created.id, password, existed: false };
+}
+
+/**
+ * Generate a fresh password for the EXISTING Companion user and return it (shown
+ * once, never stored). Unlike deleting and recreating the user, this preserves
+ * its id and every per-actor ownership the GM has granted — so a fumbled copy no
+ * longer costs the GM their setup. Throws if there is no Companion user yet; the
+ * caller (setup UI) checks first and shows a friendly message.
+ */
+export async function resetCompanionPassword(): Promise<string> {
+  const user = findCompanionUser();
+  if (!user) throw new Error("no Companion user to reset");
+  const password = generatePassword();
+  await (
+    user as unknown as { update(data: { password: string }): Promise<unknown> }
+  ).update({ password });
+  log.info("reset the Companion user password");
+  return password;
 }
