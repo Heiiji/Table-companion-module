@@ -7,6 +7,9 @@
       "done": "Terminé",
       "refresh": "Actualiser"
     },
+    "display": {
+      "status": "En jeu"
+    },
     "setup": {
       "title": "Table Companion — Configuration",
       "openButton": "Table Companion",

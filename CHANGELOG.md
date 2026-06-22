@@ -4,6 +4,19 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Shared-screen / projector display** (`display.show` / `display.clear`): two
+  additive RPC procedures that render a GM-authored, already-revealed projection
+  (portrait + fields) as a high-contrast, large-type projector popout on every
+  connected client. The responder renders locally and rebroadcasts on the shared
+  socket so each player's browser shows it too. Status is a text label ("En jeu"),
+  never color-only. Advertised as the `display.show` capability so the app
+  feature-detects it; absent ⇒ the app keeps its "Now Showing" spotlight on the
+  WebRTC mesh only. No canvas/Actor/scene coupling; the module performs no
+  redaction (the payload is already-revealed content) and is the sole HTML escaper.
+
 ## [0.3.0] - 2026-06-17
 
 ### Security

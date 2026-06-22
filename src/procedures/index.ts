@@ -3,6 +3,7 @@ import { ping } from "./ping.js";
 import { presence } from "./presence.js";
 import { rollExecute } from "./rollExecute.js";
 import { compendiumIndex, compendiumGet } from "./compendium.js";
+import { displayShow, displayClear } from "./display.js";
 
 /** Register every built-in procedure. Each registration adds one capability to
  * the module's advertised set. */
@@ -15,4 +16,9 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   // with the backend catalog. Additive; absent ⇒ backend-only library.
   registry.register("compendium.index", compendiumIndex);
   registry.register("compendium.get", compendiumGet);
+  // PNJ refactor (decision #3): shared-screen / projector display. Additive; absent
+  // ⇒ the app keeps the "Now Showing" spotlight mesh-only. The "display.show"
+  // capability is the app's feature-detect key.
+  registry.register("display.show", displayShow);
+  registry.register("display.clear", displayClear);
 }
