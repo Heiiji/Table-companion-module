@@ -70,19 +70,6 @@ function num(obj: unknown, ...path: string[]): number | undefined {
   return typeof cur === "number" ? cur : undefined;
 }
 
-/** Safely read a string at a nested path. */
-function str(obj: unknown, ...path: string[]): string | undefined {
-  let cur: unknown = obj;
-  for (const key of path) {
-    if (cur && typeof cur === "object" && key in (cur as Record<string, unknown>)) {
-      cur = (cur as Record<string, unknown>)[key];
-    } else {
-      return undefined;
-    }
-  }
-  return typeof cur === "string" ? cur : undefined;
-}
-
 function defined<T extends Record<string, unknown>>(obj: T): Partial<T> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {

@@ -6,7 +6,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-23
+
 ### Added
+- **Foundry compendium passthrough** (`compendium.index` / `compendium.get`): two additive RPC
+  procedures that surface the GM's own Foundry compendium content (creatures, spells, items) so the
+  app can merge it with the backend reference catalog into one "augmented library". `compendium.index`
+  returns pack-qualified summaries (`"<pack>|<docId>"` ids) filtered by content type / system / query;
+  `compendium.get` returns one raw Foundry document. The GM already owns this content — it is surfaced
+  live, never redistributed or cached server-side; the app normalizes it via its existing system
+  mappers, so the module stays system-agnostic. Absent ⇒ the app shows backend-only catalog content.
 - **Per-system widget oracle** — three additive, capability-gated RPC procedures that feed the
   apps' per-game-system dashboard widgets with Foundry ground truth (absent ⇒ the app uses its
   local profile-derived baseline / dice engine, so no widget is gated by Foundry):

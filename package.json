@@ -1,6 +1,6 @@
 {
   "name": "table-companion-module",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Optional Foundry VTT module that amplifies the Table Companion agent: one-click Companion-user setup, link status, and a versioned RPC channel.",
   "type": "module",
