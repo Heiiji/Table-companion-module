@@ -7,6 +7,19 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Per-system widget oracle** — three additive, capability-gated RPC procedures that feed the
+  apps' per-game-system dashboard widgets with Foundry ground truth (absent ⇒ the app uses its
+  local profile-derived baseline / dice engine, so no widget is gated by Foundry):
+  - `sheet.derived` — a fully-prepared actor's system-aware derived data (saving-throw totals +
+    proficiency ranks, AC, spell DC/attack, slot maxes) plus its raw prepared `system`, items and
+    effects. The headless connector can never see these (system JS computes them in-session).
+  - `roll.action` — a system-contextual roll resolved through the system's own pipeline
+    (pf2e save/check with degrees-of-success, dnd5e check/save with advantage, Knight aspect
+    d6-pool sized from the actor), returning the evaluated roll + `system` enrichment.
+  - `effect.apply` / `effect.remove` / `effect.setValue` — system-aware condition/effect mutations
+    so rule side-effects fire (pf2e valued conditions via the system API, dnd5e concentration drop
+    via the stable ActiveEffect delete path). Mechanical embedded toggles stay on the agent's
+    connector write path. All are responder-gated by the existing rpc.request dispatch.
 - **Shared-screen / projector display** (`display.show` / `display.clear`): two
   additive RPC procedures that render a GM-authored, already-revealed projection
   (portrait + fields) as a high-contrast, large-type projector popout on every
