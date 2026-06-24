@@ -88,7 +88,75 @@ function pf2eDerived(sys: Record<string, unknown>): Record<string, unknown> {
   });
 }
 
-function dnd5eDerived(sys: Record<string, unknown>): Record<string, unknown> {
+/**
+ * Normalize one spell-slot bucket (system.spells.spellN or .pact) into {value,max}, dropping it
+ * when neither side is present so non-casters / unused levels don't emit empty buckets.
+ */
+function slotBucket(spells: unknown, key: string): { value?: number; max?: number } | undefined {
+  const value = num(spells, key, "value");
+  const max = num(spells, key, "max");
+  if (value === undefined && max === undefined) return undefined;
+  return defined({ value, max });
+}
+
+/**
+ * spellSlots: per-level {value: remaining, max: total} for levels 1..9 plus Warlock `pact`.
+ * Verified paths: system.spells.spellN.value/.max and system.spells.pact.value/.max (dnd5e
+ * Roll-Formulas wiki). Returns undefined when no bucket has data (caller drops it via defined()).
+ */
+function dnd5eSpellSlots(sys: Record<string, unknown>): Record<string, unknown> | undefined {
+  const spells = sys.spells;
+  if (!spells || typeof spells !== "object") return undefined;
+  const out: Record<string, unknown> = {};
+  for (let level = 1; level <= 9; level++) {
+    const bucket = slotBucket(spells, `spell${level}`);
+    if (bucket) out[`level${level}`] = bucket;
+  }
+  const pact = slotBucket(spells, "pact");
+  if (pact) out.pact = pact;
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * hitDice {value: remaining, max: total}. v4 stores system.attributes.hd as an object with
+ * .value/.max (the HitDice document); v3 stored a bare integer (remaining only, no max here).
+ * Coerce both into the same {value,max} shape. Verified: dnd5e v4 HitDice getters value()/max().
+ */
+function dnd5eHitDice(sys: Record<string, unknown>): Record<string, unknown> | undefined {
+  const attrs = sys.attributes;
+  if (!attrs || typeof attrs !== "object") return undefined;
+  const hd = (attrs as Record<string, unknown>).hd;
+  if (typeof hd === "number") return { value: hd }; // v3: bare remaining count, no max
+  const value = num(sys, "attributes", "hd", "value");
+  const max = num(sys, "attributes", "hd", "max");
+  if (value === undefined && max === undefined) return undefined;
+  return defined({ value, max });
+}
+
+/** deathSaves {success,failure} — system.attributes.death.success/.failure (0..3). */
+function dnd5eDeathSaves(sys: Record<string, unknown>): Record<string, unknown> | undefined {
+  const success = num(sys, "attributes", "death", "success");
+  const failure = num(sys, "attributes", "death", "failure");
+  if (success === undefined && failure === undefined) return undefined;
+  return defined({ success, failure });
+}
+
+/**
+ * concentration {active, spellName?, effectId?}. dnd5e applies the special status "concentrating"
+ * as an ActiveEffect; we detect the (enabled) effect carrying that status and surface its id + the
+ * spell name. The spell label is the ONE element that cannot fully degrade standalone (the app
+ * falls back to its local concentration_spell field when Foundry is absent).
+ */
+function dnd5eConcentration(effects: EffectLike[]): Record<string, unknown> {
+  const eff = effects.find((e) => !e.disabled && statuses(e).includes("concentrating"));
+  if (!eff) return { active: false };
+  return defined({ active: true, spellName: eff.name ?? undefined, effectId: eff.id ?? undefined });
+}
+
+function dnd5eDerived(
+  sys: Record<string, unknown>,
+  effects: EffectLike[],
+): Record<string, unknown> {
   return defined({
     ac: num(sys, "attributes", "ac", "value"),
     proficiency: num(sys, "attributes", "prof"),
@@ -96,6 +164,10 @@ function dnd5eDerived(sys: Record<string, unknown>): Record<string, unknown> {
       dc: num(sys, "attributes", "spelldc") ?? num(sys, "attributes", "spell", "dc"),
       attack: num(sys, "attributes", "spell", "attack"),
     }),
+    spellSlots: dnd5eSpellSlots(sys),
+    hitDice: dnd5eHitDice(sys),
+    deathSaves: dnd5eDeathSaves(sys),
+    concentration: dnd5eConcentration(effects),
   });
 }
 
@@ -105,7 +177,7 @@ function extractDerived(actor: ActorLike): Record<string, unknown> {
     case "pf2e":
       return pf2eDerived(sys);
     case "dnd5e":
-      return dnd5eDerived(sys);
+      return dnd5eDerived(sys, [...(actor.effects ?? [])]);
     default:
       return {};
   }
