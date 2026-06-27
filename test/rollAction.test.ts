@@ -53,11 +53,65 @@ describe("roll.action", () => {
     expect(res.system?.ability).toBe("dex");
   });
 
-  it("knight aspect rolls an Nd6 pool sized from the actor's aspect value", async () => {
+  it("knight aspect+characteristic rolls an Nd6 pool sized from aspect.value + caracteristique.value", async () => {
     const evaluate = vi.fn(async () => ({
-      formula: "5d6",
-      total: 22,
-      dice: [{ faces: 6, results: [{ result: 4 }, { result: 6 }, { result: 2 }, { result: 5 }, { result: 5 }] }],
+      formula: "8d6",
+      total: 30,
+      dice: [
+        {
+          faces: 6,
+          results: [
+            { result: 4 },
+            { result: 6 },
+            { result: 2 },
+            { result: 5 },
+            { result: 5 },
+            { result: 1 },
+            { result: 4 },
+            { result: 3 },
+          ],
+        },
+      ],
+    }));
+    let builtFormula = "";
+    vi.stubGlobal("Roll", class {
+      constructor(public formula: string) {
+        builtFormula = formula;
+      }
+      evaluate = evaluate;
+    });
+    vi.stubGlobal("game", {
+      system: { id: "knight" },
+      actors: {
+        get: () => ({
+          system: { aspects: { chair: { value: 5, caracteristiques: { puissance: { value: 3 } } } } },
+        }),
+      },
+    });
+
+    const res = (await rollAction(
+      { actorId: "vex", type: "aspect", options: { aspect: "chair", characteristic: "puissance" } },
+      {} as never,
+    )) as {
+      dice: Array<{ faces: number; results: number[] }>;
+      system?: { pool?: number; aspect?: string; characteristic?: string; type?: string };
+    };
+
+    // pool = aspect 5 + caracteristique 3 = 8d6
+    expect(builtFormula).toBe("8d6");
+    expect(res.dice[0].faces).toBe(6);
+    expect(res.dice[0].results).toHaveLength(8);
+    expect(res.system?.type).toBe("aspect");
+    expect(res.system?.pool).toBe(8);
+    expect(res.system?.aspect).toBe("chair");
+    expect(res.system?.characteristic).toBe("puissance");
+  });
+
+  it("knight aspect roll accepts the singular 'caracteristique' spelling defensively", async () => {
+    const evaluate = vi.fn(async () => ({
+      formula: "7d6",
+      total: 20,
+      dice: [{ faces: 6, results: [{ result: 4 }, { result: 6 }, { result: 2 }, { result: 5 }, { result: 1 }, { result: 1 }, { result: 1 }] }],
     }));
     vi.stubGlobal("Roll", class {
       constructor(public formula: string) {}
@@ -65,18 +119,36 @@ describe("roll.action", () => {
     });
     vi.stubGlobal("game", {
       system: { id: "knight" },
-      actors: { get: () => ({ system: { aspects: { chair: { value: 5 } } } }) },
+      actors: {
+        get: () => ({
+          system: { aspects: { bete: { value: 4, caracteristique: { instinct: { value: 3 } } } } },
+        }),
+      },
     });
 
     const res = (await rollAction(
-      { actorId: "vex", type: "aspect", options: { aspect: "chair" } },
+      { actorId: "vex", type: "aspect", options: { aspect: "bete", characteristic: "instinct" } },
       {} as never,
-    )) as { dice: Array<{ faces: number; results: number[] }>; system?: { pool?: number; aspect?: string } };
+    )) as { system?: { pool?: number } };
 
-    expect(res.dice[0].faces).toBe(6);
-    expect(res.dice[0].results).toHaveLength(5);
-    expect(res.system?.pool).toBe(5);
-    expect(res.system?.aspect).toBe("chair");
+    expect(res.system?.pool).toBe(7);
+  });
+
+  it("knight aspect roll throws when the characteristic is missing so the app rolls locally", async () => {
+    vi.stubGlobal("Roll", class {
+      constructor(public formula: string) {}
+      evaluate = vi.fn();
+    });
+    vi.stubGlobal("game", {
+      system: { id: "knight" },
+      actors: {
+        get: () => ({ system: { aspects: { chair: { value: 5, caracteristiques: { puissance: { value: 3 } } } } } }),
+      },
+    });
+
+    await expect(
+      rollAction({ actorId: "vex", type: "aspect", options: { aspect: "chair" } }, {} as never),
+    ).rejects.toThrow(/characteristic/);
   });
 
   it("throws for an unsupported type so the app falls back locally", async () => {

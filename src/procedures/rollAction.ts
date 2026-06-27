@@ -64,6 +64,7 @@ interface ActionOptions {
   ability?: string;
   skill?: string;
   aspect?: string;
+  characteristic?: string;
   advantage?: boolean;
   disadvantage?: boolean;
   dc?: number;
@@ -142,18 +143,48 @@ async function rollDnd5e(actor: ActorLike, type: string, opts: ActionOptions): P
   }
 }
 
+/** A Knight aspect node: an aspect value plus its caracteristiques sub-scores (FR spelling). */
+interface KnightAspect {
+  value?: number;
+  // The real Knight system stores the sub-scores under `caracteristiques` (verified against the
+  // apps' own Knight mapper: aspects.{aspect}.caracteristiques.{characteristic}.value). We also
+  // accept a singular `caracteristique` defensively in case a variant world uses it.
+  caracteristiques?: Record<string, { value?: number } | undefined>;
+  caracteristique?: Record<string, { value?: number } | undefined>;
+}
+
+/** Read a numeric characteristic value out of an aspect, tolerating both FR spellings. */
+function knightCharacteristicValue(aspect: KnightAspect | undefined, characteristic: string): number | undefined {
+  const bag = aspect?.caracteristiques ?? aspect?.caracteristique;
+  const v = bag?.[characteristic]?.value;
+  return typeof v === "number" ? v : undefined;
+}
+
 async function rollKnight(actor: ActorLike, type: string, opts: ActionOptions): Promise<Record<string, unknown>> {
   if (type !== "aspect") throw new Error(`knight roll type '${type}' is not supported`);
   const aspect = opts.aspect ?? "";
+  const characteristic = opts.characteristic ?? "";
+  if (!aspect) throw new Error("knight aspect roll requires 'aspect'");
+  if (!characteristic) throw new Error("knight aspect roll requires 'characteristic'");
   const sys = actor.system ?? {};
-  const aspects = sys.aspects as Record<string, { value?: number }> | undefined;
-  const size = aspects?.[aspect]?.value;
-  if (typeof size !== "number" || size <= 0) throw new Error(`knight aspect '${aspect}' has no pool size`);
-  // The Knight aspect roll is a d6 success pool; we roll the pool here and let the app apply the
-  // success bands declared in the system profile (threshold/doubles), keeping the agent agnostic.
+  const aspects = sys.aspects as Record<string, KnightAspect | undefined> | undefined;
+  const node = aspects?.[aspect];
+  // The Knight roll is ASPECT + CARACTERISTIQUE: the d6 pool is the aspect score plus the chosen
+  // characteristic's score. Both must be present and the total positive; otherwise we throw so the
+  // app falls back to a local roll (standalone-first).
+  const aspectValue = typeof node?.value === "number" ? node.value : 0;
+  const characteristicValue = knightCharacteristicValue(node, characteristic);
+  if (aspectValue <= 0) throw new Error(`knight aspect '${aspect}' has no value`);
+  if (characteristicValue === undefined || characteristicValue <= 0) {
+    throw new Error(`knight characteristic '${characteristic}' on aspect '${aspect}' has no value`);
+  }
+  const size = aspectValue + characteristicValue;
+  if (size <= 0) throw new Error(`knight aspect+characteristic pool for '${aspect}'/'${characteristic}' is empty`);
+  // We roll the d6 success pool here and let the app apply the success bands declared in the system
+  // profile (threshold 4 / 6-doubles), keeping the agent/module agnostic about outcome bands.
   const RollCtor = (globalThis as unknown as { Roll: new (f: string) => RollLike }).Roll;
   const roll = await awaitRoll(new RollCtor(`${size}d6`).evaluate?.());
-  return packageRoll(roll, { type: "aspect", aspect, pool: size });
+  return packageRoll(roll, { type: "aspect", aspect, characteristic, pool: size });
 }
 
 export const rollAction: Procedure = async (payload) => {

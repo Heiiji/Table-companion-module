@@ -171,6 +171,41 @@ function dnd5eDerived(
   });
 }
 
+/** A single Knight aspect's pool value (system.aspects.{x}.value). */
+function knightAspectPool(sys: Record<string, unknown>, aspect: string): number | undefined {
+  return num(sys, "aspects", aspect, "value");
+}
+
+/**
+ * knightDerived: enrichment for the Knight player dashboard. All paths verified against the apps'
+ * own Knight mapper (FoundrySystemMappers.swift / FoundryMapper.kt):
+ *   - energyMax: gear-scoped on the equipped meta-armour (system.equipements.{wear}.energie.max),
+ *     with a top-level system.energie.max fallback. `wear` is system.wear (e.g. "tenueCivile").
+ *   - defense / reaction: system.defense.value / system.reaction.value.
+ *   - aspectPools: {chair,bete,machine,dame,masque,heaume} each = system.aspects.{x}.value.
+ * Best-effort and fully defensive (optional chaining, every field dropped when missing) so a sparse
+ * actor never throws; the app keeps its locally derived baseline when this is absent.
+ */
+function knightDerived(sys: Record<string, unknown>): Record<string, unknown> {
+  const wear = typeof sys.wear === "string" ? (sys.wear as string) : undefined;
+  const energyMax =
+    (wear ? num(sys, "equipements", wear, "energie", "max") : undefined) ?? num(sys, "energie", "max");
+  const aspectPools = defined({
+    chair: knightAspectPool(sys, "chair"),
+    bete: knightAspectPool(sys, "bete"),
+    machine: knightAspectPool(sys, "machine"),
+    dame: knightAspectPool(sys, "dame"),
+    masque: knightAspectPool(sys, "masque"),
+    heaume: knightAspectPool(sys, "heaume"),
+  });
+  return defined({
+    energyMax,
+    defense: num(sys, "defense", "value"),
+    reaction: num(sys, "reaction", "value"),
+    aspectPools: Object.keys(aspectPools).length ? aspectPools : undefined,
+  });
+}
+
 function extractDerived(actor: ActorLike): Record<string, unknown> {
   const sys = actor.system ?? {};
   switch (systemId()) {
@@ -178,6 +213,8 @@ function extractDerived(actor: ActorLike): Record<string, unknown> {
       return pf2eDerived(sys);
     case "dnd5e":
       return dnd5eDerived(sys, [...(actor.effects ?? [])]);
+    case "knight":
+      return knightDerived(sys);
     default:
       return {};
   }

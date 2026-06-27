@@ -161,6 +161,63 @@ describe("sheet.derived", () => {
     expect(res.derived.concentration).toEqual({ active: false });
   });
 
+  it("returns knight derived: gear-scoped energyMax, defense/reaction, aspect pools", async () => {
+    setGame("knight", {
+      id: "vex",
+      name: "Vex",
+      type: "knight",
+      system: {
+        wear: "armure",
+        equipements: { armure: { energie: { value: 8, max: 12 } } },
+        energie: { value: 4, max: 6 }, // top-level fallback (NOT used when gear-scoped present)
+        defense: { value: 11 },
+        reaction: { value: 5 },
+        aspects: {
+          chair: { value: 5 },
+          bete: { value: 4 },
+          machine: { value: 3 },
+          dame: { value: 2 },
+          masque: { value: 6 },
+          heaume: { value: 1 },
+        },
+      },
+    });
+    const res = (await sheetDerived({ actorId: "vex" }, {} as never)) as {
+      derived: {
+        energyMax?: number;
+        defense?: number;
+        reaction?: number;
+        aspectPools?: Record<string, number>;
+      };
+    };
+    expect(res.derived.energyMax).toBe(12); // gear-scoped wins over the top-level fallback
+    expect(res.derived.defense).toBe(11);
+    expect(res.derived.reaction).toBe(5);
+    expect(res.derived.aspectPools).toEqual({
+      chair: 5,
+      bete: 4,
+      machine: 3,
+      dame: 2,
+      masque: 6,
+      heaume: 1,
+    });
+  });
+
+  it("knight derived falls back to top-level energie.max and drops missing fields", async () => {
+    setGame("knight", {
+      id: "civ",
+      name: "Civ",
+      type: "knight",
+      system: { energie: { max: 6 }, aspects: { chair: { value: 5 } } }, // no wear/equipements, no defense
+    });
+    const res = (await sheetDerived({ actorId: "civ" }, {} as never)) as {
+      derived: { energyMax?: number; defense?: number; aspectPools?: Record<string, number> };
+    };
+    expect(res.derived.energyMax).toBe(6); // top-level fallback
+    expect(res.derived.defense).toBeUndefined(); // missing -> dropped
+    expect(res.derived.aspectPools).toEqual({ chair: 5 }); // only present aspects emitted
+  });
+
   it("returns an empty derived block for unknown systems but still the raw system", async () => {
     setGame("homebrew", { id: "x", name: "X", type: "npc", system: { foo: 1 } });
     const res = (await sheetDerived({ actorId: "x" }, {} as never)) as {
