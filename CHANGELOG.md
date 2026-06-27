@@ -6,6 +6,26 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-27
+
+### Added
+- **Knight Aspect + Caractéristique roll** (`roll.action`): `rollKnight` now sizes its
+  d6 pool from the actor's Aspect **and** a chosen Caractéristique (pool = aspect value +
+  `system.aspects.{aspect}.caracteristiques.{characteristic}.value`), accepting a
+  `characteristic` option. Success bands stay app-side, so the module keeps shipping the
+  system's own roll without baking in rules interpretation. Absent ⇒ the app falls back to
+  its local dice engine.
+- **Knight sheet oracle** (`sheet.derived`): `knightDerived` surfaces a Knight actor's
+  system-aware derived data — `energyMax`, `defense`, `reaction`, and per-aspect
+  `aspectPools` — with gear-scoped energy and a top-level fallback. Strictly additive;
+  the raw prepared `system` block is still returned.
+
+### Changed
+- **D&D 5e `sheet.derived` enrichment for the player dashboard**: `dnd5eDerived` now
+  normalizes `spellSlots` (per-level + pact), `hitDice` (v3 integer ↔ v4 object coercion),
+  `deathSaves`, and `concentration` (`{ active, spellName, effectId }`). Strictly additive;
+  the raw prepared `system` block is still returned.
+
 ## [0.4.0] - 2026-06-23
 
 ### Added
