@@ -1,5 +1,6 @@
 import type { Procedure } from "../rpc/registry.js";
 import { assertCompanionPermission, PermissionActorLike } from "./foundry.js";
+import { assertPayloadWithinCap } from "../rpc/errors.js";
 
 /**
  * Tier-1 oracle (read): expose a fully-prepared actor's system-aware data over the RPC channel.
@@ -251,7 +252,7 @@ export const sheetDerived: Procedure = async (payload) => {
     statuses: statuses(effect),
   }));
 
-  return {
+  const response = {
     actorId: actor.id ?? actorId,
     name: actor.name ?? "",
     type: actor.type ?? "",
@@ -261,4 +262,8 @@ export const sheetDerived: Procedure = async (payload) => {
     effects,
     derived: extractDerived(actor),
   };
+  // A fully-prepared actor (deep system block + items + effects) can exceed the envelope cap;
+  // fail loudly with payload_too_large rather than have the peer silently drop the response.
+  assertPayloadWithinCap(response);
+  return response;
 };

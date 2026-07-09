@@ -98,13 +98,14 @@ function stubGame(opts: { pinned?: string; responder?: boolean } = {}): void {
   });
 }
 
-function startChannel(): Channel {
+function startChannel(timeoutMs?: number): Channel {
   const registry = new ProcedureRegistry();
   registry.register("echo", (payload) => ({ echoed: payload }));
   registry.register("boom", () => {
     throw new Error("kaboom");
   });
-  const channel = new Channel(registry, "0.0.0-test");
+  registry.register("hang", () => new Promise(() => {})); // never settles
+  const channel = new Channel(registry, "0.0.0-test", timeoutMs);
   channel.start();
   emitSpy.mockClear(); // discard the hello broadcast on start
   return channel;
@@ -244,6 +245,16 @@ describe("Channel.onMessage", () => {
     expect(err.id).toBe("b1");
     expect((err.error as Fields).code).toBe("procedure_failed");
     expect((err.error as Fields).message).toBe("kaboom");
+  });
+
+  it("times out a hung handler with rpc.error procedure_timeout (C7/C8)", async () => {
+    stubGame({ pinned: agentPubB64 });
+    startChannel(20); // 20ms per-request deadline
+    await deliver(await sign(agentEnv("rpc.request", { id: "h1", proc: "hang" })));
+    const errs = emitted("rpc.error");
+    expect(errs).toHaveLength(1); // exactly one — the late handler resolution is ignored
+    expect(errs[0].id).toBe("h1");
+    expect((errs[0].error as Fields).code).toBe("procedure_timeout");
   });
 
   it("answers ping only when responder (A4)", async () => {

@@ -94,50 +94,74 @@ async function awaitRoll(value: ReturnType<RollMethod>): Promise<RollLike> {
   return roll;
 }
 
+// App-initiated pf2e rolls must never open the GM's roll dialog nor post to table chat.
+// Verified against pf2e's StatisticRollParameters: `skipDialog` skips the modifiers dialog,
+// `createMessage:false` suppresses the chat card (github.com/foundryvtt/pf2e statistic.ts).
+const PF2E_ROLL_OPTS = { skipDialog: true, createMessage: false } as const;
+
 async function rollPf2e(actor: ActorLike, type: string, opts: ActionOptions): Promise<Record<string, unknown>> {
   switch (type) {
     case "save": {
       const stat = actor.saves?.[opts.statistic ?? ""];
       if (!stat?.roll) throw new Error(`pf2e save '${opts.statistic}' is unavailable`);
-      return packageRoll(await awaitRoll(stat.roll({ dc: opts.dc })), { type: "save", statistic: opts.statistic });
+      return packageRoll(await awaitRoll(stat.roll({ dc: opts.dc, ...PF2E_ROLL_OPTS })), {
+        type: "save",
+        statistic: opts.statistic,
+      });
     }
     case "check":
     case "skill": {
       const slug = opts.skill ?? opts.statistic ?? "";
       const stat = slug === "perception" ? actor.perception : actor.skills?.[slug];
       if (!stat?.roll) throw new Error(`pf2e check '${slug}' is unavailable`);
-      return packageRoll(await awaitRoll(stat.roll({ dc: opts.dc })), { type, statistic: slug });
+      return packageRoll(await awaitRoll(stat.roll({ dc: opts.dc, ...PF2E_ROLL_OPTS })), { type, statistic: slug });
     }
     default:
       throw new Error(`pf2e roll type '${type}' is not supported`);
   }
 }
 
+// App-initiated dnd5e rolls must never open the GM's roll-configuration dialog nor post to
+// table chat. The modern Actor5e roll methods (Foundry 13-14 / dnd5e 4.x+) take
+// (config, dialog, message): `dialog.configure:false` skips the dialog and `message.create:false`
+// suppresses the chat card (github.com/foundryvtt/dnd5e actor.mjs). The pre-4.x positional
+// methods (rollAbilitySave / rollAbilityTest) instead take (id, { fastForward, chatMessage }).
+const DND5E_DIALOG = { configure: false } as const;
+const DND5E_MESSAGE = { create: false } as const;
+
 async function rollDnd5e(actor: ActorLike, type: string, opts: ActionOptions): Promise<Record<string, unknown>> {
   const cfg = { advantage: opts.advantage, disadvantage: opts.disadvantage };
+  const legacyOpts = { ...cfg, fastForward: true, chatMessage: false };
   switch (type) {
     case "save": {
       const ability = opts.ability ?? opts.statistic ?? "";
-      const fn = actor.rollSavingThrow ?? actor.rollAbilitySave;
+      const modern = actor.rollSavingThrow;
+      const fn = modern ?? actor.rollAbilitySave;
       if (!fn) throw new Error("dnd5e save roll is unavailable");
-      return packageRoll(await awaitRoll(fn.call(actor, actor.rollSavingThrow ? { ability, ...cfg } : ability, cfg)), {
-        type: "save",
-        ability,
-      });
+      const roll = modern
+        ? fn.call(actor, { ability, ...cfg }, DND5E_DIALOG, DND5E_MESSAGE)
+        : fn.call(actor, ability, legacyOpts);
+      return packageRoll(await awaitRoll(roll), { type: "save", ability });
     }
     case "check": {
       const ability = opts.ability ?? opts.statistic ?? "";
-      const fn = actor.rollAbilityCheck ?? actor.rollAbilityTest;
+      const modern = actor.rollAbilityCheck;
+      const fn = modern ?? actor.rollAbilityTest;
       if (!fn) throw new Error("dnd5e check roll is unavailable");
-      return packageRoll(await awaitRoll(fn.call(actor, actor.rollAbilityCheck ? { ability, ...cfg } : ability, cfg)), {
-        type: "check",
-        ability,
-      });
+      const roll = modern
+        ? fn.call(actor, { ability, ...cfg }, DND5E_DIALOG, DND5E_MESSAGE)
+        : fn.call(actor, ability, legacyOpts);
+      return packageRoll(await awaitRoll(roll), { type: "check", ability });
     }
     case "skill": {
       const skill = opts.skill ?? "";
       if (!actor.rollSkill) throw new Error("dnd5e skill roll is unavailable");
-      return packageRoll(await awaitRoll(actor.rollSkill.call(actor, skill, cfg)), { type: "skill", skill });
+      // rollSkill was never renamed across the 3.x→4.x change; the module floor is Foundry 13
+      // (dnd5e 4.x+), so use the modern object-config shape.
+      return packageRoll(
+        await awaitRoll(actor.rollSkill.call(actor, { skill, ...cfg }, DND5E_DIALOG, DND5E_MESSAGE)),
+        { type: "skill", skill },
+      );
     }
     default:
       throw new Error(`dnd5e roll type '${type}' is not supported`);

@@ -48,3 +48,15 @@ export const MAX_ROLL_FORMULA_LEN = 500;
  * request like "999999d6" (from a buggy/compromised agent, or a replay) can't
  * freeze the responder GM's browser inside `Roll#evaluate`. */
 export const MAX_ROLL_DICE = 1000;
+
+/** Per-request deadline for an rpc.request handler. A procedure that hangs (a
+ * wedged system API, an await that never settles) would otherwise silently stall
+ * the channel; on expiry we answer a structured `procedure_timeout` rpc.error and
+ * move on. Generous: the heaviest procedures (a full sheet.derived) are still
+ * sub-second in practice. */
+export const REQUEST_TIMEOUT_MS = 10_000;
+
+/** Rate limit on the "dropped agent envelope" diagnostics: at most one log line
+ * per distinct cause per this interval, so a flood of malformed/stale traffic
+ * names its cause once without spamming the GM's console. */
+export const DROP_WARN_INTERVAL_MS = 5_000;

@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { compendiumIndex, compendiumGet } from "../src/procedures/compendium.js";
+import { RpcError } from "../src/rpc/errors.js";
+import { MAX_ENVELOPE_BYTES } from "../src/constants.js";
 
 interface FakePack {
   collection: string;
@@ -78,5 +80,26 @@ describe("compendium.get", () => {
   it("throws on a malformed id", async () => {
     setGame();
     await expect(compendiumGet({ id: "no-separator" }, {} as never)).rejects.toThrow();
+  });
+
+  it("rejects an oversized document with payload_too_large", async () => {
+    const huge = "x".repeat(MAX_ENVELOPE_BYTES + 1);
+    const pack: FakePack = {
+      collection: "world.big",
+      metadata: { id: "big", label: "Big", type: "Actor" },
+      getIndex: async () => [],
+      getDocument: async () => ({ toObject: () => ({ _id: "z", blob: huge }) }),
+    };
+    const packs = [pack] as unknown as FakePack[] & { get: (c: string) => FakePack | undefined };
+    packs.get = (c) => (c === "world.big" ? pack : undefined);
+    vi.stubGlobal("game", { packs });
+
+    try {
+      await compendiumGet({ id: "world.big|z" }, {} as never);
+      throw new Error("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(RpcError);
+      expect((err as RpcError).code).toBe("payload_too_large");
+    }
   });
 });

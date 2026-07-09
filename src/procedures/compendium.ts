@@ -1,4 +1,5 @@
 import type { Procedure } from "../rpc/registry.js";
+import { assertPayloadWithinCap } from "../rpc/errors.js";
 
 /**
  * Phase 3 (augmented library): expose the GM's own Foundry compendium content over the RPC
@@ -106,5 +107,9 @@ export const compendiumGet: Procedure = async (payload) => {
   if (!doc) throw new Error(`unknown document ${docId}`);
   // Raw Foundry document; the app normalizes it via its existing system mappers, so the module
   // stays system-agnostic (mirrors the agent's raw-document stance).
-  return { id, document: doc.toObject() };
+  const response = { id, document: doc.toObject() };
+  // A large compendium document (a bestiary NPC with dozens of items/effects) can exceed the
+  // envelope cap; fail loudly with payload_too_large rather than have the peer silently drop it.
+  assertPayloadWithinCap(response);
+  return response;
 };

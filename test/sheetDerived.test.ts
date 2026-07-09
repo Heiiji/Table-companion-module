@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { sheetDerived } from "../src/procedures/sheetDerived.js";
+import { RpcError } from "../src/rpc/errors.js";
+import { MAX_ENVELOPE_BYTES } from "../src/constants.js";
 
 interface FakeActor {
   id: string;
@@ -236,5 +238,21 @@ describe("sheet.derived", () => {
   it("requires actorId", async () => {
     setGame("pf2e", undefined);
     await expect(sheetDerived({}, {} as never)).rejects.toThrow(/actorId/);
+  });
+
+  it("rejects an oversized prepared actor with payload_too_large", async () => {
+    setGame("homebrew", {
+      id: "whale",
+      name: "Whale",
+      type: "npc",
+      system: { blob: "x".repeat(MAX_ENVELOPE_BYTES + 1) },
+    });
+    try {
+      await sheetDerived({ actorId: "whale" }, {} as never);
+      throw new Error("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(RpcError);
+      expect((err as RpcError).code).toBe("payload_too_large");
+    }
   });
 });

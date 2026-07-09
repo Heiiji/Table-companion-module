@@ -1,7 +1,9 @@
 import {
   CHANNEL,
+  DROP_WARN_INTERVAL_MS,
   ENVELOPE_VERSION,
   REPLAY_WINDOW_MS,
+  REQUEST_TIMEOUT_MS,
   SEEN_ID_CACHE_MAX,
   SETTING_AGENT_KEY,
 } from "../constants.js";
@@ -83,10 +85,23 @@ export class Channel {
   // a rogue agent cannot silently claim an unpaired world.
   private pairingWindowOpen = false;
 
+  // Rate-limited drop diagnostics: last log time per distinct cause.
+  private readonly dropWarnAt = new Map<string, number>();
+
   constructor(
     private readonly registry: ProcedureRegistry,
     private readonly moduleVersion: string,
+    private readonly requestTimeoutMs: number = REQUEST_TIMEOUT_MS,
   ) {}
+
+  /** Log a dropped-envelope reason at most once per cause per DROP_WARN_INTERVAL_MS,
+   * so noise/flooding names its cause without spamming the console. */
+  private warnDrop(cause: string): void {
+    const now = Date.now();
+    if (now - (this.dropWarnAt.get(cause) ?? 0) < DROP_WARN_INTERVAL_MS) return;
+    this.dropWarnAt.set(cause, now);
+    log.warn(`dropped agent envelope: ${cause}`);
+  }
 
   /** Begin listening. Safe to call once, after the `ready` hook (socket is up
    * from `init`, but we want game state for election + procedures). */
@@ -245,7 +260,12 @@ export class Channel {
    * pairing, so non-GM clients act on agent events only after a GM has paired. */
   private async verifiedAgentEnvelope(raw: unknown): Promise<Envelope | null> {
     const signed = parseSignedMessage(raw);
-    if (!signed) return null; // legacy/unsigned traffic or another module's hello
+    if (!signed) {
+      // Not a signed message (or over the size cap): the channel is signed-only,
+      // so this is noise or a spoof — never a supported unsigned peer.
+      this.warnDrop("not a signed message (or over the size cap)");
+      return null;
+    }
 
     let inner: unknown;
     try {
@@ -254,7 +274,10 @@ export class Channel {
       return null;
     }
     const env = parseEnvelope(inner);
-    if (!env || env.v !== ENVELOPE_VERSION) return null;
+    if (!env || env.v !== ENVELOPE_VERSION) {
+      this.warnDrop("unparseable or envelope version mismatch");
+      return null;
+    }
     if (env.peer?.role !== "agent") return null; // only the agent signs
 
     // A4: only the elected responder ever acts on rpc.request/ping, so every
@@ -269,7 +292,7 @@ export class Channel {
     // A replayed capture carries its original `ts`, so it ages out of the window;
     // this also bounds how long a replayed `hello` can keep faking link liveness.
     if (Math.abs(Date.now() - env.ts) > REPLAY_WINDOW_MS) {
-      log.warn("dropped agent envelope outside the freshness window");
+      this.warnDrop("outside the freshness window");
       return null;
     }
 
@@ -337,8 +360,26 @@ export class Channel {
       return;
     }
     const ctx: RpcContext = { request: env };
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const result = await handler(env.payload, ctx);
+      // Bound the handler: a wedged procedure (a stuck system API, a never-settling
+      // await) must not hang the channel. Whichever settles first wins the race, so
+      // exactly one response/error is emitted; a late handler resolution is ignored.
+      const result = await Promise.race([
+        Promise.resolve(handler(env.payload, ctx)),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(
+                new RpcError(
+                  "procedure_timeout",
+                  `procedure "${env.proc}" exceeded the ${this.requestTimeoutMs}ms deadline`,
+                ),
+              ),
+            this.requestTimeoutMs,
+          );
+        }),
+      ]);
       this.emit(makeEnvelope("rpc.response", { id: env.id, payload: result }));
     } catch (err) {
       log.error(`procedure "${env.proc}" failed`, err);
@@ -353,6 +394,8 @@ export class Channel {
           },
         }),
       );
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 }
