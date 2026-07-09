@@ -69,6 +69,8 @@ interface ActionOptions {
   advantage?: boolean;
   disadvantage?: boolean;
   dc?: number;
+  /** Knight: extra dice from talents/effects, added on top of the capped pool. */
+  bonus?: number;
 }
 
 /** Normalize any system Roll into our wire shape plus optional enrichment. */
@@ -185,6 +187,24 @@ function knightCharacteristicValue(aspect: KnightAspect | undefined, characteris
   return typeof v === "number" ? v : undefined;
 }
 
+/** Normalize one evaluated system Roll's dice into our wire shape (faces + flat results). */
+function wireDice(roll: RollLike): Array<{ faces: number; results: number[] }> {
+  return (roll.dice ?? []).map((term) => ({
+    faces: Number(term.faces ?? 0),
+    results: (term.results ?? []).map((r) => r.result),
+  }));
+}
+
+/** Knight success count: a d6 succeeds iff EVEN (2/4/6). No 4+ threshold, no 6-doubles. */
+function countKnightSuccesses(dice: Array<{ faces: number; results: number[] }>): number {
+  let n = 0;
+  for (const term of dice) {
+    if (term.faces !== 6) continue;
+    for (const r of term.results) if (r % 2 === 0) n += 1;
+  }
+  return n;
+}
+
 async function rollKnight(actor: ActorLike, type: string, opts: ActionOptions): Promise<Record<string, unknown>> {
   if (type !== "aspect") throw new Error(`knight roll type '${type}' is not supported`);
   const aspect = opts.aspect ?? "";
@@ -194,22 +214,47 @@ async function rollKnight(actor: ActorLike, type: string, opts: ActionOptions): 
   const sys = actor.system ?? {};
   const aspects = sys.aspects as Record<string, KnightAspect | undefined> | undefined;
   const node = aspects?.[aspect];
-  // The Knight roll is ASPECT + CARACTERISTIQUE: the d6 pool is the aspect score plus the chosen
-  // characteristic's score. Both must be present and the total positive; otherwise we throw so the
-  // app falls back to a local roll (standalone-first).
   const aspectValue = typeof node?.value === "number" ? node.value : 0;
   const characteristicValue = knightCharacteristicValue(node, characteristic);
   if (aspectValue <= 0) throw new Error(`knight aspect '${aspect}' has no value`);
   if (characteristicValue === undefined || characteristicValue <= 0) {
     throw new Error(`knight characteristic '${characteristic}' on aspect '${aspect}' has no value`);
   }
-  const size = aspectValue + characteristicValue;
-  if (size <= 0) throw new Error(`knight aspect+characteristic pool for '${aspect}'/'${characteristic}' is empty`);
-  // We roll the d6 success pool here and let the app apply the success bands declared in the system
-  // profile (threshold 4 / 6-doubles), keeping the agent/module agnostic about outcome bands.
+  // Real Knight (github.com/Zakarik/foundry-knight roll.mjs): the ASPECT is a CAP on the
+  // caractéristique, never an addend — the effective pool is min(aspect, carac). Bonus dice from
+  // talents/effects add on top of the capped pool.
+  const bonus = typeof opts.bonus === "number" && opts.bonus > 0 ? Math.floor(opts.bonus) : 0;
+  const pool = Math.min(aspectValue, characteristicValue) + bonus;
+  if (pool <= 0) throw new Error(`knight aspect pool for '${aspect}'/'${characteristic}' is empty`);
+
+  // No clean standalone Knight roll API exists (the system builds its pool inside its sheet/dialog),
+  // so we roll the pool ourselves and count successes module-side with the real even-parity rule and
+  // the exploit reroll, returning `successes` so the app renders ground truth without re-banding.
   const RollCtor = (globalThis as unknown as { Roll: new (f: string) => RollLike }).Roll;
-  const roll = await awaitRoll(new RollCtor(`${size}d6`).evaluate?.());
-  return packageRoll(roll, { type: "aspect", aspect, characteristic, pool: size });
+  const first = await awaitRoll(new RollCtor(`${pool}d6`).evaluate?.());
+  const dice = wireDice(first);
+  let successes = countKnightSuccesses(dice);
+  let total = first.total ?? 0;
+  let exploited = false;
+
+  // Exploit: if every die in the pool succeeds, the whole pool is rerolled ONCE and its successes
+  // are added (a single reroll, not a loop — mirrors the system's rEpicSuccess branch).
+  if (pool > 0 && successes === pool) {
+    const second = await awaitRoll(new RollCtor(`${pool}d6`).evaluate?.());
+    const dice2 = wireDice(second);
+    dice.push(...dice2);
+    successes += countKnightSuccesses(dice2);
+    total += second.total ?? 0;
+    exploited = true;
+  }
+
+  return {
+    formula: `${pool}d6`,
+    total,
+    dice,
+    successes,
+    system: { type: "aspect", aspect, characteristic, pool, successes, exploited },
+  };
 }
 
 export const rollAction: Procedure = async (payload) => {

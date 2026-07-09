@@ -97,26 +97,16 @@ describe("roll.action", () => {
     );
   });
 
-  it("knight aspect+characteristic rolls an Nd6 pool sized from aspect.value + caracteristique.value", async () => {
-    const evaluate = vi.fn(async () => ({
-      formula: "8d6",
-      total: 30,
-      dice: [
-        {
-          faces: 6,
-          results: [
-            { result: 4 },
-            { result: 6 },
-            { result: 2 },
-            { result: 5 },
-            { result: 5 },
-            { result: 1 },
-            { result: 4 },
-            { result: 3 },
-          ],
-        },
-      ],
-    }));
+  /** A fake evaluated d6 pool from an array of face results. */
+  const d6pool = (results: number[]) => ({
+    formula: `${results.length}d6`,
+    total: results.reduce((a, b) => a + b, 0),
+    dice: [{ faces: 6, results: results.map((result) => ({ result })) }],
+  });
+
+  it("knight aspect pool is min(aspect, caracteristique) and counts EVEN successes (no exploit)", async () => {
+    // aspect chair 5 caps caracteristique puissance 3 → pool = min(5,3) = 3d6.
+    const evaluate = vi.fn(async () => d6pool([4, 6, 1])); // evens 4,6 → 2 successes; the 1 blocks exploit
     let builtFormula = "";
     vi.stubGlobal("Roll", class {
       constructor(public formula: string) {
@@ -137,26 +127,82 @@ describe("roll.action", () => {
       { actorId: "vex", type: "aspect", options: { aspect: "chair", characteristic: "puissance" } },
       {} as never,
     )) as {
+      successes?: number;
       dice: Array<{ faces: number; results: number[] }>;
-      system?: { pool?: number; aspect?: string; characteristic?: string; type?: string };
+      system?: { pool?: number; successes?: number; exploited?: boolean; aspect?: string; type?: string };
     };
 
-    // pool = aspect 5 + caracteristique 3 = 8d6
-    expect(builtFormula).toBe("8d6");
-    expect(res.dice[0].faces).toBe(6);
-    expect(res.dice[0].results).toHaveLength(8);
+    expect(builtFormula).toBe("3d6"); // min(5,3), NOT 5+3
+    expect(res.system?.pool).toBe(3);
+    expect(res.successes).toBe(2); // 4 and 6 are even; 1 is not
+    expect(res.system?.successes).toBe(2);
+    expect(res.system?.exploited).toBe(false);
+    expect(res.dice[0].results).toHaveLength(3);
     expect(res.system?.type).toBe("aspect");
-    expect(res.system?.pool).toBe(8);
     expect(res.system?.aspect).toBe("chair");
-    expect(res.system?.characteristic).toBe("puissance");
+  });
+
+  it("knight rerolls once and adds successes when the whole pool succeeds (exploit)", async () => {
+    const evaluate = vi
+      .fn()
+      .mockResolvedValueOnce(d6pool([2, 4, 6])) // all even → 3 successes === pool → exploit
+      .mockResolvedValueOnce(d6pool([4, 2, 1])); // reroll: evens 4,2 → +2 successes
+    vi.stubGlobal("Roll", class {
+      constructor(public formula: string) {}
+      evaluate = evaluate;
+    });
+    vi.stubGlobal("game", {
+      system: { id: "knight" },
+      actors: {
+        get: () => ({
+          system: { aspects: { chair: { value: 5, caracteristiques: { puissance: { value: 3 } } } } },
+        }),
+      },
+    });
+
+    const res = (await rollAction(
+      { actorId: "vex", type: "aspect", options: { aspect: "chair", characteristic: "puissance" } },
+      {} as never,
+    )) as {
+      successes?: number;
+      dice: Array<{ results: number[] }>;
+      system?: { exploited?: boolean; successes?: number };
+    };
+
+    expect(evaluate).toHaveBeenCalledTimes(2); // exactly one reroll, not a loop
+    expect(res.successes).toBe(5); // 3 + 2
+    expect(res.system?.exploited).toBe(true);
+    expect(res.dice).toHaveLength(2); // both rolls' dice carried through
+  });
+
+  it("knight adds bonus dice on top of the capped pool", async () => {
+    const evaluate = vi.fn(async () => d6pool([1, 3, 5, 1, 3])); // no successes → no exploit
+    let builtFormula = "";
+    vi.stubGlobal("Roll", class {
+      constructor(public formula: string) {
+        builtFormula = formula;
+      }
+      evaluate = evaluate;
+    });
+    vi.stubGlobal("game", {
+      system: { id: "knight" },
+      actors: {
+        get: () => ({
+          system: { aspects: { chair: { value: 5, caracteristiques: { puissance: { value: 3 } } } } },
+        }),
+      },
+    });
+
+    await rollAction(
+      { actorId: "vex", type: "aspect", options: { aspect: "chair", characteristic: "puissance", bonus: 2 } },
+      {} as never,
+    );
+
+    expect(builtFormula).toBe("5d6"); // min(5,3)=3, +2 bonus
   });
 
   it("knight aspect roll accepts the singular 'caracteristique' spelling defensively", async () => {
-    const evaluate = vi.fn(async () => ({
-      formula: "7d6",
-      total: 20,
-      dice: [{ faces: 6, results: [{ result: 4 }, { result: 6 }, { result: 2 }, { result: 5 }, { result: 1 }, { result: 1 }, { result: 1 }] }],
-    }));
+    const evaluate = vi.fn(async () => d6pool([4, 6, 1])); // evens 4,6 → no all-success, no exploit
     vi.stubGlobal("Roll", class {
       constructor(public formula: string) {}
       evaluate = evaluate;
@@ -175,7 +221,7 @@ describe("roll.action", () => {
       {} as never,
     )) as { system?: { pool?: number } };
 
-    expect(res.system?.pool).toBe(7);
+    expect(res.system?.pool).toBe(3); // min(4,3), NOT 4+3
   });
 
   it("knight aspect roll throws when the characteristic is missing so the app rolls locally", async () => {

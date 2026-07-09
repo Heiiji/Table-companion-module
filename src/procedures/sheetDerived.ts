@@ -184,7 +184,8 @@ function knightAspectPool(sys: Record<string, unknown>, aspect: string): number 
  *   - energyMax: gear-scoped on the equipped meta-armour (system.equipements.{wear}.energie.max),
  *     with a top-level system.energie.max fallback. `wear` is system.wear (e.g. "tenueCivile").
  *   - defense / reaction: system.defense.value / system.reaction.value.
- *   - aspectPools: {chair,bete,machine,dame,masque,heaume} each = system.aspects.{x}.value.
+ *   - aspectPools: {chair,bete,machine,dame,masque} each = system.aspects.{x}.value (Knight has
+ *     exactly these five aspects — there is no `heaume` aspect).
  * Best-effort and fully defensive (optional chaining, every field dropped when missing) so a sparse
  * actor never throws; the app keeps its locally derived baseline when this is absent.
  */
@@ -198,7 +199,6 @@ function knightDerived(sys: Record<string, unknown>): Record<string, unknown> {
     machine: knightAspectPool(sys, "machine"),
     dame: knightAspectPool(sys, "dame"),
     masque: knightAspectPool(sys, "masque"),
-    heaume: knightAspectPool(sys, "heaume"),
   });
   return defined({
     energyMax,

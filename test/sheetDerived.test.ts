@@ -180,7 +180,7 @@ describe("sheet.derived", () => {
           machine: { value: 3 },
           dame: { value: 2 },
           masque: { value: 6 },
-          heaume: { value: 1 },
+          heaume: { value: 1 }, // phantom: Knight has no 'heaume' aspect — must be ignored
         },
       },
     });
@@ -195,13 +195,13 @@ describe("sheet.derived", () => {
     expect(res.derived.energyMax).toBe(12); // gear-scoped wins over the top-level fallback
     expect(res.derived.defense).toBe(11);
     expect(res.derived.reaction).toBe(5);
+    // Exactly the five real aspects; the phantom heaume is dropped even though it is in source.
     expect(res.derived.aspectPools).toEqual({
       chair: 5,
       bete: 4,
       machine: 3,
       dame: 2,
       masque: 6,
-      heaume: 1,
     });
   });
 
