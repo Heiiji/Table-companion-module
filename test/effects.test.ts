@@ -1,7 +1,41 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { effectApply, effectRemove, effectSetValue } from "../src/procedures/effects.js";
+import { RpcError } from "../src/rpc/errors.js";
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe("effect procedures — Companion permission gate", () => {
+  it("denies a write when the Companion user lacks OWNER on the actor", async () => {
+    const companion = { id: "c1", name: "Companion", getFlag: () => true };
+    const increaseCondition = vi.fn(async () => undefined);
+    vi.stubGlobal("game", {
+      system: { id: "pf2e" },
+      users: [companion],
+      actors: {
+        get: () => ({ increaseCondition, testUserPermission: () => false }),
+      },
+    });
+    await expect(
+      effectApply({ actorId: "a1", statusId: "frightened", value: 1 }, {} as never),
+    ).rejects.toBeInstanceOf(RpcError);
+    // The write never ran because the gate rejected first.
+    expect(increaseCondition).not.toHaveBeenCalled();
+  });
+
+  it("allows a write when the Companion user holds OWNER", async () => {
+    const companion = { id: "c1", name: "Companion", getFlag: () => true };
+    const increaseCondition = vi.fn(async () => undefined);
+    vi.stubGlobal("game", {
+      system: { id: "pf2e" },
+      users: [companion],
+      actors: {
+        get: () => ({ increaseCondition, testUserPermission: () => true }),
+      },
+    });
+    await effectApply({ actorId: "a1", statusId: "frightened", value: 1 }, {} as never);
+    expect(increaseCondition).toHaveBeenCalledWith("frightened", { value: 1 });
+  });
+});
 
 describe("effect.apply", () => {
   it("pf2e increments a valued condition via the system API", async () => {

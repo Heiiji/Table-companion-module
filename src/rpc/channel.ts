@@ -15,11 +15,21 @@ import {
   PeerInfo,
 } from "./envelope.js";
 import { ProcedureRegistry, RpcContext } from "./registry.js";
+import { RpcError } from "./errors.js";
 import {
   fingerprint,
   parseSignedMessage,
   verifySignature,
 } from "./signing.js";
+
+/** Best-effort access to Foundry's toast notifications, tolerant of the harness
+ * where the `ui` global is absent. */
+function notify(kind: "warn" | "info", message: string): void {
+  const g = globalThis as unknown as {
+    ui?: { notifications?: Record<string, ((m: string) => void) | undefined> };
+  };
+  g.ui?.notifications?.[kind]?.(message);
+}
 
 /** Snapshot of the agent <-> module link, surfaced to the status UI and the
  * public API. */
@@ -67,6 +77,11 @@ export class Channel {
   // Anti-replay: ids of recently-accepted agent envelopes, so a verbatim replay
   // of a signed rpc.request can't re-trigger its handler. Bounded FIFO.
   private readonly seenIds = new Set<string>();
+  // TOFU gate: a new agent key is auto-pinned ONLY while the GM has the setup /
+  // pairing dialog open (an explicit "I am pairing now" window). Outside it, a
+  // validly-signed envelope from an unknown key is dropped rather than pinned, so
+  // a rogue agent cannot silently claim an unpaired world.
+  private pairingWindowOpen = false;
 
   constructor(
     private readonly registry: ProcedureRegistry,
@@ -130,6 +145,18 @@ export class Channel {
   async resetPairing(): Promise<void> {
     await this.setPinnedKey("");
     log.info("agent pairing reset");
+  }
+
+  /** Open the explicit pairing window: while it is open, a first validly-signed
+   * agent key may be auto-pinned (TOFU). The setup UI calls this when its dialog
+   * renders and closePairingWindow() when it tears down. */
+  openPairingWindow(): void {
+    this.pairingWindowOpen = true;
+  }
+
+  /** Close the explicit pairing window; an unknown agent key is no longer pinned. */
+  closePairingWindow(): void {
+    this.pairingWindowOpen = false;
   }
 
   private noteAgent(peer: PeerInfo): void {
@@ -255,16 +282,24 @@ export class Channel {
       return this.notReplayed(env) ? env : null;
     }
 
-    // Not yet paired. Establish the pairing on a GM client only, using the key
-    // the agent advertises — verifying the signature also proves it holds the
-    // matching private key (so a bare advertised key can't be replayed).
+    // Not yet paired. TOFU is gated to the explicit pairing window: a GM must have
+    // the setup dialog open to adopt a key. Outside it, a validly-signed envelope
+    // from an unknown agent is dropped — never silently pinned.
     if (!isResponder() || !env.peer.pubKey) return null;
+    if (!this.pairingWindowOpen) {
+      log.warn("dropped an unknown agent key: the pairing window is closed");
+      return null;
+    }
     if (!(await verifySignature(env.peer.pubKey, signed))) {
       log.warn("dropped unpaired agent envelope with an invalid signature");
       return null;
     }
     await this.setPinnedKey(env.peer.pubKey);
-    log.info(`paired agent signing key (${await fingerprint(env.peer.pubKey)})`);
+    const fp = await fingerprint(env.peer.pubKey);
+    log.info(`paired agent signing key (${fp})`);
+    // Surface the new pairing so a GM can cross-check the fingerprint against what
+    // the app reports and spot an unexpected key.
+    notify("warn", `Table Companion: paired a new agent signing key (${fp})`);
     return this.notReplayed(env) ? env : null;
   }
 
@@ -311,7 +346,9 @@ export class Channel {
         makeEnvelope("rpc.error", {
           id: env.id,
           error: {
-            code: "procedure_failed",
+            // A handler may throw a structured RpcError (permission_denied,
+            // payload_too_large, …); anything else is a generic failure.
+            code: err instanceof RpcError ? err.code : "procedure_failed",
             message: err instanceof Error ? err.message : String(err),
           },
         }),

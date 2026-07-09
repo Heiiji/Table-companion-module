@@ -1,4 +1,5 @@
 import type { Procedure } from "../rpc/registry.js";
+import { assertCompanionPermission, PermissionActorLike } from "./foundry.js";
 
 /**
  * Tier-1 oracle (system-aware writes): apply / remove / set the value of conditions & effects
@@ -7,8 +8,12 @@ import type { Procedure } from "../rpc/registry.js";
  * Mechanical, side-effect-free embedded writes (e.g. toggling a Knight module field) stay on the
  * Go connector's write path; only mutations needing system behaviour route here.
  *
- * Already gated to the elected GM responder (the channel dispatches rpc.request only when
- * isResponder()), and Foundry enforces the Companion user's per-actor permissions on the write.
+ * TRUST MODEL: this runs in the elected GM responder's browser (the channel dispatches rpc.request
+ * only when isResponder()), so the handler executes with full GM authority — Foundry does NOT scope
+ * it to the Companion user. The signed agent key on the channel is the real trust boundary. To keep
+ * these writes confined to actors the GM actually shared with the Companion user, we additionally
+ * gate on OWNER ownership for the Companion user and return a structured `permission_denied` error
+ * when it is missing.
  *
  * `effect.apply({ actorId, statusId, value? })`  → { ok, applied }
  * `effect.remove({ actorId, effectId })`         → { ok, removed }
@@ -26,7 +31,7 @@ interface EffectsCollectionLike {
   get(id: string): EffectDocLike | undefined;
 }
 type ConditionMethod = (...args: unknown[]) => Promise<unknown> | unknown;
-interface ActorLike {
+interface ActorLike extends PermissionActorLike {
   effects?: EffectsCollectionLike;
   toggleStatusEffect?: (statusId: string, options?: Record<string, unknown>) => Promise<unknown>;
   increaseCondition?: ConditionMethod; // pf2e
@@ -54,6 +59,8 @@ function requireActor(payload: unknown): { actor: ActorLike; p: Record<string, u
   if (!actorId) throw new Error("effect procedures require 'actorId'");
   const actor = actors().get(actorId);
   if (!actor) throw new Error(`unknown actor ${actorId}`);
+  // Writes act on behalf of the actor's owner: require OWNER for the Companion user.
+  assertCompanionPermission(actor, "OWNER", actorId);
   return { actor, p };
 }
 

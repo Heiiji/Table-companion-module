@@ -1,4 +1,5 @@
 import type { Procedure } from "../rpc/registry.js";
+import { assertCompanionPermission, PermissionActorLike } from "./foundry.js";
 
 /**
  * Tier-1 oracle (read): expose a fully-prepared actor's system-aware data over the RPC channel.
@@ -32,7 +33,7 @@ interface EffectLike {
   statuses?: Iterable<string> | { has(s: string): boolean };
   changes?: unknown;
 }
-interface ActorLike {
+interface ActorLike extends PermissionActorLike {
   id?: string | null;
   name?: string | null;
   type?: string | null;
@@ -233,6 +234,8 @@ export const sheetDerived: Procedure = async (payload) => {
 
   const actor = actors().get(actorId);
   if (!actor) throw new Error(`unknown actor ${actorId}`);
+  // A read: require at least OBSERVER ownership for the Companion user.
+  assertCompanionPermission(actor, "OBSERVER", actorId);
 
   const items = [...(actor.items ?? [])].map((item) => ({
     id: item.id ?? "",

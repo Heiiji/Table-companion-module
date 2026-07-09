@@ -138,6 +138,8 @@ function startLiveRefresh(channel: Channel, dialog: DialogInstance): void {
     }
     clearInterval(timer);
     for (const [hook, id] of ids) hooks.off(hook, id);
+    // The pairing window is only open while this dialog is on screen.
+    channel.closePairingWindow();
   }, 4000);
 }
 
@@ -198,6 +200,9 @@ export async function openSetupApp(channel: Channel): Promise<void> {
     }) as DialogInstance;
     setupDialog = dialog;
     await dialog.render({ force: true });
+    // The setup dialog is the explicit pairing window: while it is open, a first
+    // agent contact may auto-pin its key (TOFU). Closed again in startLiveRefresh.
+    channel.openPairingWindow();
     wireSetupActions(channel, dialog);
     startLiveRefresh(channel, dialog);
   } catch (err) {

@@ -1,4 +1,5 @@
 import type { Procedure } from "../rpc/registry.js";
+import { assertCompanionPermission, PermissionActorLike } from "./foundry.js";
 
 /**
  * Tier-1 oracle (roll): resolve a system-contextual roll through the game system's OWN pipeline,
@@ -32,7 +33,7 @@ type RollMethod = (...args: unknown[]) => Promise<RollLike | null | undefined> |
 interface StatisticLike {
   roll?: RollMethod;
 }
-interface ActorLike {
+interface ActorLike extends PermissionActorLike {
   saves?: Record<string, StatisticLike | undefined>;
   skills?: Record<string, StatisticLike | undefined>;
   perception?: StatisticLike;
@@ -197,6 +198,8 @@ export const rollAction: Procedure = async (payload) => {
 
   const actor = actors().get(actorId);
   if (!actor) throw new Error(`unknown actor ${actorId}`);
+  // Rolling on behalf of the actor acts as its owner: require OWNER for the Companion user.
+  assertCompanionPermission(actor, "OWNER", actorId);
 
   switch (systemId()) {
     case "pf2e":

@@ -179,21 +179,36 @@ describe("Channel.onMessage", () => {
     expect(emitted("rpc.response")[0].payload).toEqual({ echoed: { n: 1 } });
   });
 
-  it("pins the agent key on first contact (TOFU) when responder", async () => {
+  it("pins the agent key on first contact (TOFU) only while the pairing window is open", async () => {
     stubGame({ pinned: "", responder: true });
-    startChannel();
+    const warnSpy = vi.fn();
+    vi.stubGlobal("ui", { notifications: { warn: warnSpy } });
+    const channel = startChannel();
+    channel.openPairingWindow(); // the GM has the setup/pairing dialog open
     await deliver(await sign(agentEnv("hello", {}, true)));
     expect(setSpy).toHaveBeenCalledWith(
       MODULE_ID,
       SETTING_AGENT_KEY,
       agentPubB64,
     );
+    // A new pairing is surfaced with the key fingerprint so the GM can cross-check.
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(String(warnSpy.mock.calls[0][0])).toMatch(/pair/i);
     expect(emitted("hello.ack")).toHaveLength(1);
+  });
+
+  it("does NOT auto-pin an unknown key when the pairing window is closed", async () => {
+    stubGame({ pinned: "", responder: true });
+    startChannel(); // pairing window never opened
+    await deliver(await sign(agentEnv("hello", {}, true)));
+    expect(setSpy).not.toHaveBeenCalled();
+    expect(emitSpy).not.toHaveBeenCalled();
   });
 
   it("does not pin when unpaired and not the responder", async () => {
     stubGame({ pinned: "", responder: false });
-    startChannel();
+    const channel = startChannel();
+    channel.openPairingWindow(); // even with the window open, a non-responder never pins
     await deliver(await sign(agentEnv("hello", {}, true)));
     expect(setSpy).not.toHaveBeenCalled();
     expect(emitSpy).not.toHaveBeenCalled();
