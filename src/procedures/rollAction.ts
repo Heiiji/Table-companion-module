@@ -1,5 +1,6 @@
 import type { Procedure } from "../rpc/registry.js";
 import { actors, assertCompanionPermission, PermissionActorLike, systemId } from "./foundry.js";
+import { RpcError } from "../rpc/errors.js";
 
 /**
  * Tier-1 oracle (roll): resolve a system-contextual roll through the game system's OWN pipeline,
@@ -48,12 +49,14 @@ interface ActionOptions {
   statistic?: string;
   ability?: string;
   skill?: string;
-  aspect?: string;
-  characteristic?: string;
+  /** Knight: the GM-named base characteristic key (e.g. "force"). */
+  base?: string;
+  /** Knight: the player-chosen combo characteristic key — must differ from `base` (KNT-R-001). */
+  combo?: string;
   advantage?: boolean;
   disadvantage?: boolean;
   dc?: number;
-  /** Knight: extra dice from talents/effects, added on top of the capped pool. */
+  /** Knight: extra dice from talents/effects, added on top of the combo pool. */
   bonus?: number;
 }
 
@@ -171,6 +174,55 @@ function knightCharacteristicValue(aspect: KnightAspect | undefined, characteris
   return typeof v === "number" ? v : undefined;
 }
 
+/**
+ * KNT-R-006: the aspect→characteristic graph. Each of the five aspects links three
+ * characteristics and CAPS their scores; the aspect value itself is never added to a pool
+ * (KNT-R-001). Keys are the Foundry knight system's data keys — note `sangFroid` (camelCase),
+ * verified against the apps' Knight mappers (FoundrySystemMappers.swift / FoundryMapper.kt).
+ */
+const KNIGHT_ASPECT_OF: Record<string, string> = {
+  deplacement: "chair",
+  force: "chair",
+  endurance: "chair",
+  hargne: "bete",
+  combat: "bete",
+  instinct: "bete",
+  tir: "machine",
+  savoir: "machine",
+  technique: "machine",
+  aura: "dame",
+  parole: "dame",
+  sangFroid: "dame",
+  discretion: "masque",
+  dexterite: "masque",
+  perception: "masque",
+};
+
+/**
+ * The effective score a characteristic contributes to a pool: its own value capped by its
+ * aspect's value (KNT-R-006 — the aspect sets the maximum of its linked characteristics).
+ * Throws invalid_args for a key outside the graph, and a plain Error when the actor's data
+ * lacks the values (so the app falls back to its local engine, standalone-first).
+ */
+function knightEffective(
+  sys: Record<string, unknown>,
+  characteristic: string,
+): { effective: number; aspect: string } {
+  const aspectKey = KNIGHT_ASPECT_OF[characteristic];
+  if (!aspectKey) {
+    throw new RpcError("invalid_args", `unknown knight characteristic '${characteristic}'`);
+  }
+  const aspects = sys.aspects as Record<string, KnightAspect | undefined> | undefined;
+  const node = aspects?.[aspectKey];
+  const aspectValue = typeof node?.value === "number" ? node.value : undefined;
+  const characteristicValue = knightCharacteristicValue(node, characteristic);
+  if (aspectValue === undefined) throw new Error(`knight aspect '${aspectKey}' has no value`);
+  if (characteristicValue === undefined) {
+    throw new Error(`knight characteristic '${characteristic}' has no value`);
+  }
+  return { effective: Math.min(characteristicValue, aspectValue), aspect: aspectKey };
+}
+
 /** Normalize one evaluated system Roll's dice into our wire shape (faces + flat results). */
 function wireDice(roll: RollLike): Array<{ faces: number; results: number[] }> {
   return (roll.dice ?? []).map((term) => ({
@@ -191,39 +243,44 @@ function countKnightSuccesses(dice: Array<{ faces: number; results: number[] }>)
 
 async function rollKnight(actor: ActorLike, type: string, opts: ActionOptions): Promise<Record<string, unknown>> {
   if (type !== "aspect") throw new Error(`knight roll type '${type}' is not supported`);
-  const aspect = opts.aspect ?? "";
-  const characteristic = opts.characteristic ?? "";
-  if (!aspect) throw new Error("knight aspect roll requires 'aspect'");
-  if (!characteristic) throw new Error("knight aspect roll requires 'characteristic'");
-  const sys = actor.system ?? {};
-  const aspects = sys.aspects as Record<string, KnightAspect | undefined> | undefined;
-  const node = aspects?.[aspect];
-  const aspectValue = typeof node?.value === "number" ? node.value : 0;
-  const characteristicValue = knightCharacteristicValue(node, characteristic);
-  if (aspectValue <= 0) throw new Error(`knight aspect '${aspect}' has no value`);
-  if (characteristicValue === undefined || characteristicValue <= 0) {
-    throw new Error(`knight characteristic '${characteristic}' on aspect '${aspect}' has no value`);
+  // KNT-R-001: a normal test is a COMBO of two different characteristics — the GM-named `base`
+  // plus the player-chosen `combo`. The pool is effective(base) + effective(combo); each side is
+  // capped by its own aspect (KNT-R-006), and no aspect value is ever added to the pool.
+  const base = opts.base ?? "";
+  const combo = opts.combo ?? "";
+  if (!base) throw new RpcError("invalid_args", "knight roll requires 'base'");
+  if (!combo) throw new RpcError("invalid_args", "knight roll requires 'combo'");
+  if (base === combo) {
+    throw new RpcError(
+      "invalid_args",
+      "knight 'base' and 'combo' must be two different characteristics (KNT-R-001)",
+    );
   }
-  // Real Knight (github.com/Zakarik/foundry-knight roll.mjs): the ASPECT is a CAP on the
-  // caractéristique, never an addend — the effective pool is min(aspect, carac). Bonus dice from
-  // talents/effects add on top of the capped pool.
+  const sys = actor.system ?? {};
+  const b = knightEffective(sys, base);
+  const c = knightEffective(sys, combo);
   const bonus = typeof opts.bonus === "number" && opts.bonus > 0 ? Math.floor(opts.bonus) : 0;
-  const pool = Math.min(aspectValue, characteristicValue) + bonus;
-  if (pool <= 0) throw new Error(`knight aspect pool for '${aspect}'/'${characteristic}' is empty`);
+  const pool = b.effective + c.effective + bonus;
+  if (pool <= 0) throw new Error(`knight pool for '${base}'+'${combo}' is empty`);
 
   // No clean standalone Knight roll API exists (the system builds its pool inside its sheet/dialog),
-  // so we roll the pool ourselves and count successes module-side with the real even-parity rule and
-  // the exploit reroll, returning `successes` so the app renders ground truth without re-banding.
+  // so we roll the pool ourselves and count successes module-side, returning `successes` so the app
+  // renders ground truth without re-banding.
   const RollCtor = (globalThis as unknown as { Roll: new (f: string) => RollLike }).Roll;
   const first = await awaitRoll(new RollCtor(`${pool}d6`).evaluate?.());
   const dice = wireDice(first);
-  let successes = countKnightSuccesses(dice);
+  const firstSuccesses = countKnightSuccesses(dice); // KNT-R-002: a d6 succeeds iff EVEN (2/4/6)
+  let successes = firstSuccesses;
   let total = first.total ?? 0;
   let exploited = false;
+  // KNT-R-003: no even result in the FIRST pool ⇒ critical failure, even when automatic/bonus
+  // successes would otherwise exist. The flag rides the response so the app never re-derives it.
+  const criticalFailure = firstSuccesses === 0;
 
-  // Exploit: if every die in the pool succeeds, the whole pool is rerolled ONCE and its successes
-  // are added (a single reroll, not a loop — mirrors the system's rEpicSuccess branch).
-  if (pool > 0 && successes === pool) {
+  // KNT-R-003 Exploit: if EVERY die in the first pool is even, reroll the same-size pool ONCE and
+  // add the new successes. Never chain a second Exploit, and it is not an automatic pass — the
+  // final total is still compared with the target (by the app).
+  if (firstSuccesses === pool) {
     const second = await awaitRoll(new RollCtor(`${pool}d6`).evaluate?.());
     const dice2 = wireDice(second);
     dice.push(...dice2);
@@ -237,7 +294,18 @@ async function rollKnight(actor: ActorLike, type: string, opts: ActionOptions): 
     total,
     dice,
     successes,
-    system: { type: "aspect", aspect, characteristic, pool, successes, exploited },
+    criticalFailure,
+    system: {
+      type: "aspect",
+      base,
+      combo,
+      baseAspect: b.aspect,
+      comboAspect: c.aspect,
+      pool,
+      successes,
+      exploited,
+      criticalFailure,
+    },
   };
 }
 
