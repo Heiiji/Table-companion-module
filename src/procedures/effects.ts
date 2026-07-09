@@ -1,5 +1,5 @@
 import type { Procedure } from "../rpc/registry.js";
-import { assertCompanionPermission, PermissionActorLike } from "./foundry.js";
+import { actors, assertCompanionPermission, PermissionActorLike, systemId } from "./foundry.js";
 
 /**
  * Tier-1 oracle (system-aware writes): apply / remove / set the value of conditions & effects
@@ -37,27 +37,11 @@ interface ActorLike extends PermissionActorLike {
   increaseCondition?: ConditionMethod; // pf2e
   decreaseCondition?: ConditionMethod; // pf2e
 }
-interface ActorsLike {
-  get(id: string): ActorLike | undefined;
-}
-
-function actors(): ActorsLike {
-  const g = globalThis as unknown as { game?: { actors?: ActorsLike } };
-  const a = g.game?.actors;
-  if (!a) throw new Error("Foundry game.actors is unavailable");
-  return a;
-}
-
-function systemId(): string {
-  const g = globalThis as unknown as { game?: { system?: { id?: string } } };
-  return g.game?.system?.id ?? "";
-}
-
 function requireActor(payload: unknown): { actor: ActorLike; p: Record<string, unknown> } {
   const p = (payload ?? {}) as Record<string, unknown>;
   const actorId = String(p.actorId ?? "").trim();
   if (!actorId) throw new Error("effect procedures require 'actorId'");
-  const actor = actors().get(actorId);
+  const actor = actors<ActorLike>().get(actorId);
   if (!actor) throw new Error(`unknown actor ${actorId}`);
   // Writes act on behalf of the actor's owner: require OWNER for the Companion user.
   assertCompanionPermission(actor, "OWNER", actorId);

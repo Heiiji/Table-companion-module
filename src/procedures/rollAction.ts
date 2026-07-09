@@ -1,5 +1,5 @@
 import type { Procedure } from "../rpc/registry.js";
-import { assertCompanionPermission, PermissionActorLike } from "./foundry.js";
+import { actors, assertCompanionPermission, PermissionActorLike, systemId } from "./foundry.js";
 
 /**
  * Tier-1 oracle (roll): resolve a system-contextual roll through the game system's OWN pipeline,
@@ -44,22 +44,6 @@ interface ActorLike extends PermissionActorLike {
   rollAbilityCheck?: RollMethod;
   rollSkill?: RollMethod;
 }
-interface ActorsLike {
-  get(id: string): ActorLike | undefined;
-}
-
-function actors(): ActorsLike {
-  const g = globalThis as unknown as { game?: { actors?: ActorsLike } };
-  const a = g.game?.actors;
-  if (!a) throw new Error("Foundry game.actors is unavailable");
-  return a;
-}
-
-function systemId(): string {
-  const g = globalThis as unknown as { game?: { system?: { id?: string } } };
-  return g.game?.system?.id ?? "";
-}
-
 interface ActionOptions {
   statistic?: string;
   ability?: string;
@@ -265,7 +249,7 @@ export const rollAction: Procedure = async (payload) => {
   if (!type) throw new Error("roll.action requires 'type'");
   const opts = (p.options ?? {}) as ActionOptions;
 
-  const actor = actors().get(actorId);
+  const actor = actors<ActorLike>().get(actorId);
   if (!actor) throw new Error(`unknown actor ${actorId}`);
   // Rolling on behalf of the actor acts as its owner: require OWNER for the Companion user.
   assertCompanionPermission(actor, "OWNER", actorId);

@@ -12,6 +12,26 @@ import { RpcError } from "../rpc/errors.js";
  * `assertCompanionPermission`.
  */
 
+/** Structural view of `game.actors` (get by id). `A` is the caller's own actor shape,
+ * so each procedure keeps its specific actor interface while sharing this accessor. */
+export interface ActorsLike<A = unknown> {
+  get(id: string): A | undefined;
+}
+
+/** `game.actors`, or throw if Foundry isn't ready. */
+export function actors<A = unknown>(): ActorsLike<A> {
+  const g = globalThis as unknown as { game?: { actors?: ActorsLike<A> } };
+  const a = g.game?.actors;
+  if (!a) throw new Error("Foundry game.actors is unavailable");
+  return a;
+}
+
+/** The active game system id (e.g. "pf2e", "dnd5e", "knight"), or "" if unknown. */
+export function systemId(): string {
+  const g = globalThis as unknown as { game?: { system?: { id?: string } } };
+  return g.game?.system?.id ?? "";
+}
+
 /** Foundry document-ownership levels we gate procedures on. */
 export type OwnershipLevel = "OBSERVER" | "OWNER";
 

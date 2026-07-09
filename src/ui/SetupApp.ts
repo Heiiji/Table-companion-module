@@ -32,6 +32,11 @@ interface DialogInstance {
 // instead of stacking a new modal each time.
 let setupDialog: DialogInstance | undefined;
 
+// Single live password reveal. Creating a fresh one each time (Create, then Reset
+// password) would stack overlapping modals each showing a different one-time
+// secret; we close the prior before opening a new one.
+let passwordDialog: DialogInstance | undefined;
+
 async function statusHtml(channel: Channel): Promise<string> {
   const status = channel.getStatus();
   const pairing = await channel.getPairing();
@@ -244,11 +249,21 @@ async function showPassword(password: string): Promise<void> {
     `<p class="tca-hint">${localize("setup.password.recover", { name: COMPANION_USER_NAME })}</p>` +
     `</section>`;
 
+  // Close any prior password reveal so two one-time secrets never overlap on screen.
+  if (passwordDialog?.rendered) {
+    try {
+      await passwordDialog.close();
+    } catch {
+      // Non-fatal: a failed close just means the old dialog lingers.
+    }
+  }
+
   const dialog = new (DialogV2())({
     window: { title: localize("setup.password.title"), icon: "fa-solid fa-key" },
     content,
     buttons: [{ action: "done", label: localize("common.done"), default: true }],
   }) as DialogInstance;
+  passwordDialog = dialog;
   await dialog.render({ force: true });
   dialog.element
     .querySelector('[data-tca="copy"]')
@@ -270,10 +285,32 @@ function pairingHostParam(): string {
   try {
     const origin = window.location?.origin;
     if (!origin || origin === "null") return "";
+    // A loopback origin (the GM browsing Foundry on the same machine) is useless to a
+    // phone scanning the QR — it would point the app at its own device. Omit it so the
+    // app prompts for the reachable host instead of silently failing to connect.
+    if (isLoopbackOrigin(origin)) return "";
     return `&h=${encodeURIComponent(origin)}`;
   } catch {
     return "";
   }
+}
+
+/** True for localhost / 127.0.0.0-8 / ::1 style origins that only resolve on the GM's own box. */
+function isLoopbackOrigin(origin: string): boolean {
+  let host: string;
+  try {
+    host = new URL(origin).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  // URL keeps IPv6 hosts bracketed, e.g. "[::1]".
+  const bare = host.replace(/^\[|\]$/g, "");
+  return (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    bare === "::1" ||
+    /^127\./.test(bare)
+  );
 }
 
 function renderPairingQr(password: string, root: HTMLElement): void {

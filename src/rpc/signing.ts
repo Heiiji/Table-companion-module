@@ -30,8 +30,10 @@ export interface SignedMessage {
   body: string;
 }
 
-/** Narrow an unknown socket payload to a SignedMessage, or null if it isn't one
- * (e.g. a legacy unsigned envelope, or noise). */
+/** Narrow an unknown socket payload to a SignedMessage, or null when it is not one
+ * — an unsigned/oversized message, or noise. The channel is signed-only, so a null
+ * here is a rejection (the caller drops the message), NOT a fallback to some
+ * accepted unsigned path. */
 export function parseSignedMessage(raw: unknown): SignedMessage | null {
   if (typeof raw !== "object" || raw === null) return null;
   const m = raw as Record<string, unknown>;

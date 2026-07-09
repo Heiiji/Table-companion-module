@@ -1,5 +1,5 @@
 import type { Procedure } from "../rpc/registry.js";
-import { assertCompanionPermission, PermissionActorLike } from "./foundry.js";
+import { actors, assertCompanionPermission, PermissionActorLike, systemId } from "./foundry.js";
 import { assertPayloadWithinCap } from "../rpc/errors.js";
 
 /**
@@ -31,7 +31,10 @@ interface EffectLike {
   id?: string | null;
   name?: string | null;
   disabled?: boolean;
-  statuses?: Iterable<string> | { has(s: string): boolean };
+  // Foundry models an ActiveEffect's `statuses` as a Set<string>, which is iterable; that is the
+  // only shape we need to flatten. (A bare {has}-only container cannot be enumerated, so it was
+  // never actually handled — the old union member for it was dead.)
+  statuses?: Iterable<string>;
   changes?: unknown;
 }
 interface ActorLike extends PermissionActorLike {
@@ -43,22 +46,6 @@ interface ActorLike extends PermissionActorLike {
   items?: Iterable<ItemLike>;
   effects?: Iterable<EffectLike>;
 }
-interface ActorsLike {
-  get(id: string): ActorLike | undefined;
-}
-
-function actors(): ActorsLike {
-  const g = globalThis as unknown as { game?: { actors?: ActorsLike } };
-  const a = g.game?.actors;
-  if (!a) throw new Error("Foundry game.actors is unavailable");
-  return a;
-}
-
-function systemId(): string {
-  const g = globalThis as unknown as { game?: { system?: { id?: string } } };
-  return g.game?.system?.id ?? "";
-}
-
 /** Safely read a number at a nested path; undefined if any segment is missing or non-numeric. */
 function num(obj: unknown, ...path: string[]): number | undefined {
   let cur: unknown = obj;
@@ -222,18 +209,18 @@ function extractDerived(actor: ActorLike): Record<string, unknown> {
   }
 }
 
+/** Flatten an effect's `statuses` Set (iterable) to an array; empty when absent or non-iterable. */
 function statuses(effect: EffectLike): string[] {
   const s = effect.statuses;
-  if (!s) return [];
-  if (Symbol.iterator in (s as object)) return [...(s as Iterable<string>)];
-  return [];
+  if (!s || !(Symbol.iterator in (s as object))) return [];
+  return [...(s as Iterable<string>)];
 }
 
 export const sheetDerived: Procedure = async (payload) => {
   const actorId = String((payload as { actorId?: unknown } | null)?.actorId ?? "").trim();
   if (!actorId) throw new Error("sheet.derived requires 'actorId'");
 
-  const actor = actors().get(actorId);
+  const actor = actors<ActorLike>().get(actorId);
   if (!actor) throw new Error(`unknown actor ${actorId}`);
   // A read: require at least OBSERVER ownership for the Companion user.
   assertCompanionPermission(actor, "OBSERVER", actorId);
