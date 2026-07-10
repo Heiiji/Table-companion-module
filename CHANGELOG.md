@@ -14,7 +14,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `system.aspects.{aspect}.caracteristiques.{characteristic}.value`), accepting a
   `characteristic` option. Success bands stay app-side, so the module keeps shipping the
   system's own roll without baking in rules interpretation. Absent ⇒ the app falls back to
-  its local dice engine.
+  its local dice engine. **Historical behavior note:** this path is now classified as divergent
+  from the indexed Knight v1.5 player-combo rule; see the workspace
+  [`Knight implementation status`](../docs/game-systems/knight/implementation-status.md).
 - **Knight sheet oracle** (`sheet.derived`): `knightDerived` surfaces a Knight actor's
   system-aware derived data — `energyMax`, `defense`, `reaction`, and per-aspect
   `aspectPools` — with gear-scoped energy and a top-level fallback. Strictly additive;

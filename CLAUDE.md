@@ -12,6 +12,9 @@ future AI sessions.
 
 - Run `git status --short --branch` before editing. Treat unrelated changes as user work.
 - Prefer `rg` / `rg --files`. Avoid scanning `dist/`, `node_modules`, coverage output.
+- Before changing game-specific procedures, use the workspace
+  [`game-system reference registry`](../docs/game-systems/README.md). A connected Foundry system is
+  version-specific integration evidence, not automatically the published rule authority.
 - Read the relevant `src/` module **and its `test/` mirror** before changing behavior; the
   test suite is comprehensive and is the fast feedback loop (no Foundry needed).
 - Never log or commit the Companion user's password or the agent signing key.
@@ -61,9 +64,11 @@ Two jobs:
 
 - **Additive-only envelope.** Add new procedures/fields without breaking old peers; only a
   genuine breaking change bumps `ENVELOPE_VERSION`.
-- **The module is the system-aware half.** It returns ground-truth, system-exact results
-  (pf2e degrees-of-success, dnd5e advantage, Knight aspect pools). The agent relays them
-  **verbatim** and stays system-agnostic — keep system logic here, not in the agent.
+- **The module is the system-aware half.** It returns results from the connected Foundry system
+  (for example PF2e degrees-of-success or D&D 5e advantage). The agent relays them **verbatim** and
+  stays system-agnostic — keep integration logic here, not in the agent. Treat those results as
+  exact for the pinned Foundry/system version, then reconcile game semantics with the workspace
+  reference pack; the current Knight roll path is recorded there as divergent.
 - **The module is the sole HTML escaper** for display payloads. Do not assume the agent
   escaped anything.
 - **Signing is mandatory.** Every `rpc.request` is verified against the pinned agent key.
