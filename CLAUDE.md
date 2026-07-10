@@ -7,6 +7,11 @@ future AI sessions.
 > **Maintenance rule:** keep the Repository Map and the cross-repo pointers current. When you
 > change the RPC envelope, a procedure name, or the signing scheme, update the agent side
 > **and** the ecosystem [`docs/CONTRACTS.md`](../docs/CONTRACTS.md) in the same change.
+> Every module change that affects runtime behavior, security, compatibility, setup/UI, manifests,
+> or release packaging **must also update `CHANGELOG.md` under `[Unreleased]` in the same change**.
+> Do not defer the changelog to release time or create a future version heading before its tag;
+> a qualifying task is incomplete while its Unreleased note is missing. Pure tests, internal
+> refactors, and documentation-only changes need no entry unless they change user-visible behavior.
 
 ## First Moves
 
@@ -58,6 +63,8 @@ Two jobs:
 - `src/util/` — `password`, `html` (the **sole** HTML escaper — the agent deliberately does
   not escape, to avoid double-escaping), `log`.
 - `test/` — Vitest specs mirroring `src/` (mocks the Foundry socket; one spec per RPC piece).
+- `CHANGELOG.md` — user-facing release history; keep `[Unreleased]` current as part of every
+  qualifying module change, then move those entries under the tagged version at release time.
 - `lang/` (en, fr), `styles/`, `module.json` (manifest), `vite`/`vitest`/`tsconfig` config.
 
 ## Architecture Rules

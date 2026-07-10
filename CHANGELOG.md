@@ -6,6 +6,39 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Structured RPC failures and deadlines**: procedure errors can now carry stable machine codes
+  such as `invalid_args`, `permission_denied`, `payload_too_large`, and `procedure_timeout`.
+  Every request has a 10-second deadline, and oversized actor or compendium responses fail
+  explicitly instead of being silently dropped by the envelope-size guard.
+- **Knight v1.5 roll results**: `roll.action` now returns the computed success count, Exploit
+  state, and critical-failure state, together with the base/combo characteristics and their
+  governing aspects.
+
+### Changed
+- **Knight rolls now use a two-characteristic combo**: the request options are `base` + `combo`
+  (with optional bonus dice), and the two characteristics must differ. Each characteristic is
+  capped by its linked Aspect, the two effective scores are summed, even d6 results are successes,
+  an all-even first pool triggers one Exploit reroll, and an all-odd first pool is a critical
+  failure. Effective scores are clamped to zero, and `sheet.derived` now exposes exactly Knight's
+  five real Aspects (no phantom `heaume`).
+- App-initiated PF2e and D&D 5e rolls now skip Foundry's configuration dialog and suppress chat
+  messages, including compatibility with both modern and legacy D&D 5e actor roll APIs.
+- Dropped agent envelopes now report rate-limited diagnostic reasons in the GM console.
+
+### Security
+- Actor reads now require the Companion user to have `OBSERVER` permission; rolls and effect
+  mutations require `OWNER`. This prevents the elected GM browser's authority from exposing or
+  changing actors that were not explicitly shared with Companion.
+- A previously unknown agent key can now be pinned only while the GM has the Table Companion setup
+  dialog open. A successful pairing shows the new key fingerprint for verification.
+
+### Fixed
+- Pairing QR codes no longer embed loopback hosts such as `localhost`, `127.x`, or `::1`, which a
+  phone cannot reach; the app will prompt for a reachable Foundry host instead.
+- Opening or resetting the Companion password now closes any prior one-time password dialog so
+  different secrets cannot remain stacked on screen.
+
 ## [0.5.0] - 2026-06-27
 
 ### Added
