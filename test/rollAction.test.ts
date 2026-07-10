@@ -166,6 +166,23 @@ describe("roll.action", () => {
     expect(res.system?.type).toBe("aspect");
   });
 
+  it("knight clamps each effective characteristic to zero before summing the combo pool", async () => {
+    const evaluate = vi.fn(async () => d6pool([4, 3]));
+    const { formulas } = stubKnight(evaluate, {
+      aspects: {
+        chair: { value: -2, caracteristiques: { force: { value: -1 } } },
+        bete: { value: 5, caracteristiques: { instinct: { value: 2 } } },
+      },
+    });
+
+    await rollAction(
+      { actorId: "vex", type: "aspect", options: { base: "force", combo: "instinct" } },
+      {} as never,
+    );
+
+    expect(formulas).toEqual(["2d6"]); // max(0, min(-1, -2)) + min(2, 5)
+  });
+
   it("knight rejects the same characteristic in base and combo with invalid_args (KNT-R-001)", async () => {
     stubKnight(vi.fn());
     try {

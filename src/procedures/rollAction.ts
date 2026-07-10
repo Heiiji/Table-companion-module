@@ -9,7 +9,8 @@ import { RpcError } from "../rpc/errors.js";
  *
  * `roll.action({ actorId, type, options })` → `{ formula, total, dice, system }`
  *   type: "save" | "check" | "skill" | "aspect" (extend per system)
- *   options: system-specific knobs (statistic / ability / skill / aspect / advantage / dc)
+ *   options: system-specific knobs
+ *     (statistic / ability / skill / base / combo / bonus / advantage / dc)
  *   system: enrichment carried through verbatim (e.g. { degreeOfSuccess }) for the app to render
  *
  * Strictly additive: when this capability is absent — or it throws for an unsupported type — the
@@ -220,7 +221,7 @@ function knightEffective(
   if (characteristicValue === undefined) {
     throw new Error(`knight characteristic '${characteristic}' has no value`);
   }
-  return { effective: Math.min(characteristicValue, aspectValue), aspect: aspectKey };
+  return { effective: Math.max(0, Math.min(characteristicValue, aspectValue)), aspect: aspectKey };
 }
 
 /** Normalize one evaluated system Roll's dice into our wire shape (faces + flat results). */
