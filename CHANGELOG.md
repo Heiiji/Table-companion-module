@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-10
+
 ### Added
 - **Structured RPC failures and deadlines**: procedure errors can now carry stable machine codes
   such as `invalid_args`, `permission_denied`, `payload_too_large`, and `procedure_timeout`.
@@ -25,6 +27,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - App-initiated PF2e and D&D 5e rolls now skip Foundry's configuration dialog and suppress chat
   messages, including compatibility with both modern and legacy D&D 5e actor roll APIs.
 - Dropped agent envelopes now report rate-limited diagnostic reasons in the GM console.
+- GitHub releases now publish the matching changelog section as their release notes and fail
+  instead of creating an incomplete release when expected artifacts are missing.
 
 ### Security
 - Actor reads now require the Companion user to have `OBSERVER` permission; rolls and effect

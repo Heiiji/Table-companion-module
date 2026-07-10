@@ -39,9 +39,25 @@ jobs:
           zip -r ../module.zip . -x '*.map'
           cd ..
 
+      # Use the curated changelog entry as the GitHub release body. Failing here
+      # keeps a tag with missing release notes from producing a half-finished release.
+      - name: Prepare release notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v heading="## [$version]" '
+            index($0, heading) == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          grep -q '^### ' release-notes.md
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          name: Table Companion ${{ github.ref_name }}
+          body_path: release-notes.md
+          fail_on_unmatched_files: true
+          make_latest: true
           # Publish the built manifest (version stamped from the tag), not the
           # repo copy — they share everything but the version.
           files: |
