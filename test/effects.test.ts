@@ -7,46 +7,62 @@ afterEach(() => vi.unstubAllGlobals());
 describe("effect procedures — Companion permission gate", () => {
   it("denies a write when the Companion user lacks OWNER on the actor", async () => {
     const companion = { id: "c1", name: "Companion", getFlag: () => true };
-    const increaseCondition = vi.fn(async () => undefined);
+    const toggleStatusEffect = vi.fn(async () => undefined);
     vi.stubGlobal("game", {
-      system: { id: "pf2e" },
+      system: { id: "dnd5e" },
       users: [companion],
       actors: {
-        get: () => ({ increaseCondition, testUserPermission: () => false }),
+        get: () => ({ toggleStatusEffect, testUserPermission: () => false }),
       },
     });
     await expect(
       effectApply({ actorId: "a1", statusId: "frightened", value: 1 }, {} as never),
     ).rejects.toBeInstanceOf(RpcError);
     // The write never ran because the gate rejected first.
-    expect(increaseCondition).not.toHaveBeenCalled();
+    expect(toggleStatusEffect).not.toHaveBeenCalled();
   });
 
   it("allows a write when the Companion user holds OWNER", async () => {
     const companion = { id: "c1", name: "Companion", getFlag: () => true };
-    const increaseCondition = vi.fn(async () => undefined);
+    const toggleStatusEffect = vi.fn(async () => undefined);
     vi.stubGlobal("game", {
-      system: { id: "pf2e" },
+      system: { id: "dnd5e" },
       users: [companion],
       actors: {
-        get: () => ({ increaseCondition, testUserPermission: () => true }),
+        get: () => ({ toggleStatusEffect, testUserPermission: () => true }),
       },
     });
-    await effectApply({ actorId: "a1", statusId: "frightened", value: 1 }, {} as never);
-    expect(increaseCondition).toHaveBeenCalledWith("frightened", { value: 1 });
+    await effectApply({ actorId: "a1", statusId: "prone" }, {} as never);
+    expect(toggleStatusEffect).toHaveBeenCalledWith("prone", { active: true });
   });
 });
 
 describe("effect.apply", () => {
-  it("pf2e increments a valued condition via the system API", async () => {
+  it("all generic effect handlers reject PF2e before reading or mutating an actor", async () => {
     const increaseCondition = vi.fn(async () => undefined);
-    vi.stubGlobal("game", { system: { id: "pf2e" }, actors: { get: () => ({ increaseCondition }) } });
-    const res = (await effectApply({ actorId: "a1", statusId: "frightened", value: 2 }, {} as never)) as {
-      ok: boolean;
-      applied: string;
-    };
-    expect(increaseCondition).toHaveBeenCalledWith("frightened", { value: 2 });
-    expect(res).toEqual({ ok: true, applied: "frightened" });
+    const decreaseCondition = vi.fn(async () => undefined);
+    const del = vi.fn(async () => undefined);
+    const getActor = vi.fn(() => ({
+      increaseCondition,
+      decreaseCondition,
+      effects: { get: () => ({ delete: del }) },
+    }));
+    vi.stubGlobal("game", { system: { id: "pf2e" }, actors: { get: getActor } });
+
+    await expect(
+      effectApply({ actorId: "a1", statusId: "frightened", value: 2 }, {} as never),
+    ).rejects.toMatchObject({ code: "unsupported_runtime" });
+    await expect(
+      effectRemove({ actorId: "a1", effectId: "condition-item" }, {} as never),
+    ).rejects.toMatchObject({ code: "unsupported_runtime" });
+    await expect(
+      effectSetValue({ actorId: "a1", statusId: "frightened", value: 0 }, {} as never),
+    ).rejects.toMatchObject({ code: "unsupported_runtime" });
+
+    expect(getActor).not.toHaveBeenCalled();
+    expect(increaseCondition).not.toHaveBeenCalled();
+    expect(decreaseCondition).not.toHaveBeenCalled();
+    expect(del).not.toHaveBeenCalled();
   });
 
   it("non-pf2e falls back to toggleStatusEffect", async () => {
@@ -57,7 +73,7 @@ describe("effect.apply", () => {
   });
 
   it("requires statusId", async () => {
-    vi.stubGlobal("game", { system: { id: "pf2e" }, actors: { get: () => ({}) } });
+    vi.stubGlobal("game", { system: { id: "dnd5e" }, actors: { get: () => ({}) } });
     await expect(effectApply({ actorId: "a1" }, {} as never)).rejects.toThrow(/statusId/);
   });
 });
@@ -81,30 +97,8 @@ describe("effect.remove", () => {
 });
 
 describe("effect.setValue", () => {
-  it("pf2e drives the badge toward the target value", async () => {
-    const increaseCondition = vi.fn(async () => undefined);
-    const decreaseCondition = vi.fn(async () => undefined);
-    vi.stubGlobal("game", {
-      system: { id: "pf2e" },
-      actors: { get: () => ({ increaseCondition, decreaseCondition }) },
-    });
-    await effectSetValue({ actorId: "a1", statusId: "clumsy", value: 3 }, {} as never);
-    expect(increaseCondition).toHaveBeenCalledWith("clumsy", { value: 3 });
-  });
-
-  it("pf2e value 0 force-removes the condition", async () => {
-    const increaseCondition = vi.fn(async () => undefined);
-    const decreaseCondition = vi.fn(async () => undefined);
-    vi.stubGlobal("game", {
-      system: { id: "pf2e" },
-      actors: { get: () => ({ increaseCondition, decreaseCondition }) },
-    });
-    await effectSetValue({ actorId: "a1", statusId: "frightened", value: 0 }, {} as never);
-    expect(decreaseCondition).toHaveBeenCalledWith("frightened", { forceRemove: true });
-  });
-
   it("rejects a negative value", async () => {
-    vi.stubGlobal("game", { system: { id: "pf2e" }, actors: { get: () => ({}) } });
+    vi.stubGlobal("game", { system: { id: "dnd5e" }, actors: { get: () => ({}) } });
     await expect(effectSetValue({ actorId: "a1", statusId: "x", value: -1 }, {} as never)).rejects.toThrow(/value/);
   });
 });

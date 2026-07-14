@@ -19,23 +19,22 @@ const d20 = (result: number, total: number, degree?: number): FakeRoll => ({
 afterEach(() => vi.unstubAllGlobals());
 
 describe("roll.action", () => {
-  it("pf2e save calls the statistic's roll and carries degreeOfSuccess", async () => {
+  it("rejects PF2e before reading the actor or executing a lossy roll", async () => {
     const roll = vi.fn(async () => d20(18, 31, 3));
+    const getActor = vi.fn(() => ({ saves: { fortitude: { roll } } }));
     vi.stubGlobal("game", {
       system: { id: "pf2e" },
-      actors: { get: () => ({ saves: { fortitude: { roll } } }) },
+      actors: { get: getActor },
     });
 
-    const res = (await rollAction(
-      { actorId: "a1", type: "save", options: { statistic: "fortitude", dc: 25 } },
-      {} as never,
-    )) as { total: number; dice: unknown[]; system?: { degreeOfSuccess?: number; statistic?: string } };
-
-    // App-initiated rolls skip the GM dialog and never post to table chat.
-    expect(roll).toHaveBeenCalledWith({ dc: 25, skipDialog: true, createMessage: false });
-    expect(res.total).toBe(31);
-    expect(res.system?.degreeOfSuccess).toBe(3);
-    expect(res.system?.statistic).toBe("fortitude");
+    await expect(
+      rollAction(
+        { actorId: "a1", type: "save", options: { statistic: "fortitude", dc: 25 } },
+        {} as never,
+      ),
+    ).rejects.toMatchObject({ code: "unsupported_runtime" });
+    expect(getActor).not.toHaveBeenCalled();
+    expect(roll).not.toHaveBeenCalled();
   });
 
   it("dnd5e save uses modern rollSavingThrow, skips the dialog and suppresses chat", async () => {
@@ -297,7 +296,7 @@ describe("roll.action", () => {
   });
 
   it("throws for an unsupported type so the app falls back locally", async () => {
-    vi.stubGlobal("game", { system: { id: "pf2e" }, actors: { get: () => ({}) } });
+    vi.stubGlobal("game", { system: { id: "dnd5e" }, actors: { get: () => ({}) } });
     await expect(
       rollAction({ actorId: "a1", type: "strike", options: {} }, {} as never),
     ).rejects.toThrow(/not supported/);

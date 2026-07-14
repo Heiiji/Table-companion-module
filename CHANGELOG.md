@@ -17,6 +17,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   field — no `ENVELOPE_VERSION` bump.
 
 ### Changed
+- PF2e no longer advertises `sheet.derived`, `roll.action`, or generic `effect.*` procedures. Direct
+  stale invocations also fail closed: the prior sheet response exported broad prepared subtrees,
+  the roll result lacked spoiler-safe provenance, and generic effects did not exactly model PF2e
+  embedded condition Items. Other game systems keep their existing procedures; PF2e will regain
+  only narrow, versioned capabilities after authenticated exact-version fixture verification.
+- Foundry compendium reads are now described as transient access from the GM's licensed/local
+  session, not redistribution rights or content-pack admission. Passthrough documents must not seed
+  bundled/backend catalogs, persistent caches, or telemetry.
 - PF2e advancement build decisions are validated as typed, source-qualified selections but fail
   closed during Foundry apply until each decision kind has an exact, fixture-proven PF2e API. The
   module never converts them into broad `actor.system` or arbitrary embedded-document patches.
@@ -106,25 +114,25 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 - **Foundry compendium passthrough** (`compendium.index` / `compendium.get`): two additive RPC
-  procedures that surface the GM's own Foundry compendium content (creatures, spells, items) so the
-  app can merge it with the backend reference catalog into one "augmented library". `compendium.index`
-  returns pack-qualified summaries (`"<pack>|<docId>"` ids) filtered by content type / system / query;
-  `compendium.get` returns one raw Foundry document. The GM already owns this content — it is surfaced
-  live, never redistributed or cached server-side; the app normalizes it via its existing system
-  mappers, so the module stays system-agnostic. Absent ⇒ the app shows backend-only catalog content.
+  procedures that transiently surface content the active Foundry session is authorized to access
+  (creatures, spells, items) as a distinct live-world section. `compendium.index` returns
+  pack-qualified summaries (`"<pack>|<docId>"` ids) filtered by content type / system / query;
+  `compendium.get` returns one raw Foundry document. This access is not redistribution rights or
+  Table Companion content admission; the module does not retain it, and downstream consumers must
+  not use it to seed persistent catalogs, backend storage, or telemetry. Absent ⇒ no live-world
+  section.
 - **Per-system widget oracle** — three additive, capability-gated RPC procedures that feed the
-  apps' per-game-system dashboard widgets with Foundry ground truth (absent ⇒ the app uses its
+  apps' per-game-system dashboard widgets with live Foundry enrichment (absent ⇒ the app uses its
   local profile-derived baseline / dice engine, so no widget is gated by Foundry):
-  - `sheet.derived` — a fully-prepared actor's system-aware derived data (saving-throw totals +
-    proficiency ranks, AC, spell DC/attack, slot maxes) plus its raw prepared `system`, items and
-    effects. The headless connector can never see these (system JS computes them in-session).
-  - `roll.action` — a system-contextual roll resolved through the system's own pipeline
-    (pf2e save/check with degrees-of-success, dnd5e check/save with advantage, Knight aspect
-    d6-pool sized from the actor), returning the evaluated roll + `system` enrichment.
-  - `effect.apply` / `effect.remove` / `effect.setValue` — system-aware condition/effect mutations
-    so rule side-effects fire (pf2e valued conditions via the system API, dnd5e concentration drop
-    via the stable ActiveEffect delete path). Mechanical embedded toggles stay on the agent's
-    connector write path. All are responder-gated by the existing rpc.request dispatch.
+  - `sheet.derived` — a legacy fully-prepared Actor response plus system-specific enrichment.
+    **Current qualification:** it is no longer registered for PF2e because its broad raw
+    `system`/Item/effect export is not an admitted PF2e DTO.
+  - `roll.action` — a system-contextual roll resolved through the system's own pipeline.
+    **Current qualification:** PF2e is no longer registered because the old save/check result did
+    not preserve required visibility and roll provenance; D&D 5e and Knight remain available.
+  - `effect.apply` / `effect.remove` / `effect.setValue` — system-aware condition/effect mutations.
+    **Current qualification:** PF2e is no longer registered because the generic endpoints did not
+    exactly model its embedded condition Items; supported non-PF2 behavior is unchanged.
 - **Shared-screen / projector display** (`display.show` / `display.clear`): two
   additive RPC procedures that render a GM-authored, already-revealed projection
   (portrait + fields) as a high-contrast, large-type projector popout on every
@@ -169,8 +177,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.2.1]
 
 ### Added
-- `roll.execute` RPC procedure: evaluates a formula through Foundry's own dice
-  pipeline so the app can obtain system-exact rolls.
+- `roll.execute` RPC procedure: evaluates a formula through Foundry core's dice pipeline. It returns
+  formula/dice/total only and is not a system check result or PF2e degree-of-success envelope.
 
 ### Fixed
 - Single-instance setup dialog and more robust password copy.

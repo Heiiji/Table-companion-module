@@ -2,10 +2,12 @@ import type { Procedure } from "../rpc/registry.js";
 import { assertPayloadWithinCap } from "../rpc/errors.js";
 
 /**
- * Phase 3 (augmented library): expose the GM's own Foundry compendium content over the RPC
- * channel so the app can merge it with the backend reference catalog into one library. The GM
- * already owns this content in their world — we surface it live, never redistribute or cache it
- * server-side. Strictly additive: absent ⇒ the app shows backend-only content.
+ * Phase 3 live library passthrough: expose content that the active Foundry session is authorized
+ * to access as a transient, local world section. Foundry access does not establish Table Companion
+ * redistribution rights, content-pack admission, or permission to retain the data. The module does
+ * not cache responses; callers must not persist them, use them to seed bundled/backend catalogs,
+ * or include document content/selections in telemetry. Strictly additive: absent ⇒ no live world
+ * section.
  *
  * `compendium.index({ system?, contentType?, query?, limit? })` → `{ entries: [summary] }`
  * `compendium.get({ id })` → `{ id, document }` (raw Foundry doc; the app maps it like an import)
@@ -130,8 +132,9 @@ export const compendiumGet: Procedure = async (payload) => {
   if (!pack) throw new Error(`unknown compendium pack ${packId}`);
   const doc = await pack.getDocument(docId);
   if (!doc) throw new Error(`unknown document ${docId}`);
-  // Raw Foundry document; the app normalizes it via its existing system mappers, so the module
-  // stays system-agnostic (mirrors the agent's raw-document stance).
+  // Transient raw Foundry document for the requesting licensed/local session. It is normalized by
+  // the app for this live view only; it is not admitted content and must not feed storage, catalogs,
+  // or telemetry. The module stays system-agnostic and retains no copy.
   const response = { id, document: doc.toObject() };
   // A large compendium document (a bestiary NPC with dozens of items/effects) can exceed the
   // envelope cap; fail loudly with payload_too_large rather than have the peer silently drop it.

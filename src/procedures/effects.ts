@@ -1,10 +1,11 @@
 import type { Procedure } from "../rpc/registry.js";
 import { actors, assertCompanionPermission, PermissionActorLike, systemId } from "./foundry.js";
+import { RpcError } from "../rpc/errors.js";
 
 /**
  * Tier-1 oracle (system-aware writes): apply / remove / set the value of conditions & effects
- * through the game system's OWN API, so rule side-effects (pf2e valued conditions and their rule
- * elements, dnd5e concentration teardown) are handled correctly — unlike a blind document write.
+ * through the game system's OWN API, so supported-system side-effects (for example dnd5e
+ * concentration teardown) are handled correctly — unlike a blind document write.
  * Mechanical, side-effect-free embedded writes (e.g. toggling a Knight module field) stay on the
  * Go connector's write path; only mutations needing system behaviour route here.
  *
@@ -19,8 +20,10 @@ import { actors, assertCompanionPermission, PermissionActorLike, systemId } from
  * `effect.remove({ actorId, effectId })`         → { ok, removed }
  * `effect.setValue({ actorId, statusId, value })`→ { ok, value }
  *
- * NOTE: the per-system methods are best-effort and pending verification against a real Foundry
- * world per system; effect.remove uses the stable core ActiveEffect.delete path.
+ * PF2e is intentionally unavailable here. Its conditions/effects are normally embedded Items and
+ * the former generic mapping was not an exact, fixture-proven semantic contract. PF2e must use new
+ * narrow, versioned procedures after the M8 authentication/fixture gate. The explicit handler guard
+ * protects against stale callers even though capability registration also omits these procedures.
  */
 
 interface EffectDocLike {
@@ -30,13 +33,20 @@ interface EffectDocLike {
 interface EffectsCollectionLike {
   get(id: string): EffectDocLike | undefined;
 }
-type ConditionMethod = (...args: unknown[]) => Promise<unknown> | unknown;
 interface ActorLike extends PermissionActorLike {
   effects?: EffectsCollectionLike;
   toggleStatusEffect?: (statusId: string, options?: Record<string, unknown>) => Promise<unknown>;
-  increaseCondition?: ConditionMethod; // pf2e
-  decreaseCondition?: ConditionMethod; // pf2e
 }
+
+function assertEffectProceduresSupported(): void {
+  if (systemId() === "pf2e") {
+    throw new RpcError(
+      "unsupported_runtime",
+      "generic effect procedures are unavailable for PF2e until a versioned semantic contract is verified",
+    );
+  }
+}
+
 function requireActor(payload: unknown): { actor: ActorLike; p: Record<string, unknown> } {
   const p = (payload ?? {}) as Record<string, unknown>;
   const actorId = String(p.actorId ?? "").trim();
@@ -49,22 +59,18 @@ function requireActor(payload: unknown): { actor: ActorLike; p: Record<string, u
 }
 
 export const effectApply: Procedure = async (payload) => {
+  assertEffectProceduresSupported();
   const { actor, p } = requireActor(payload);
   const statusId = String(p.statusId ?? "").trim();
   if (!statusId) throw new Error("effect.apply requires 'statusId'");
-  const value = typeof p.value === "number" ? p.value : undefined;
 
-  // pf2e valued conditions increment via the system API so rule elements fire correctly.
-  if (systemId() === "pf2e" && actor.increaseCondition) {
-    await actor.increaseCondition(statusId, value !== undefined ? { value } : undefined);
-    return { ok: true, applied: statusId };
-  }
   if (!actor.toggleStatusEffect) throw new Error("this system cannot apply status effects via the API");
   await actor.toggleStatusEffect(statusId, { active: true });
   return { ok: true, applied: statusId };
 };
 
 export const effectRemove: Procedure = async (payload) => {
+  assertEffectProceduresSupported();
   const { actor, p } = requireActor(payload);
   const effectId = String(p.effectId ?? "").trim();
   if (!effectId) throw new Error("effect.remove requires 'effectId'");
@@ -75,22 +81,12 @@ export const effectRemove: Procedure = async (payload) => {
 };
 
 export const effectSetValue: Procedure = async (payload) => {
-  const { actor, p } = requireActor(payload);
+  assertEffectProceduresSupported();
+  const { p } = requireActor(payload);
   const statusId = String(p.statusId ?? "").trim();
   const value = typeof p.value === "number" ? p.value : NaN;
   if (!statusId) throw new Error("effect.setValue requires 'statusId'");
   if (Number.isNaN(value) || value < 0) throw new Error("effect.setValue requires a non-negative 'value'");
 
-  // pf2e valued conditions: drive toward the target with the system's increase/decrease API so
-  // the badge and any linked rule elements stay consistent. value 0 ⇒ fully remove.
-  if (systemId() === "pf2e" && actor.increaseCondition && actor.decreaseCondition) {
-    if (value === 0) {
-      // decrease to zero; the system removes the condition when it hits 0.
-      await actor.decreaseCondition(statusId, { forceRemove: true });
-    } else {
-      await actor.increaseCondition(statusId, { value });
-    }
-    return { ok: true, value };
-  }
   throw new Error("this system cannot set a condition value via the API");
 };

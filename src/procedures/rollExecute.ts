@@ -2,10 +2,11 @@ import { MAX_ROLL_DICE, MAX_ROLL_FORMULA_LEN } from "../constants.js";
 import type { Procedure } from "../rpc/registry.js";
 
 /**
- * M4: run a real roll through Foundry's own dice pipeline and return the evaluated result, so the app
- * can get system-exact rolls (e.g. pf2e degree-of-success) when this capability is advertised. The app
- * falls back to its local engine when the procedure is absent or fails — standalone-first is preserved,
- * so this is strictly additive enrichment.
+ * Run a formula through Foundry core's dice evaluator and return its faces, total, and formula.
+ * This is dice evaluation only: it carries no Actor/check context, target, DC, visibility, modifier
+ * provenance, or PF2e degree of success. Callers must never present it as a PF2e check outcome.
+ * The app falls back to its local formula engine when the procedure is absent or fails, preserving
+ * standalone-first behavior.
  *
  * Payload: `{ formula: string }`. Response: `{ formula, total, dice: [{ faces, results }] }` — the same
  * pre-evaluated shape the app already maps into a DiceRoll.

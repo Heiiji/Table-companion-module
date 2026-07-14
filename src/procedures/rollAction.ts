@@ -4,8 +4,8 @@ import { RpcError } from "../rpc/errors.js";
 
 /**
  * Tier-1 oracle (roll): resolve a system-contextual roll through the game system's OWN pipeline,
- * so the app gets ground-truth results — pf2e degrees-of-success, dnd5e advantage, a Knight aspect
- * d6-pool — instead of approximating the modifier stack locally.
+ * so supported systems can return a dnd5e check/save or Knight aspect d6-pool instead of
+ * approximating it locally.
  *
  * `roll.action({ actorId, type, options })` → `{ formula, total, dice, system }`
  *   type: "save" | "check" | "skill" | "aspect" (extend per system)
@@ -13,9 +13,10 @@ import { RpcError } from "../rpc/errors.js";
  *     (statistic / ability / skill / base / combo / bonus / advantage / dc)
  *   system: enrichment carried through verbatim (e.g. { degreeOfSuccess }) for the app to render
  *
- * Strictly additive: when this capability is absent — or it throws for an unsupported type — the
- * app resolves the roll with its local dice engine (standalone-first). NOTE: the exact system roll
- * method names are pending verification against a real Foundry world per system.
+ * PF2e is intentionally unavailable: the former result omitted DC visibility, adjustment,
+ * fortune/reroll, MAP, target, trait, and secret-check provenance. A stale/direct PF2e invocation
+ * is rejected here even though PF2e capability registration also omits roll.action. A new narrow,
+ * spoiler-safe, versioned DTO must pass the M8 fixture/authentication gate before PF2e returns.
  */
 
 interface DieTermLike {
@@ -32,13 +33,7 @@ interface RollLike {
 }
 type RollMethod = (...args: unknown[]) => Promise<RollLike | null | undefined> | RollLike | null | undefined;
 
-interface StatisticLike {
-  roll?: RollMethod;
-}
 interface ActorLike extends PermissionActorLike {
-  saves?: Record<string, StatisticLike | undefined>;
-  skills?: Record<string, StatisticLike | undefined>;
-  perception?: StatisticLike;
   system?: Record<string, unknown>;
   rollSavingThrow?: RollMethod;
   rollAbilitySave?: RollMethod;
@@ -82,33 +77,6 @@ async function awaitRoll(value: ReturnType<RollMethod>): Promise<RollLike> {
   const roll = await value;
   if (!roll) throw new Error("system roll returned nothing");
   return roll;
-}
-
-// App-initiated pf2e rolls must never open the GM's roll dialog nor post to table chat.
-// Verified against pf2e's StatisticRollParameters: `skipDialog` skips the modifiers dialog,
-// `createMessage:false` suppresses the chat card (github.com/foundryvtt/pf2e statistic.ts).
-const PF2E_ROLL_OPTS = { skipDialog: true, createMessage: false } as const;
-
-async function rollPf2e(actor: ActorLike, type: string, opts: ActionOptions): Promise<Record<string, unknown>> {
-  switch (type) {
-    case "save": {
-      const stat = actor.saves?.[opts.statistic ?? ""];
-      if (!stat?.roll) throw new Error(`pf2e save '${opts.statistic}' is unavailable`);
-      return packageRoll(await awaitRoll(stat.roll({ dc: opts.dc, ...PF2E_ROLL_OPTS })), {
-        type: "save",
-        statistic: opts.statistic,
-      });
-    }
-    case "check":
-    case "skill": {
-      const slug = opts.skill ?? opts.statistic ?? "";
-      const stat = slug === "perception" ? actor.perception : actor.skills?.[slug];
-      if (!stat?.roll) throw new Error(`pf2e check '${slug}' is unavailable`);
-      return packageRoll(await awaitRoll(stat.roll({ dc: opts.dc, ...PF2E_ROLL_OPTS })), { type, statistic: slug });
-    }
-    default:
-      throw new Error(`pf2e roll type '${type}' is not supported`);
-  }
 }
 
 // App-initiated dnd5e rolls must never open the GM's roll-configuration dialog nor post to
@@ -318,19 +286,25 @@ export const rollAction: Procedure = async (payload) => {
   if (!type) throw new Error("roll.action requires 'type'");
   const opts = (p.options ?? {}) as ActionOptions;
 
+  const activeSystem = systemId();
+  if (activeSystem === "pf2e") {
+    throw new RpcError(
+      "unsupported_runtime",
+      "roll.action is unavailable for PF2e until a spoiler-safe versioned result contract is verified",
+    );
+  }
+
   const actor = actors<ActorLike>().get(actorId);
   if (!actor) throw new Error(`unknown actor ${actorId}`);
   // Rolling on behalf of the actor acts as its owner: require OWNER for the Companion user.
   assertCompanionPermission(actor, "OWNER", actorId);
 
-  switch (systemId()) {
-    case "pf2e":
-      return rollPf2e(actor, type, opts);
+  switch (activeSystem) {
     case "dnd5e":
       return rollDnd5e(actor, type, opts);
     case "knight":
       return rollKnight(actor, type, opts);
     default:
-      throw new Error(`roll.action is not supported for system '${systemId()}'`);
+      throw new Error(`roll.action is not supported for system '${activeSystem}'`);
   }
 };

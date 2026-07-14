@@ -147,6 +147,11 @@ describe("PF2e advancement capability gate", () => {
     const supported = new ProcedureRegistry();
     registerBuiltinProcedures(supported);
     expect(supported.capabilities()).toContain("pf2e.advancement.preview");
+    expect(supported.capabilities()).not.toContain("sheet.derived");
+    expect(supported.capabilities()).not.toContain("roll.action");
+    expect(supported.capabilities()).not.toContain("effect.apply");
+    expect(supported.capabilities()).not.toContain("effect.remove");
+    expect(supported.capabilities()).not.toContain("effect.setValue");
     expect(supported.capabilities()).not.toContain("pf2e.advancement.apply");
     expect(supported.capabilities()).not.toContain("pf2e.operation.status");
     expect(supported.get("pf2e.advancement.apply")).toBeUndefined();
@@ -168,6 +173,22 @@ describe("PF2e advancement capability gate", () => {
     expect(isPF2eAdvancementRuntimeSupported()).toBe(false);
     stubRuntime(actor, { systemID: "dnd5e" });
     expect(isPF2eAdvancementRuntimeSupported()).toBe(false);
+  });
+
+  it("preserves the generic sheet, roll, and effect capabilities for non-PF2 systems", () => {
+    const actor = makeActor();
+    stubRuntime(actor, { systemID: "dnd5e", systemVersion: "4.4.4" });
+    const registry = new ProcedureRegistry();
+    registerBuiltinProcedures(registry);
+    expect(registry.capabilities()).toEqual(
+      expect.arrayContaining([
+        "sheet.derived",
+        "roll.action",
+        "effect.apply",
+        "effect.remove",
+        "effect.setValue",
+      ]),
+    );
   });
 
   it("fails closed when a stale caller invokes a handler on another runtime", async () => {

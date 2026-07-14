@@ -21,8 +21,8 @@ function setGame(systemId: string, actor: FakeActor | undefined): void {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("sheet.derived", () => {
-  it("returns prepared system data + pf2e derived saves/AC", async () => {
-    setGame("pf2e", {
+  it("rejects PF2e instead of exporting broad prepared system, Item, and effect subtrees", async () => {
+    const actor: FakeActor = {
       id: "a1",
       name: "Brakka",
       type: "character",
@@ -36,23 +36,14 @@ describe("sheet.derived", () => {
       },
       items: [{ id: "i1", name: "Longsword", type: "weapon", system: { equipped: true } }],
       effects: [{ id: "e1", name: "Frightened", disabled: false, statuses: ["frightened"] }],
-    });
-
-    const res = (await sheetDerived({ actorId: "a1" }, {} as never)) as {
-      name: string;
-      system: Record<string, unknown>;
-      derived: { ac?: number; saves?: { fortitude?: { total?: number; rank?: number } } };
-      items: unknown[];
-      effects: Array<{ name: string; statuses: string[] }>;
     };
+    const getActor = vi.fn(() => actor);
+    vi.stubGlobal("game", { actors: { get: getActor }, system: { id: "pf2e" } });
 
-    expect(res.name).toBe("Brakka");
-    expect(res.derived.ac).toBe(24);
-    expect(res.derived.saves?.fortitude).toEqual({ total: 13, rank: 3 });
-    expect(res.items).toHaveLength(1);
-    expect(res.effects[0]).toMatchObject({ name: "Frightened", statuses: ["frightened"] });
-    // Raw prepared system block is always passed through.
-    expect(res.system).toHaveProperty("saves");
+    await expect(sheetDerived({ actorId: "a1" }, {} as never)).rejects.toMatchObject({
+      code: "unsupported_runtime",
+    });
+    expect(getActor).not.toHaveBeenCalled();
   });
 
   it("returns dnd5e spell DC + AC + proficiency", async () => {
@@ -231,7 +222,7 @@ describe("sheet.derived", () => {
   });
 
   it("throws on a missing actor", async () => {
-    setGame("pf2e", undefined);
+    setGame("homebrew", undefined);
     await expect(sheetDerived({ actorId: "ghost" }, {} as never)).rejects.toThrow(/unknown actor/);
   });
 

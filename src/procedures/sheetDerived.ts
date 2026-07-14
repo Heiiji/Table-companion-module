@@ -1,23 +1,24 @@
 import type { Procedure } from "../rpc/registry.js";
 import { actors, assertCompanionPermission, PermissionActorLike, systemId } from "./foundry.js";
-import { assertPayloadWithinCap } from "../rpc/errors.js";
+import { assertPayloadWithinCap, RpcError } from "../rpc/errors.js";
 
 /**
- * Tier-1 oracle (read): expose a fully-prepared actor's system-aware data over the RPC channel.
+ * Tier-1 oracle (read): expose a fully-prepared actor's system-aware data over the RPC channel for
+ * systems whose existing integration contract admits the response.
  *
- * The headless Go connector only ever sees Foundry *source* data; derived stats (saving-throw
- * totals + proficiency ranks, AC, spell DC/attack, MAP context, slot maxes, applied Active-Effect
- * consequences) are computed by the system's JS and exist ONLY inside a live Foundry session —
- * i.e. here. We return the prepared `actor.system` verbatim PLUS a small normalized `derived`
- * block so the app can render exact numbers without re-implementing the system's modifier engine.
+ * The headless Go connector only ever sees Foundry *source* data; some prepared data exists only
+ * inside the live system session. For currently supported systems this legacy procedure returns the
+ * prepared `actor.system` plus a small normalized `derived` block.
  *
  * Strictly additive enrichment: when this capability is absent the app keeps its own locally
  * derived baseline (standalone-first), so no widget is ever gated by Foundry being online.
  *
  * `sheet.derived({ actorId })` → `{ actorId, name, type, img, system, items, effects, derived }`
  *
- * NOTE: the per-system `derived` extraction is best-effort and pending verification against a real
- * Foundry world per system; the raw prepared `system` block is always returned regardless.
+ * PF2e is explicitly unavailable. Its former broad actor.system/Item export was neither a narrow,
+ * versioned DTO nor evidence-backed against a real Table Companion PF2e fixture. PF2e registration
+ * omits this capability and this handler rejects stale/direct calls before reading an Actor. A new
+ * permission-aware projection must pass the M8 authentication and exact-version fixture gate.
  */
 
 interface ItemLike {
@@ -65,16 +66,6 @@ function defined<T extends Record<string, unknown>>(obj: T): Partial<T> {
     if (v !== undefined) out[k] = v;
   }
   return out as Partial<T>;
-}
-
-function pf2eDerived(sys: Record<string, unknown>): Record<string, unknown> {
-  const save = (k: string) =>
-    defined({ total: num(sys, "saves", k, "value"), rank: num(sys, "saves", k, "rank") });
-  return defined({
-    ac: num(sys, "attributes", "ac", "value"),
-    perception: num(sys, "perception", "mod") ?? num(sys, "attributes", "perception", "value"),
-    saves: defined({ fortitude: save("fortitude"), reflex: save("reflex"), will: save("will") }),
-  });
 }
 
 /**
@@ -198,8 +189,6 @@ function knightDerived(sys: Record<string, unknown>): Record<string, unknown> {
 function extractDerived(actor: ActorLike): Record<string, unknown> {
   const sys = actor.system ?? {};
   switch (systemId()) {
-    case "pf2e":
-      return pf2eDerived(sys);
     case "dnd5e":
       return dnd5eDerived(sys, [...(actor.effects ?? [])]);
     case "knight":
@@ -219,6 +208,13 @@ function statuses(effect: EffectLike): string[] {
 export const sheetDerived: Procedure = async (payload) => {
   const actorId = String((payload as { actorId?: unknown } | null)?.actorId ?? "").trim();
   if (!actorId) throw new Error("sheet.derived requires 'actorId'");
+
+  if (systemId() === "pf2e") {
+    throw new RpcError(
+      "unsupported_runtime",
+      "sheet.derived is unavailable for PF2e until a narrow versioned projection is verified",
+    );
+  }
 
   const actor = actors<ActorLike>().get(actorId);
   if (!actor) throw new Error(`unknown actor ${actorId}`);

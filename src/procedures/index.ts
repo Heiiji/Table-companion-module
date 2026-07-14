@@ -1,4 +1,5 @@
 import type { ProcedureRegistry } from "../rpc/registry.js";
+import { systemId } from "./foundry.js";
 import { ping } from "./ping.js";
 import { presence } from "./presence.js";
 import { rollExecute } from "./rollExecute.js";
@@ -18,24 +19,28 @@ import {
 /** Register every built-in procedure. Each registration adds one capability to
  * the module's advertised set. */
 export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
+  const isPF2e = systemId() === "pf2e";
+
   registry.register("ping", ping);
   registry.register("presence", presence);
-  // M4: system-exact rolls via Foundry's dice pipeline (additive; app falls back to its local engine).
+  // Foundry core formula evaluation only: returns dice/total, not a system check result or PF2e
+  // degree. Additive; the app falls back to its local formula engine when absent.
   registry.register("roll.execute", rollExecute);
-  // Tier-1 oracle: per-system dashboard enrichment. sheet.derived exposes a prepared actor's
-  // derived stats (saves/AC/DC/MAP/slot maxes); roll.action resolves system-contextual rolls
-  // (pf2e degrees-of-success, dnd5e advantage, Knight aspect pools). Both additive + capability-
-  // gated; absent ⇒ the app uses its locally-derived baseline / local dice engine (standalone-first).
-  registry.register("sheet.derived", sheetDerived);
-  registry.register("roll.action", rollAction);
-  // Tier-1 system-aware writes: conditions / effects mutated through the system's own API so rule
-  // side-effects fire (pf2e valued conditions, dnd5e concentration). Responder-gated; absent ⇒ the
-  // app keeps the change in its local session. Mechanical embedded writes stay on the connector.
-  registry.register("effect.apply", effectApply);
-  registry.register("effect.remove", effectRemove);
-  registry.register("effect.setValue", effectSetValue);
-  // Phase 3 (augmented library): surface the GM's own compendium content so the app can merge it
-  // with the backend catalog. Additive; absent ⇒ backend-only library.
+  // These generic system oracles remain available for systems whose current contracts support
+  // them. PF2e deliberately advertises none of them: sheet.derived previously exposed a broad raw
+  // prepared subtree, roll.action omitted spoiler/provenance data, and effect.* did not model PF2e
+  // embedded condition Items exactly. Their handlers repeat this guard against stale/direct calls.
+  // PF2e can regain only narrow, versioned procedures after the M8 fixture/authentication gate.
+  if (!isPF2e) {
+    registry.register("sheet.derived", sheetDerived);
+    registry.register("roll.action", rollAction);
+    registry.register("effect.apply", effectApply);
+    registry.register("effect.remove", effectRemove);
+    registry.register("effect.setValue", effectSetValue);
+  }
+  // Phase 3 live library passthrough: surface content from the GM's licensed/local Foundry session
+  // as a transient world section. This access is not content admission or redistribution rights;
+  // responses must never seed a bundled/backend catalog or telemetry corpus.
   registry.register("compendium.index", compendiumIndex);
   registry.register("compendium.get", compendiumGet);
   // PNJ refactor (decision #3): shared-screen / projector display. Additive; absent
