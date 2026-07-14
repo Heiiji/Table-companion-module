@@ -7,16 +7,41 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Version-pinned PF2e advancement foundation**: `pf2e.advancement.preview` exposes XP readiness on
+  Foundry 14.361+ (major 14) with PF2e 8.3.0. Reserved implementations for
+  `pf2e.advancement.apply` and `pf2e.operation.status` contain the exact Actor hook, verification,
+  journal, and marker-ledger logic, but are deliberately not registered or advertised yet.
 - **`compendium.index` Item-subtype filter**: an optional `subtype` request field keeps only Items
   whose `type` matches (e.g. the Knight loadout subtypes `module` / `arme` / `armure`), so the app
   can pull a GM's homebrew Knight gear from their world without sifting every Item. Additive request
   field — no `ENVELOPE_VERSION` bump.
 
 ### Changed
+- PF2e advancement build decisions are validated as typed, source-qualified selections but fail
+  closed during Foundry apply until each decision kind has an exact, fixture-proven PF2e API. The
+  module never converts them into broad `actor.system` or arbitrary embedded-document patches.
+- Current native clients continue to block advancement for Foundry-linked characters; these
+  procedures establish the versioned transport/verification boundary but do not claim complete
+  linked class progression or choice application.
+- Preview/apply require explicit `expectedPackRevision` and `advancementMode`; the module does not
+  silently infer a pack or XP policy at the mutation boundary.
+- Client-supplied milestone readiness and GM override text do not authorize a Foundry level-up;
+  those modes fail closed until the signed channel carries a verified table-GM principal/grant.
 - **`compendium.index` is now stably ordered and reports paging**: results are sorted by name (then
   document id as a locale-independent tie-break) and returned as `{ entries, total, truncated }`
   instead of a silently-capped bare list, so the app can show "N of M". Additive to the response
   (existing readers of `entries` are unaffected).
+
+### Security
+- Consequential PF2e capabilities are compile-time gated off because module→agent replies are not
+  authenticated and their correlation IDs are broadcast-visible. There is no environment or
+  world-setting override; preview remains the only advertised PF2e advancement capability until
+  responder authentication and adversarial transport tests land together.
+- PF2e advancement reads require Companion `OBSERVER` permission; the dormant apply handler
+  requires `OWNER`. Requests are bounded, revision-checked, one-level-only,
+  operation-ID-idempotent, and restricted to the exact level/XP leaves plus a namespaced receipt
+  marker. A timeout or mismatched refetch is reported as unknown/review-required and never retried
+  as a raw write.
 
 ## [0.6.0] - 2026-07-10
 
