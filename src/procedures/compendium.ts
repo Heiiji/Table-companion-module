@@ -40,6 +40,12 @@ interface IndexPayload {
   contentType?: string;
   query?: string;
   limit?: number;
+  /**
+   * Optional Item **subtype** filter (`entry.type`) — e.g. the Knight loadout subtypes
+   * `module` | `arme` | `armure`. When set, only Items of that subtype are returned. Additive to
+   * the envelope (a new optional request field), so no `ENVELOPE_VERSION` bump.
+   */
+  subtype?: string;
 }
 
 // Minimal structural views of the Foundry globals we touch — kept local so this compiles against
@@ -68,8 +74,11 @@ export const compendiumIndex: Procedure = async (payload) => {
   const query = (p.query ?? "").trim().toLowerCase();
   const limit = Math.min(Math.max(p.limit ?? 100, 1), MAX_INDEX_RESULTS);
 
-  const out: CompendiumSummary[] = [];
-  for (const pack of packs()) {
+  // Collect all matches (bounded by a hard scan cap), THEN sort + page — so results are stable and
+  // the app can render "showing N of M" instead of a silently capped bare list.
+  const matched: CompendiumSummary[] = [];
+  let scanCapped = false;
+  outer: for (const pack of packs()) {
     if (pack.metadata?.type !== documentName) continue;
     // Only filter by system when the pack declares one (world/module packs often don't).
     if (p.system && pack.metadata.system && pack.metadata.system !== p.system) continue;
@@ -78,8 +87,10 @@ export const compendiumIndex: Procedure = async (payload) => {
     for (const entry of index) {
       const name = String(entry.name ?? "");
       if (!name) continue;
+      // Optional Item-subtype filter (Knight module/arme/armure); skip anything else.
+      if (p.subtype && String(entry.type ?? "") !== p.subtype) continue;
       if (query && !name.toLowerCase().includes(query)) continue;
-      out.push({
+      matched.push({
         id: `${pack.collection}${ID_SEPARATOR}${String(entry._id ?? "")}`,
         name,
         img: typeof entry.img === "string" ? entry.img : undefined,
@@ -87,10 +98,24 @@ export const compendiumIndex: Procedure = async (payload) => {
         pack: pack.collection,
         packLabel: pack.metadata.label ?? pack.collection,
       });
-      if (out.length >= limit) return { entries: out };
+      if (matched.length >= MAX_INDEX_RESULTS) {
+        scanCapped = true;
+        break outer;
+      }
     }
   }
-  return { entries: out };
+
+  // Deterministic order: by name (code-unit), then id as a stable tie-break — locale-independent
+  // so the same world yields the same paging on every client.
+  matched.sort((a, b) =>
+    a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+  );
+
+  const total = matched.length;
+  const entries = matched.slice(0, limit);
+  // truncated when we returned fewer than we found, or the scan itself hit the hard cap (more may exist).
+  const truncated = total > entries.length || scanCapped;
+  return { entries, total, truncated };
 };
 
 export const compendiumGet: Procedure = async (payload) => {

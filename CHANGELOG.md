@@ -6,6 +6,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **`compendium.index` Item-subtype filter**: an optional `subtype` request field keeps only Items
+  whose `type` matches (e.g. the Knight loadout subtypes `module` / `arme` / `armure`), so the app
+  can pull a GM's homebrew Knight gear from their world without sifting every Item. Additive request
+  field — no `ENVELOPE_VERSION` bump.
+
+### Changed
+- **`compendium.index` is now stably ordered and reports paging**: results are sorted by name (then
+  document id as a locale-independent tie-break) and returned as `{ entries, total, truncated }`
+  instead of a silently-capped bare list, so the app can show "N of M". Additive to the response
+  (existing readers of `entries` are unaffected).
+
 ## [0.6.0] - 2026-07-10
 
 ### Added

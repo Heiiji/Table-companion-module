@@ -66,6 +66,59 @@ describe("compendium.index", () => {
   });
 });
 
+function setKnightGame(): void {
+  const arsenal: FakePack = {
+    collection: "world.knight-arsenal",
+    metadata: { id: "knight-arsenal", label: "Knight Arsenal", type: "Item", system: "knight" },
+    getIndex: async () => [
+      { _id: "m2", name: "Nova", type: "module" },
+      { _id: "m1", name: "Accélérateur", type: "module" },
+      { _id: "w1", name: "Railgun", type: "arme" },
+      { _id: "a1", name: "Warrior", type: "armure" },
+      { _id: "x1", name: "Bond", type: "feature" }, // an Item that is NOT a Knight loadout subtype
+    ],
+    getDocument: async () => null,
+  };
+  const packs = [arsenal] as unknown as FakePack[] & { get: (c: string) => FakePack | undefined };
+  packs.get = (c) => (c === "world.knight-arsenal" ? arsenal : undefined);
+  vi.stubGlobal("game", { packs });
+}
+
+describe("compendium.index — Knight item subtype (§11.4)", () => {
+  it("filters Item entries to the requested subtype", async () => {
+    setKnightGame();
+    const result = (await compendiumIndex({ contentType: "item", subtype: "module" }, {} as never)) as {
+      entries: Array<{ name: string; type?: string }>;
+      total: number;
+      truncated: boolean;
+    };
+    expect(result.entries.map((e) => e.name)).toEqual(["Accélérateur", "Nova"]); // subtype-filtered + name-sorted
+    expect(result.entries.every((e) => e.type === "module")).toBe(true);
+    expect(result.total).toBe(2);
+    expect(result.truncated).toBe(false);
+  });
+
+  it("sorts entries stably by name then _id", async () => {
+    setKnightGame();
+    const result = (await compendiumIndex({ contentType: "item" }, {} as never)) as {
+      entries: Array<{ name: string }>;
+    };
+    expect(result.entries.map((e) => e.name)).toEqual(["Accélérateur", "Bond", "Nova", "Railgun", "Warrior"]);
+  });
+
+  it("reports total + truncated when the limit caps results", async () => {
+    setKnightGame();
+    const result = (await compendiumIndex({ contentType: "item", limit: 2 }, {} as never)) as {
+      entries: unknown[];
+      total: number;
+      truncated: boolean;
+    };
+    expect(result.entries).toHaveLength(2);
+    expect(result.total).toBe(5);
+    expect(result.truncated).toBe(true);
+  });
+});
+
 describe("compendium.get", () => {
   it("returns the raw document for a pack-qualified id", async () => {
     setGame();
