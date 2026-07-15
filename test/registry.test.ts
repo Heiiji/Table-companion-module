@@ -1,5 +1,44 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { registerBuiltinProcedures } from "../src/procedures/index.js";
 import { ProcedureRegistry } from "../src/rpc/registry.js";
+
+const PF2_CAPABILITIES = [
+  "compendium.get",
+  "compendium.index",
+  "display.clear",
+  "display.show",
+  "ping",
+  "presence",
+  "roll.execute",
+];
+
+const NON_PF2_CAPABILITIES = [
+  "compendium.get",
+  "compendium.index",
+  "display.clear",
+  "display.show",
+  "effect.apply",
+  "effect.remove",
+  "effect.setValue",
+  "ping",
+  "presence",
+  "roll.action",
+  "roll.execute",
+  "sheet.derived",
+];
+
+const RETIRED_OR_UNSAFE_PF2_PROCEDURES = [
+  "pf2e.advancement.preview",
+  "pf2e.advancement.apply",
+  "pf2e.operation.status",
+  "sheet.derived",
+  "roll.action",
+  "effect.apply",
+  "effect.remove",
+  "effect.setValue",
+];
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("ProcedureRegistry", () => {
   it("registers, gets, and reports has()", () => {
@@ -28,4 +67,34 @@ describe("ProcedureRegistry", () => {
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
+
+  it("advertises only class-neutral and transient procedures for PF2e", () => {
+    const actorLookup = vi.fn();
+    vi.stubGlobal("game", {
+      system: { id: "pf2e", version: "8.3.0" },
+      actors: { get: actorLookup },
+      version: "14.364",
+    });
+
+    const registry = new ProcedureRegistry();
+    registerBuiltinProcedures(registry);
+
+    expect(registry.capabilities()).toEqual(PF2_CAPABILITIES);
+    for (const procedure of RETIRED_OR_UNSAFE_PF2_PROCEDURES) {
+      expect(registry.get(procedure), procedure).toBeUndefined();
+    }
+    expect(actorLookup).not.toHaveBeenCalled();
+  });
+
+  it.each(["dnd5e", "knight", "custom-system"])(
+    "keeps the complete non-PF2 capability set for %s",
+    (systemId) => {
+      vi.stubGlobal("game", { system: { id: systemId } });
+      const registry = new ProcedureRegistry();
+
+      registerBuiltinProcedures(registry);
+
+      expect(registry.capabilities()).toEqual(NON_PF2_CAPABILITIES);
+    },
+  );
 });

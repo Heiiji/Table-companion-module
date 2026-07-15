@@ -52,9 +52,9 @@ Two jobs:
 - `src/procedures/` — one file per RPC procedure: `ping`, `presence`, `rollExecute`
   (`roll.execute`), `rollAction` (`roll.action`), `sheetDerived` (`sheet.derived`),
   `effects` (`effect.apply|remove|setValue`), `compendium` (`compendium.index|get`),
-  `display` (`display.show|clear`), and the PF2e 8.3.0-gated `pf2eAdvancement`
-  (`pf2e.advancement.preview|apply`, `pf2e.operation.status`); `index.ts` registers them.
-  **These proc-name strings are duplicated in the agent (Go)** — see Parity.
+  and `display` (`display.show|clear`); `index.ts` registers them and applies the PF2e
+  clean-cut capability filter. **These proc-name strings are duplicated in the agent (Go)** — see
+  Parity.
 - `src/rpc/` — `envelope` (shape + `EnvelopeType` union), `channel` (handshake, correlation,
   freshness/clock-skew window), `registry` (procedure dispatch), `signing` (Ed25519 verify +
   key pinning).
@@ -73,7 +73,7 @@ Two jobs:
 - **Additive-only envelope.** Add new procedures/fields without breaking old peers; only a
   genuine breaking change bumps `ENVELOPE_VERSION`.
 - **The module is the system-aware half.** It returns results from the connected Foundry system
-  (for example PF2e degrees-of-success or D&D 5e advantage). The agent relays them **verbatim** and
+  (for example D&D 5e advantage or Knight combo outcomes). The agent relays them **verbatim** and
   stays system-agnostic — keep integration logic here, not in the agent. Treat those results as
   exact for the pinned Foundry/system version, then reconcile game semantics with the workspace
   reference pack; the current Knight roll path is recorded there as divergent.
@@ -81,22 +81,15 @@ Two jobs:
   escaped anything.
 - **Signing is mandatory.** Every `rpc.request` is verified against the pinned agent key.
   Never relax the freshness window or the pinning without updating the agent's signer.
-- **PF2e advancement is a semantic procedure, never a raw write.** Preview is advertised only on
-  the pinned Foundry 14 / PF2e 8.3.0 runtime. The reserved `pf2e.advancement.apply` and
-  `pf2e.operation.status` implementations are not registered or advertised while module→agent
-  replies are unsigned. `src/rpc/trust.ts` is a compile-time fail-closed gate with no environment,
-  setting, or preference override; it may change only with authenticated responder verification
-  and adversarial transport tests. Preview is advisory/read-only and no response field can unlock
-  a mutation capability. The dormant apply implementation requires Companion Actor
-  permission, uses one exact live `Actor.update` level/XP call, and refetches Actor/Items.
-  Operation IDs are idempotent in a bounded responder-local journal and bounded namespaced Actor
-  marker ledger. Unsupported build decisions fail closed until their exact PF2e APIs are
-  fixture-proven; milestone/override apply also fails closed until the channel conveys verified GM
-  authority rather than a client-supplied boolean/reason. Current native clients retain their
-  `linkedActorUsesFoundry` blocker and must not invoke this apply path; the empty-decision level
-  update is transport groundwork, not a claim of complete linked class/choice integration.
-  `expectedPackRevision` and `advancementMode` are required explicitly; never infer transport
-  defaults at this consequential boundary.
+- **PF2e is behind a pre-production clean cut.** On a PF2e world, the registry exposes only
+  `ping`, `presence`, class-neutral formula-only `roll.execute`, transient `compendium.index|get`,
+  and `display.show|clear`. It does not register a PF2e sheet projection, semantic roll, generic
+  effect mutation, advancement preview/apply, or operation-status procedure. The retained
+  `sheet.derived`, `roll.action`, and `effect.*` handlers repeat an explicit PF2e guard and reject
+  stale direct calls before Actor lookup or mutation. M8 must introduce fresh exact-version DTOs
+  and procedure names only with persistent module identity, signed module responses, sanitized
+  fixtures, verified authority, and adversarial recovery tests; no deleted revision-5 adapter or
+  trust flag is a dormant implementation.
 - Foundry's "one session per user" rule applies to `Companion`: never log in as that user.
 
 ## Verification

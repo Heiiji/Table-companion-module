@@ -8,13 +8,6 @@ import { sheetDerived } from "./sheetDerived.js";
 import { effectApply, effectRemove, effectSetValue } from "./effects.js";
 import { compendiumIndex, compendiumGet } from "./compendium.js";
 import { displayShow, displayClear } from "./display.js";
-import { hasAuthenticatedModuleResponses } from "../rpc/trust.js";
-import {
-  isPF2eAdvancementRuntimeSupported,
-  pf2eAdvancementApply,
-  pf2eAdvancementPreview,
-  pf2eOperationStatus,
-} from "./pf2eAdvancement.js";
 
 /** Register every built-in procedure. Each registration adds one capability to
  * the module's advertised set. */
@@ -48,17 +41,4 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   // capability is the app's feature-detect key.
   registry.register("display.show", displayShow);
   registry.register("display.clear", displayClear);
-  // PF2e Remaster advancement is version-pinned and intentionally omitted from
-  // capability advertisements on any other system/runtime. The handlers repeat
-  // the guard so a stale/forged request can never bypass capability negotiation.
-  if (isPF2eAdvancementRuntimeSupported()) {
-    registry.register("pf2e.advancement.preview", pf2eAdvancementPreview);
-    // Reserved consequential procedures stay dormant until module -> agent
-    // replies are authenticated. Correlation ids are broadcast-visible and
-    // cannot serve as an authorization/commit proof.
-    if (hasAuthenticatedModuleResponses()) {
-      registry.register("pf2e.advancement.apply", pf2eAdvancementApply);
-      registry.register("pf2e.operation.status", pf2eOperationStatus);
-    }
-  }
 }
