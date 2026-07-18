@@ -1,5 +1,5 @@
 {
-  "_comment": "M8 module->agent response-signing vectors. Generated once by scratchpad/gen-vectors.mjs; embedded byte-identically in Table-companion-module (vitest) and Table-companion-agent (go). Do not hand-edit.",
+  "_comment": "M8 module->agent response-signing vectors. Embedded byte-identically in Table-companion-module (vitest) and Table-companion-agent (go); regenerate crypto cases from gen-vectors.mjs. The canonicalJSON cases carry no signature and are self-verified by each suite's canonicalizer, so pure canonical-JSON cases (e.g. key-sort-utf8-astral) may be appended by hand — both suites recompute and must agree.",
   "canonicalScheme": "v1",
   "freshnessWindowMs": 90000,
   "signingKey": {
@@ -102,6 +102,17 @@
         "A": 5
       },
       "canonical": "{\"2\":6,\"A\":5,\"Z\":3,\"a\":2,\"aa\":4,\"b\":1}"
+    },
+    {
+      "name": "key-sort-utf8-astral",
+      "_note": "Locks UTF-8-byte KEY ordering cross-language. U+F900 (0xEF..) sorts AFTER 'é' but BEFORE the astral U+1F600 (0xF0..) by UTF-8 bytes / code point; a naive UTF-16 comparator would wrongly order U+1F600 (surrogate 0xD83D) before U+F900.",
+      "value": {
+        "😀": 3,
+        "z": 2,
+        "豈": 4,
+        "é": 1
+      },
+      "canonical": "{\"z\":2,\"é\":1,\"豈\":4,\"😀\":3}"
     },
     {
       "name": "nested",
