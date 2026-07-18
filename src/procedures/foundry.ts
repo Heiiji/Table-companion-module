@@ -32,6 +32,14 @@ export function systemId(): string {
   return g.game?.system?.id ?? "";
 }
 
+/** The active Foundry world id (`game.world.id`), or "" if unknown. Bound into
+ * the module response-signing string (M8) so the agent can pin it and rebuild
+ * the canonical bytes. Foundry world ids are `[A-Za-z0-9_-]` — no `|`. */
+export function worldId(): string {
+  const g = globalThis as unknown as { game?: { world?: { id?: string } } };
+  return g.game?.world?.id ?? "";
+}
+
 /** Foundry document-ownership levels we gate procedures on. */
 export type OwnershipLevel = "OBSERVER" | "OWNER";
 

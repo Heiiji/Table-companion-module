@@ -40,6 +40,28 @@ export const MAX_ENVELOPE_BYTES = 64 * 1024;
  * managed by the module/setup UI, not shown in Foundry's settings form. */
 export const SETTING_AGENT_KEY = "agentPublicKey";
 
+/** CLIENT-scoped setting key holding THIS browser's module response-signing
+ * Ed25519 keypair (exported JWK, contains the private `d`). scope:"client" is
+ * deliberate and load-bearing: Foundry world settings are broadcast to every
+ * connected client, so a world-scoped private key would be readable by any
+ * player and could forge module responses — defeating the whole boundary. A
+ * client-scoped setting lives only in the responder GM's browser localStorage
+ * (per Foundry origin), never on the wire. Only the elected responder ever
+ * generates/uses one. See src/rpc/responseSigning.ts. */
+export const SETTING_MODULE_KEYPAIR = "moduleResponseKeypair";
+
+/** Capability token the module advertises when this build can sign its
+ * rpc.response / rpc.error envelopes (M8 transport authentication). When a world
+ * advertises it, the agent REQUIRES a valid signature on every module reply and
+ * drops unverified ones; without it, read-only relays stay best-effort
+ * unauthenticated (today's behaviour). Parity-locked with the agent's
+ * capModuleResponseSignatureV1. NOT a procedure name — it has no handler. */
+export const CAP_RESPONSE_SIG = "moduleResponseSignatureV1";
+
+/** Version tag prefixed to the canonical response-signing string (independent of
+ * ENVELOPE_VERSION — it versions the signing scheme, not the envelope shape). */
+export const RESPONSE_SIG_SCHEME = "v1";
+
 /** roll.execute guard: reject formulas longer than this many characters, a cheap
  * first bound on complexity before we even construct a Roll. */
 export const MAX_ROLL_FORMULA_LEN = 500;

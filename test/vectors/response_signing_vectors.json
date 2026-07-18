@@ -1,0 +1,219 @@
+{
+  "_comment": "M8 module->agent response-signing vectors. Generated once by scratchpad/gen-vectors.mjs; embedded byte-identically in Table-companion-module (vitest) and Table-companion-agent (go). Do not hand-edit.",
+  "canonicalScheme": "v1",
+  "freshnessWindowMs": 90000,
+  "signingKey": {
+    "seedB64": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=",
+    "publicKeyB64": "ebVWLo/mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ="
+  },
+  "canonicalJSON": [
+    {
+      "name": "null",
+      "value": null,
+      "canonical": "null"
+    },
+    {
+      "name": "true",
+      "value": true,
+      "canonical": "true"
+    },
+    {
+      "name": "false",
+      "value": false,
+      "canonical": "false"
+    },
+    {
+      "name": "int",
+      "value": 10,
+      "canonical": "10"
+    },
+    {
+      "name": "negative",
+      "value": -2,
+      "canonical": "-2"
+    },
+    {
+      "name": "zero",
+      "value": 0,
+      "canonical": "0"
+    },
+    {
+      "name": "decimal",
+      "value": 3.5,
+      "canonical": "3.5"
+    },
+    {
+      "name": "empty-string",
+      "value": "",
+      "canonical": "\"\""
+    },
+    {
+      "name": "plain-string",
+      "value": "hello",
+      "canonical": "\"hello\""
+    },
+    {
+      "name": "quote-and-backslash",
+      "value": "a\"b\\c",
+      "canonical": "\"a\\\"b\\\\c\""
+    },
+    {
+      "name": "control-chars",
+      "value": "tab\tnew\nline\r\b\f\u0001end",
+      "canonical": "\"tab\\tnew\\nline\\r\\b\\f\\u0001end\""
+    },
+    {
+      "name": "unicode-bmp",
+      "value": "café",
+      "canonical": "\"café\""
+    },
+    {
+      "name": "unicode-astral",
+      "value": "d20 🎲",
+      "canonical": "\"d20 🎲\""
+    },
+    {
+      "name": "empty-array",
+      "value": [],
+      "canonical": "[]"
+    },
+    {
+      "name": "empty-object",
+      "value": {},
+      "canonical": "{}"
+    },
+    {
+      "name": "number-array",
+      "value": [
+        4,
+        3,
+        2
+      ],
+      "canonical": "[4,3,2]"
+    },
+    {
+      "name": "key-sort-ascii",
+      "value": {
+        "2": 6,
+        "b": 1,
+        "a": 2,
+        "Z": 3,
+        "aa": 4,
+        "A": 5
+      },
+      "canonical": "{\"2\":6,\"A\":5,\"Z\":3,\"a\":2,\"aa\":4,\"b\":1}"
+    },
+    {
+      "name": "nested",
+      "value": {
+        "z": {
+          "y": [
+            1,
+            {
+              "x": "v"
+            }
+          ]
+        },
+        "a": true
+      },
+      "canonical": "{\"a\":true,\"z\":{\"y\":[1,{\"x\":\"v\"}]}}"
+    },
+    {
+      "name": "rpc-error-body",
+      "value": {
+        "code": "permission_denied",
+        "message": "no"
+      },
+      "canonical": "{\"code\":\"permission_denied\",\"message\":\"no\"}"
+    },
+    {
+      "name": "roll-result-body",
+      "value": {
+        "formula": "2d6+3",
+        "total": 10,
+        "dice": [
+          {
+            "faces": 6,
+            "results": [
+              4,
+              3
+            ]
+          }
+        ]
+      },
+      "canonical": "{\"dice\":[{\"faces\":6,\"results\":[4,3]}],\"formula\":\"2d6+3\",\"total\":10}"
+    }
+  ],
+  "signingStrings": [
+    {
+      "name": "roll",
+      "requestId": "0123456789abcdef0123456789abcdef",
+      "worldId": "my-campaign",
+      "procedure": "roll.execute",
+      "signedAt": 1737158400000,
+      "body": {
+        "formula": "2d6+3",
+        "total": 10,
+        "dice": [
+          {
+            "faces": 6,
+            "results": [
+              4,
+              3
+            ]
+          }
+        ]
+      },
+      "canonicalBody": "{\"dice\":[{\"faces\":6,\"results\":[4,3]}],\"formula\":\"2d6+3\",\"total\":10}",
+      "bodyHashHex": "f5de6d11e59ae68aeca785a2f0ff2c9ee29eaa2d8fbd02b556135dac0eb4b89a",
+      "signingString": "v1|0123456789abcdef0123456789abcdef|my-campaign|roll.execute|1737158400000|f5de6d11e59ae68aeca785a2f0ff2c9ee29eaa2d8fbd02b556135dac0eb4b89a",
+      "sigB64": "vMCv9XpXPFQDKJ6Ti8I9qSxtfly9RiKW/xZAo9F0dBF3jqmvrEIYfeevXTEiNhdWdi6IBLpp3AnyDD92AjvRBg=="
+    },
+    {
+      "name": "error",
+      "requestId": "fedcba9876543210fedcba9876543210",
+      "worldId": "my-campaign",
+      "procedure": "roll.action",
+      "signedAt": 1737158400500,
+      "body": {
+        "code": "actor_not_found",
+        "message": "no such actor"
+      },
+      "canonicalBody": "{\"code\":\"actor_not_found\",\"message\":\"no such actor\"}",
+      "bodyHashHex": "dbef1d01f38919972edb8626afb073f144e159104c81888399122031c9420fd6",
+      "signingString": "v1|fedcba9876543210fedcba9876543210|my-campaign|roll.action|1737158400500|dbef1d01f38919972edb8626afb073f144e159104c81888399122031c9420fd6",
+      "sigB64": "efF6htFo5XkNWQhake8sLmcHcNrM9dW0RasWnbzFCbYvrezFI5MMnWH9YkQbNn1sbMIXOw1iSErPeuDHRh3cBw=="
+    },
+    {
+      "name": "null-payload",
+      "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "worldId": "world-2",
+      "procedure": "display.show",
+      "signedAt": 1737158401000,
+      "body": null,
+      "canonicalBody": "null",
+      "bodyHashHex": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "signingString": "v1|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|world-2|display.show|1737158401000|74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "sigB64": "fCS8hAywuqndhLMVaVule8lluslYI+cYOcmneFyGgds8wzsORrIbOfB1p31nvO0S1CKGW8Um4b84+pg0cRtzBQ=="
+    },
+    {
+      "name": "unicode-body",
+      "requestId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "worldId": "château",
+      "procedure": "sheet.derived",
+      "signedAt": 1737158402000,
+      "body": {
+        "name": "Café 🎲",
+        "ac": 17,
+        "keys": {
+          "b": 2,
+          "a": 1
+        }
+      },
+      "canonicalBody": "{\"ac\":17,\"keys\":{\"a\":1,\"b\":2},\"name\":\"Café 🎲\"}",
+      "bodyHashHex": "ed5c8d95bb55a636267a061b0298feaed533c6820fad5d92ed160ebed2c87b47",
+      "signingString": "v1|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|château|sheet.derived|1737158402000|ed5c8d95bb55a636267a061b0298feaed533c6820fad5d92ed160ebed2c87b47",
+      "sigB64": "dYrUqeySQUFzhSII4lXciFMzWlIeim9USqC2vb/6kf1LtoLjEhaSlwsIIdSPxtLoXTpyLwloDM9wlIGIn9NGBQ=="
+    }
+  ]
+}

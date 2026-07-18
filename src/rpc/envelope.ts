@@ -49,6 +49,17 @@ export interface Envelope {
   error?: { code: string; message: string };
   /** Unix ms timestamp. */
   ts: number;
+  /** M8 (additive): base64 Ed25519 signature over the canonical response-signing
+   * string, present on a module's signed rpc.response / rpc.error. See
+   * responseSigning.ts. Absent on unsigned peers/messages. */
+  sig?: string;
+  /** M8 (additive): Unix ms the response signature was produced (the `signedAt`
+   * bound into the signed string; freshness-checked ±90s by the agent). */
+  signedAt?: number;
+  /** M8 (additive): the Foundry world id (`game.world.id`), present on the
+   * module's hello / hello.ack so the agent can pin it and rebuild the canonical
+   * signing string. Absent from the agent (it does not know it independently). */
+  worldId?: string;
 }
 
 /** Narrow an unknown socket payload to a well-formed Envelope, or return null.
@@ -71,6 +82,9 @@ export function parseEnvelope(raw: unknown): Envelope | null {
     payload: e.payload,
     error: isErr(e.error) ? e.error : undefined,
     ts: typeof e.ts === "number" ? e.ts : Date.now(),
+    sig: typeof e.sig === "string" ? e.sig : undefined,
+    signedAt: typeof e.signedAt === "number" ? e.signedAt : undefined,
+    worldId: typeof e.worldId === "string" ? e.worldId : undefined,
   };
 }
 

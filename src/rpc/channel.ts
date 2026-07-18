@@ -1,4 +1,5 @@
 import {
+  CAP_RESPONSE_SIG,
   CHANNEL,
   DROP_WARN_INTERVAL_MS,
   ENVELOPE_VERSION,
@@ -9,6 +10,7 @@ import {
 } from "../constants.js";
 import { MODULE_ID } from "../constants.js";
 import { isResponder } from "../setup/election.js";
+import { worldId as foundryWorldId } from "../procedures/foundry.js";
 import { log } from "../util/log.js";
 import {
   Envelope,
@@ -23,6 +25,7 @@ import {
   parseSignedMessage,
   verifySignature,
 } from "./signing.js";
+import type { ModuleResponseSigner } from "./responseSigning.js";
 
 /** Best-effort access to Foundry's toast notifications, tolerant of the harness
  * where the `ui` global is absent. */
@@ -88,11 +91,53 @@ export class Channel {
   // Rate-limited drop diagnostics: last log time per distinct cause.
   private readonly dropWarnAt = new Map<string, number>();
 
+  // M8: this responder's Ed25519 response-signing key, or null when the build
+  // couldn't create one (older runtime) or this client is not signing. Set async
+  // after `ready` via setResponseSigner(); only the responder ever signs.
+  private responseSigner: ModuleResponseSigner | null = null;
+
+  // M8: rotates this browser's response-signing key on "Reset pairing" (wired by
+  // module.ts, which owns the client-scoped keypair setting). null in the test
+  // harness, where reset only needs to clear the pinned agent key.
+  private responseKeyResetter: (() => Promise<void>) | null = null;
+
   constructor(
     private readonly registry: ProcedureRegistry,
     private readonly moduleVersion: string,
     private readonly requestTimeoutMs: number = REQUEST_TIMEOUT_MS,
   ) {}
+
+  /** Install (or clear) this client's response-signing key. When present and this
+   * client is the elected responder, the module advertises
+   * `moduleResponseSignatureV1` + its public key and signs every rpc.response /
+   * rpc.error. Idempotent; safe to call once the keypair has loaded. */
+  setResponseSigner(signer: ModuleResponseSigner | null): void {
+    this.responseSigner = signer;
+    if (signer && isResponder()) {
+      // Re-announce so an already-connected agent picks up the capability + key
+      // without waiting for its next hello.
+      this.sendHello();
+    }
+  }
+
+  /** Wire the reset hook that rotates this browser's response-signing key when
+   * the GM clicks "Reset pairing". */
+  setResponseKeyResetter(fn: () => Promise<void>): void {
+    this.responseKeyResetter = fn;
+  }
+
+  /** True when this client will sign its responses (elected responder + a key). */
+  private canSign(): boolean {
+    return this.responseSigner !== null && isResponder();
+  }
+
+  /** Capabilities advertised in hello / hello.ack: the registered procedures,
+   * plus the response-signing token when this client signs. */
+  private advertisedCapabilities(): string[] {
+    const caps = this.registry.capabilities();
+    if (this.canSign()) caps.push(CAP_RESPONSE_SIG);
+    return caps.sort();
+  }
 
   /** Log a dropped-envelope reason at most once per cause per DROP_WARN_INTERVAL_MS,
    * so noise/flooding names its cause without spamming the console. */
@@ -118,8 +163,9 @@ export class Channel {
   sendHello(): void {
     this.emit(
       makeEnvelope("hello", {
-        capabilities: this.registry.capabilities(),
+        capabilities: this.advertisedCapabilities(),
         peer: this.selfPeer(),
+        worldId: this.canSign() ? foundryWorldId() : undefined,
       }),
     );
   }
@@ -156,9 +202,18 @@ export class Channel {
   }
 
   /** Forget the pinned agent key so the next agent contact re-pairs (GM only —
-   * writing the world setting requires GM rights). */
+   * writing the world setting requires GM rights). Also rotates THIS browser's
+   * response-signing key (M8), so the agent must re-pin our identity too — a full
+   * two-sided reset. */
   async resetPairing(): Promise<void> {
     await this.setPinnedKey("");
+    if (this.responseKeyResetter) {
+      try {
+        await this.responseKeyResetter();
+      } catch (err) {
+        log.warn("could not rotate the response-signing key on reset", err);
+      }
+    }
     log.info("agent pairing reset");
   }
 
@@ -190,12 +245,17 @@ export class Channel {
   }
 
   private selfPeer(): PeerInfo {
-    return {
+    const peer: PeerInfo = {
       role: "module",
       version: this.moduleVersion,
       minEnvelope: ENVELOPE_VERSION,
       maxEnvelope: ENVELOPE_VERSION,
     };
+    // The agent pins this (trust-on-first-use) and verifies our signed responses
+    // against it. Only advertised when we actually sign (responder + key), so the
+    // agent never pins a key that will not be used.
+    if (this.canSign()) peer.pubKey = this.responseSigner!.publicKeyB64;
+    return peer;
   }
 
   private async onMessage(raw: unknown): Promise<void> {
@@ -213,8 +273,9 @@ export class Channel {
           this.emit(
             makeEnvelope("hello.ack", {
               id: env.id,
-              capabilities: this.registry.capabilities(),
+              capabilities: this.advertisedCapabilities(),
               peer: this.selfPeer(),
+              worldId: this.canSign() ? foundryWorldId() : undefined,
             }),
           );
         }
@@ -346,17 +407,13 @@ export class Channel {
   }
 
   private async handleRequest(env: Envelope): Promise<void> {
+    const proc = env.proc ?? "";
     const handler = env.proc ? this.registry.get(env.proc) : undefined;
     if (!handler) {
-      this.emit(
-        makeEnvelope("rpc.error", {
-          id: env.id,
-          error: {
-            code: "unknown_procedure",
-            message: `no procedure "${env.proc ?? ""}"`,
-          },
-        }),
-      );
+      await this.sendError(env.id, proc, {
+        code: "unknown_procedure",
+        message: `no procedure "${proc}"`,
+      });
       return;
     }
     const ctx: RpcContext = { request: env };
@@ -380,22 +437,67 @@ export class Channel {
           );
         }),
       ]);
-      this.emit(makeEnvelope("rpc.response", { id: env.id, payload: result }));
+      await this.sendResponse(env.id, proc, result);
     } catch (err) {
       log.error(`procedure "${env.proc}" failed`, err);
-      this.emit(
-        makeEnvelope("rpc.error", {
-          id: env.id,
-          error: {
-            // A handler may throw a structured RpcError (permission_denied,
-            // payload_too_large, …); anything else is a generic failure.
-            code: err instanceof RpcError ? err.code : "procedure_failed",
-            message: err instanceof Error ? err.message : String(err),
-          },
-        }),
-      );
+      await this.sendError(env.id, proc, {
+        // A handler may throw a structured RpcError (permission_denied,
+        // payload_too_large, …); anything else is a generic failure.
+        code: err instanceof RpcError ? err.code : "procedure_failed",
+        message: err instanceof Error ? err.message : String(err),
+      });
     } finally {
       if (timer) clearTimeout(timer);
+    }
+  }
+
+  /** Emit an rpc.response, signed when this client is a signing responder. */
+  private async sendResponse(
+    requestId: string | undefined,
+    proc: string,
+    payload: unknown,
+  ): Promise<void> {
+    const env = makeEnvelope("rpc.response", { id: requestId, payload });
+    await this.attachSignature(env, requestId, proc, payload);
+    this.emit(env);
+  }
+
+  /** Emit an rpc.error, signed when this client is a signing responder. The
+   * signed body is the `error` object, so a signed error cannot be swapped for a
+   * signed response (the body hash differs). */
+  private async sendError(
+    requestId: string | undefined,
+    proc: string,
+    error: { code: string; message: string },
+  ): Promise<void> {
+    const env = makeEnvelope("rpc.error", { id: requestId, error });
+    await this.attachSignature(env, requestId, proc, error);
+    this.emit(env);
+  }
+
+  /** Attach `sig` + `signedAt` to a reply when this client signs. A signing
+   * failure logs and emits UNSIGNED; the agent (which requires a signature once
+   * it has latched the capability) then drops the reply — fail-closed, the app
+   * falls back to its local engine — rather than accepting an unauthenticated
+   * reply. */
+  private async attachSignature(
+    env: Envelope,
+    requestId: string | undefined,
+    proc: string,
+    body: unknown,
+  ): Promise<void> {
+    if (!this.canSign() || !requestId) return;
+    try {
+      const { sig, signedAt } = await this.responseSigner!.sign(
+        requestId,
+        foundryWorldId(),
+        proc,
+        body,
+      );
+      env.sig = sig;
+      env.signedAt = signedAt;
+    } catch (err) {
+      log.error("failed to sign rpc reply", err);
     }
   }
 }

@@ -7,10 +7,27 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Signed module responses (`moduleResponseSignatureV1`, M8 transport authentication)**: the
+  elected responder GM now signs every `rpc.response` / `rpc.error` with its own Ed25519 key, closing
+  the reverse direction of the channel (the agent already signs agent→module). The public key +
+  Foundry world id travel to the agent in the existing `hello` / `hello.ack` (additive `peer.pubKey`
+  + `worldId`); the agent pins the key trust-on-first-use and drops any reply that fails
+  verification. Each reply carries additive `sig` + `signedAt` fields over a canonical string
+  `v1|<requestId>|<worldId>|<procedure>|<signedAt>|sha256(canonical-body)` — no `ENVELOPE_VERSION`
+  bump. The keypair lives in a **client-scoped** setting (the responder GM's browser only), never a
+  world setting, so a player cannot read it and forge responses. Modules that cannot sign (older
+  runtime) keep working unsigned for read-only relays; only mutation-consequential procedures will
+  require the capability. This wave is transport authentication only — no PF2e procedures are
+  introduced on top of it.
 - **`compendium.index` Item-subtype filter**: an optional `subtype` request field keeps only Items
   whose `type` matches (e.g. the Knight loadout subtypes `module` / `arme` / `armure`), so the app
   can pull a GM's homebrew Knight gear from their world without sifting every Item. Additive request
   field — no `ENVELOPE_VERSION` bump.
+
+### Changed
+- **"Reset pairing" is now a full two-sided reset**: besides forgetting the pinned agent key, it
+  rotates this browser's response-signing keypair, so the agent must re-pin the module's identity
+  too. (The agent clears its pinned key via `POST /v1/worlds/{id}/module/reset-pairing`.)
 
 ### Changed
 - PF2e no longer advertises `sheet.derived`, `roll.action`, or generic `effect.*` procedures. Direct

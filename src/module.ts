@@ -1,14 +1,59 @@
 import { buildApi } from "./api.js";
-import { MODULE_ID, SETTING_AGENT_KEY } from "./constants.js";
+import {
+  MODULE_ID,
+  SETTING_AGENT_KEY,
+  SETTING_MODULE_KEYPAIR,
+} from "./constants.js";
 import { registerBuiltinProcedures } from "./procedures/index.js";
 import { startDisplayListener } from "./procedures/display.js";
 import { Channel } from "./rpc/channel.js";
 import { ProcedureRegistry } from "./rpc/registry.js";
+import { loadOrCreateSigner } from "./rpc/responseSigning.js";
 import { startPresenceWatcher } from "./setup/presence.js";
 import { openSetupApp } from "./ui/SetupApp.js";
 import { localize, log } from "./util/log.js";
 
 let channel: Channel | undefined;
+
+// Structural view of Foundry's settings store — fvtt-types only models keys it
+// knows, and both of ours are registered structurally (config:false).
+type SettingsStore = {
+  get(ns: string, key: string): unknown;
+  set(ns: string, key: string, value: unknown): Promise<unknown>;
+  register(ns: string, key: string, data: unknown): void;
+};
+
+function settingsStore(): SettingsStore | undefined {
+  return game.settings as unknown as SettingsStore | undefined;
+}
+
+/** Read this browser's stored response-signing keypair (private JWK), or null. */
+function getKeypairJwk(): JsonWebKey | null {
+  const v = settingsStore()?.get(MODULE_ID, SETTING_MODULE_KEYPAIR);
+  return v && typeof v === "object" ? (v as JsonWebKey) : null;
+}
+
+/** Persist this browser's response-signing keypair (private JWK). */
+async function setKeypairJwk(jwk: JsonWebKey | null): Promise<void> {
+  await settingsStore()?.set(MODULE_ID, SETTING_MODULE_KEYPAIR, jwk);
+}
+
+/** Load (or create) this GM browser's response-signing key and install it on the
+ * channel, plus the reset hook so "Reset pairing" rotates it. Only GM clients
+ * hold a key; only the elected responder ever signs with it. */
+async function initResponseSigner(ch: Channel): Promise<void> {
+  const signer = await loadOrCreateSigner(getKeypairJwk, setKeypairJwk);
+  ch.setResponseSigner(signer);
+  ch.setResponseKeyResetter(async () => {
+    // Rotate: discard the pinned identity the agent knows and mint a fresh one so
+    // a re-pair starts clean. The agent must also clear its pin (it will see the
+    // new key as a mismatch until then).
+    await setKeypairJwk(null);
+    const rotated = await loadOrCreateSigner(getKeypairJwk, setKeypairJwk);
+    ch.setResponseSigner(rotated);
+    log.info("rotated module response-signing key");
+  });
+}
 
 Hooks.once("init", () => {
   // Pinned agent signing key (trust-on-first-use). Hidden from the settings form
@@ -23,6 +68,20 @@ Hooks.once("init", () => {
     config: false,
     type: String,
     default: "",
+  });
+
+  // M8: this browser's own response-signing keypair (private JWK). CLIENT scope
+  // is load-bearing — a world-scoped private key would broadcast to every player
+  // and let them forge module responses. See responseSigning.ts.
+  (
+    game.settings as unknown as {
+      register(ns: string, key: string, data: unknown): void;
+    }
+  )?.register(MODULE_ID, SETTING_MODULE_KEYPAIR, {
+    scope: "client",
+    config: false,
+    type: Object,
+    default: null,
   });
 
   const registry = new ProcedureRegistry();
@@ -58,6 +117,9 @@ Hooks.once("ready", () => {
   // renders locally and rebroadcasts; peers render here). Inert until a display is
   // pushed — no-op on standalone tables and tables that never use the feature.
   startDisplayListener();
+  // M8: only GM clients hold a response-signing key (only the elected responder
+  // ever signs). Players never sign, so they never generate one.
+  if (channel && game.user?.isGM) void initResponseSigner(channel);
 });
 
 /** Register the setup launcher as a settings menu. The menu's `type` is a minimal

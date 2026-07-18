@@ -2,6 +2,11 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { Channel } from "../src/rpc/channel.js";
 import { ProcedureRegistry } from "../src/rpc/registry.js";
 import {
+  ModuleResponseSigner,
+  responseSigningString,
+} from "../src/rpc/responseSigning.js";
+import {
+  CAP_RESPONSE_SIG,
   ENVELOPE_VERSION,
   MAX_ENVELOPE_BYTES,
   MODULE_ID,
@@ -80,6 +85,7 @@ function stubGame(opts: { pinned?: string; responder?: boolean } = {}): void {
   });
   vi.stubGlobal("game", {
     user: me,
+    world: { id: "test-world" },
     users: {
       // activeGM is `me` only when this client should be the responder.
       activeGM: responder ? me : other,
@@ -271,5 +277,133 @@ describe("Channel.onMessage", () => {
     await deliver(await sign(agentEnv("ping", { id: "p2" })));
     await deliver(await sign(agentEnv("rpc.request", { id: "r2", proc: "echo" })));
     expect(emitSpy).not.toHaveBeenCalled();
+  });
+});
+
+// --- M8: module -> agent response signing ----------------------------------
+
+describe("Channel response signing (M8)", () => {
+  async function withSigner(): Promise<{ channel: Channel; signer: ModuleResponseSigner }> {
+    const channel = startChannel();
+    const { signer } = await ModuleResponseSigner.generate();
+    channel.setResponseSigner(signer); // re-announces hello
+    emitSpy.mockClear();
+    return { channel, signer };
+  }
+
+  it("advertises the capability, its public key + worldId only when responder + signer", async () => {
+    stubGame({ pinned: agentPubB64, responder: true });
+    const channel = startChannel();
+    // Before a signer: no signing capability, no pubKey, no worldId.
+    channel.sendHello();
+    let hello = emitted("hello").at(-1)!;
+    expect(hello.capabilities).not.toContain(CAP_RESPONSE_SIG);
+    expect((hello.peer as Fields).pubKey).toBeUndefined();
+    expect(hello.worldId).toBeUndefined();
+
+    const { signer } = await ModuleResponseSigner.generate();
+    emitSpy.mockClear();
+    channel.setResponseSigner(signer); // re-announces
+    hello = emitted("hello").at(-1)!;
+    expect(hello.capabilities).toContain(CAP_RESPONSE_SIG);
+    expect((hello.peer as Fields).pubKey).toBe(signer.publicKeyB64);
+    expect(hello.worldId).toBe("test-world");
+  });
+
+  it("does not advertise/sign when a signer is set but this client is NOT the responder", async () => {
+    stubGame({ pinned: agentPubB64, responder: false });
+    const channel = startChannel();
+    const { signer } = await ModuleResponseSigner.generate();
+    channel.setResponseSigner(signer); // non-responder: must NOT re-hello
+    expect(emitSpy).not.toHaveBeenCalled();
+    channel.sendHello();
+    const hello = emitted("hello").at(-1)!;
+    expect(hello.capabilities).not.toContain(CAP_RESPONSE_SIG);
+    expect((hello.peer as Fields).pubKey).toBeUndefined();
+  });
+
+  it("signs an rpc.response so it verifies against the advertised key", async () => {
+    stubGame({ pinned: agentPubB64, responder: true });
+    const { signer } = await withSigner();
+
+    await deliver(
+      await sign(agentEnv("rpc.request", { id: "s1", proc: "echo", payload: { n: 7 } })),
+    );
+    const resp = emitted("rpc.response")[0];
+    expect(resp).toBeDefined();
+    expect(typeof resp.sig).toBe("string");
+    expect(typeof resp.signedAt).toBe("number");
+    expect(resp.payload).toEqual({ echoed: { n: 7 } });
+
+    // Rebuild the canonical signing string exactly as the agent would and verify.
+    const message = await responseSigningString(
+      "s1",
+      "test-world",
+      "echo",
+      resp.signedAt as number,
+      resp.payload,
+    );
+    const pub = await crypto.subtle.importKey(
+      "raw",
+      new Uint8Array(Buffer.from(signer.publicKeyB64, "base64")),
+      { name: "Ed25519" },
+      false,
+      ["verify"],
+    );
+    const ok = await crypto.subtle.verify(
+      { name: "Ed25519" },
+      pub,
+      new Uint8Array(Buffer.from(resp.sig as string, "base64")),
+      new TextEncoder().encode(message),
+    );
+    expect(ok).toBe(true);
+  });
+
+  it("signs an rpc.error over the error body (not swappable for a response)", async () => {
+    stubGame({ pinned: agentPubB64, responder: true });
+    const { signer } = await withSigner();
+
+    await deliver(await sign(agentEnv("rpc.request", { id: "e1", proc: "boom" })));
+    const err = emitted("rpc.error")[0];
+    expect(err).toBeDefined();
+    expect(typeof err.sig).toBe("string");
+
+    const message = await responseSigningString(
+      "e1",
+      "test-world",
+      "boom",
+      err.signedAt as number,
+      err.error,
+    );
+    const pub = await crypto.subtle.importKey(
+      "raw",
+      new Uint8Array(Buffer.from(signer.publicKeyB64, "base64")),
+      { name: "Ed25519" },
+      false,
+      ["verify"],
+    );
+    const ok = await crypto.subtle.verify(
+      { name: "Ed25519" },
+      pub,
+      new Uint8Array(Buffer.from(err.sig as string, "base64")),
+      new TextEncoder().encode(message),
+    );
+    expect(ok).toBe(true);
+  });
+
+  it("rotates the signing key on reset pairing", async () => {
+    stubGame({ pinned: agentPubB64, responder: true });
+    const channel = startChannel();
+    const first = (await ModuleResponseSigner.generate()).signer;
+    channel.setResponseSigner(first);
+    let rotated = false;
+    channel.setResponseKeyResetter(async () => {
+      rotated = true;
+      channel.setResponseSigner((await ModuleResponseSigner.generate()).signer);
+    });
+    await channel.resetPairing();
+    expect(rotated).toBe(true);
+    // The pinned agent key is also cleared (existing behaviour preserved).
+    expect(setSpy).toHaveBeenCalledWith(MODULE_ID, SETTING_AGENT_KEY, "");
   });
 });

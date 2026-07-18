@@ -41,7 +41,9 @@ Two jobs:
    system-aware procedures (native rolls, derived sheet stats, effects, compendium reads,
    display push) over Foundry's own `module.table-companion` socket relay. The agent signs
    every message (Ed25519); the module pins the agent's public key on first contact and
-   verifies thereafter, so another logged-in client cannot impersonate the agent.
+   verifies thereafter, so another logged-in client cannot impersonate the agent. **The
+   reverse direction is signed too (M8):** the elected responder signs every `rpc.response` /
+   `rpc.error` and the agent pins the module's key — see "Module response signing" below.
 
 ## Repository Map
 
@@ -56,8 +58,9 @@ Two jobs:
   clean-cut capability filter. **These proc-name strings are duplicated in the agent (Go)** — see
   Parity.
 - `src/rpc/` — `envelope` (shape + `EnvelopeType` union), `channel` (handshake, correlation,
-  freshness/clock-skew window), `registry` (procedure dispatch), `signing` (Ed25519 verify +
-  key pinning).
+  freshness/clock-skew window), `registry` (procedure dispatch), `signing` (agent→module Ed25519
+  verify + key pinning), `responseSigning` (**module→agent** Ed25519 signing: canonicalizer +
+  signing-string builder + `ModuleResponseSigner`).
 - `src/setup/` — `companion-user` (create/reset the Companion user), `presence`, `election`
   (which connected GM client owns the channel).
 - `src/ui/` — `projector` (the high-contrast display popout for `display.show`), `SetupApp`.
@@ -81,15 +84,30 @@ Two jobs:
   escaped anything.
 - **Signing is mandatory.** Every `rpc.request` is verified against the pinned agent key.
   Never relax the freshness window or the pinning without updating the agent's signer.
+- **Module response signing (M8, `src/rpc/responseSigning.ts`).** The elected responder signs
+  every `rpc.response` / `rpc.error` with its own Ed25519 key; the additive `sig` + `signedAt`
+  envelope fields carry an Ed25519 signature over the canonical string
+  `v1|<requestId>|<worldId>|<procedure>|<signedAt>|sha256hex(canonical-body)`. The canonicalizer
+  is **byte-identical** with the agent's `internal/connector/moduleresponsesig.go` and locked by
+  the shared vectors in `test/vectors/response_signing_vectors.json` (== the agent's testdata
+  copy — do not edit one without the other; regenerate both from `gen-vectors.mjs`). The keypair
+  is **client-scoped** (`SETTING_MODULE_KEYPAIR`, the responder GM's browser localStorage only) —
+  NEVER a world setting, which broadcasts to every player and would let them forge responses. The
+  agent advertises `moduleResponseSignatureV1` when it can sign; when it can't (older runtime) it
+  stays unsigned and the agent keeps read-only relays best-effort. "Reset pairing" rotates this
+  key (a full two-sided reset). This wave is **transport authentication only** — no consequential
+  PF2e procedures ride on it yet (staged rollout preview → read-only → apply is preserved for any
+  future one).
 - **PF2e is behind a pre-production clean cut.** On a PF2e world, the registry exposes only
   `ping`, `presence`, class-neutral formula-only `roll.execute`, transient `compendium.index|get`,
   and `display.show|clear`. It does not register a PF2e sheet projection, semantic roll, generic
   effect mutation, advancement preview/apply, or operation-status procedure. The retained
   `sheet.derived`, `roll.action`, and `effect.*` handlers repeat an explicit PF2e guard and reject
-  stale direct calls before Actor lookup or mutation. M8 must introduce fresh exact-version DTOs
-  and procedure names only with persistent module identity, signed module responses, sanitized
-  fixtures, verified authority, and adversarial recovery tests; no deleted revision-5 adapter or
-  trust flag is a dormant implementation.
+  stale direct calls before Actor lookup or mutation. The M8 signed-response TRANSPORT is now in
+  place (`responseSigning.ts` + `moduleResponseSignatureV1`); a future PF2e wave may reintroduce
+  fresh exact-version DTOs and procedure names on top of it, but only with sanitized fixtures,
+  verified authority, and adversarial recovery tests — no deleted revision-5 adapter or trust flag
+  is a dormant implementation.
 - Foundry's "one session per user" rule applies to `Companion`: never log in as that user.
 
 ## Verification
@@ -117,3 +135,10 @@ procedure-name strings are parity-locked with the agent — see
 [`docs/CONTRACTS.md`](../docs/CONTRACTS.md) §1 (row 4) and §2 (procedure names) before
 changing either. The agent side lives in `Table-companion-agent/internal/connector/
 modulechannel.go` + `internal/service/{worlds,display}.go`.
+
+The **M8 response-signing** contract is also parity-locked: the `moduleResponseSignatureV1`
+capability token, the canonical signing string, the canonicalizer, and the ±90s freshness window
+must match `Table-companion-agent/internal/connector/moduleresponsesig.go`. The shared vectors in
+`test/vectors/response_signing_vectors.json` are byte-identical to the agent's
+`internal/connector/testdata/` copy and both test suites assert against them — change both files
+together (regenerate from `scratchpad/gen-vectors.mjs`).
