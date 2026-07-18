@@ -25,6 +25,28 @@ function toB64(bytes: ArrayBuffer | Uint8Array): string {
   return Buffer.from(u8).toString("base64");
 }
 
+/** Verify a base64 Ed25519 signature over `message` against a base64 raw public
+ * key — the module-response-signing counterpart of the agent's verify step. */
+async function verifyResponseSig(
+  pubB64: string,
+  sigB64: string,
+  message: string,
+): Promise<boolean> {
+  const pub = await crypto.subtle.importKey(
+    "raw",
+    new Uint8Array(Buffer.from(pubB64, "base64")),
+    { name: "Ed25519" },
+    false,
+    ["verify"],
+  );
+  return crypto.subtle.verify(
+    { name: "Ed25519" },
+    pub,
+    new Uint8Array(Buffer.from(sigB64, "base64")),
+    new TextEncoder().encode(message),
+  );
+}
+
 let agentKey: CryptoKeyPair;
 let agentPubB64: string;
 
@@ -343,19 +365,7 @@ describe("Channel response signing (M8)", () => {
       resp.signedAt as number,
       resp.payload,
     );
-    const pub = await crypto.subtle.importKey(
-      "raw",
-      new Uint8Array(Buffer.from(signer.publicKeyB64, "base64")),
-      { name: "Ed25519" },
-      false,
-      ["verify"],
-    );
-    const ok = await crypto.subtle.verify(
-      { name: "Ed25519" },
-      pub,
-      new Uint8Array(Buffer.from(resp.sig as string, "base64")),
-      new TextEncoder().encode(message),
-    );
+    const ok = await verifyResponseSig(signer.publicKeyB64, resp.sig as string, message);
     expect(ok).toBe(true);
   });
 
@@ -375,19 +385,7 @@ describe("Channel response signing (M8)", () => {
       err.signedAt as number,
       err.error,
     );
-    const pub = await crypto.subtle.importKey(
-      "raw",
-      new Uint8Array(Buffer.from(signer.publicKeyB64, "base64")),
-      { name: "Ed25519" },
-      false,
-      ["verify"],
-    );
-    const ok = await crypto.subtle.verify(
-      { name: "Ed25519" },
-      pub,
-      new Uint8Array(Buffer.from(err.sig as string, "base64")),
-      new TextEncoder().encode(message),
-    );
+    const ok = await verifyResponseSig(signer.publicKeyB64, err.sig as string, message);
     expect(ok).toBe(true);
   });
 

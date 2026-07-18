@@ -43,6 +43,24 @@ function toB64(bytes: ArrayBuffer | Uint8Array): string {
   return Buffer.from(u8).toString("base64");
 }
 
+/** Verify a base64 Ed25519 signature over `message` against a base64 raw public
+ * key. Shared by every test below that reproduces the agent's verify step. */
+async function verifySig(pubB64: string, sigB64: string, message: string): Promise<boolean> {
+  const pub = await crypto.subtle.importKey(
+    "raw",
+    b64ToBytes(pubB64),
+    { name: "Ed25519" },
+    false,
+    ["verify"],
+  );
+  return crypto.subtle.verify(
+    { name: "Ed25519" },
+    pub,
+    b64ToBytes(sigB64),
+    new TextEncoder().encode(message),
+  );
+}
+
 // Import the fixed vector seed as a WebCrypto signing key by building its private
 // JWK, so the module's real signing path reproduces the pinned vector signatures
 // (Ed25519 is deterministic across Node/Go/WebCrypto).
@@ -111,20 +129,8 @@ describe("signature vectors", () => {
   });
 
   it("verifies each pinned signature against the vector public key", async () => {
-    const pub = await crypto.subtle.importKey(
-      "raw",
-      b64ToBytes(vectorPubB64),
-      { name: "Ed25519" },
-      false,
-      ["verify"],
-    );
     for (const v of vectors.signingStrings) {
-      const ok = await crypto.subtle.verify(
-        { name: "Ed25519" },
-        pub,
-        b64ToBytes(v.sigB64),
-        new TextEncoder().encode(v.signingString),
-      );
+      const ok = await verifySig(vectorPubB64, v.sigB64, v.signingString);
       expect(ok, v.name).toBe(true);
     }
   });
@@ -146,19 +152,7 @@ describe("ModuleResponseSigner", () => {
       signedAt,
       body,
     );
-    const pub = await crypto.subtle.importKey(
-      "raw",
-      b64ToBytes(signer.publicKeyB64),
-      { name: "Ed25519" },
-      false,
-      ["verify"],
-    );
-    const ok = await crypto.subtle.verify(
-      { name: "Ed25519" },
-      pub,
-      b64ToBytes(sig),
-      new TextEncoder().encode(message),
-    );
+    const ok = await verifySig(signer.publicKeyB64, sig, message);
     expect(ok).toBe(true);
   });
 
@@ -173,19 +167,7 @@ describe("ModuleResponseSigner", () => {
       signedAt,
       { total: 11 }, // attacker swaps the result
     );
-    const pub = await crypto.subtle.importKey(
-      "raw",
-      b64ToBytes(signer.publicKeyB64),
-      { name: "Ed25519" },
-      false,
-      ["verify"],
-    );
-    const ok = await crypto.subtle.verify(
-      { name: "Ed25519" },
-      pub,
-      b64ToBytes(sig),
-      new TextEncoder().encode(tamperedMsg),
-    );
+    const ok = await verifySig(signer.publicKeyB64, sig, tamperedMsg);
     expect(ok).toBe(false);
   });
 
@@ -195,19 +177,7 @@ describe("ModuleResponseSigner", () => {
     const body = { total: 7 };
     const { sig, signedAt } = await a.sign("req-3", "w", "roll.execute", body);
     const msg = await responseSigningString("req-3", "w", "roll.execute", signedAt, body);
-    const pubB = await crypto.subtle.importKey(
-      "raw",
-      b64ToBytes(b.publicKeyB64),
-      { name: "Ed25519" },
-      false,
-      ["verify"],
-    );
-    const ok = await crypto.subtle.verify(
-      { name: "Ed25519" },
-      pubB,
-      b64ToBytes(sig),
-      new TextEncoder().encode(msg),
-    );
+    const ok = await verifySig(b.publicKeyB64, sig, msg);
     expect(ok).toBe(false);
   });
 });

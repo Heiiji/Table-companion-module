@@ -28,8 +28,6 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **"Reset pairing" is now a full two-sided reset**: besides forgetting the pinned agent key, it
   rotates this browser's response-signing keypair, so the agent must re-pin the module's identity
   too. (The agent clears its pinned key via `POST /v1/worlds/{id}/module/reset-pairing`.)
-
-### Changed
 - PF2e no longer advertises `sheet.derived`, `roll.action`, or generic `effect.*` procedures. Direct
   stale invocations also fail closed: the prior sheet response exported broad prepared subtrees,
   the roll result lacked spoiler-safe provenance, and generic effects did not exactly model PF2e

@@ -73,11 +73,7 @@ Hooks.once("init", () => {
   // M8: this browser's own response-signing keypair (private JWK). CLIENT scope
   // is load-bearing — a world-scoped private key would broadcast to every player
   // and let them forge module responses. See responseSigning.ts.
-  (
-    game.settings as unknown as {
-      register(ns: string, key: string, data: unknown): void;
-    }
-  )?.register(MODULE_ID, SETTING_MODULE_KEYPAIR, {
+  settingsStore()?.register(MODULE_ID, SETTING_MODULE_KEYPAIR, {
     scope: "client",
     config: false,
     type: Object,
