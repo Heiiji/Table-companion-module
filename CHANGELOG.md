@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.7.0] - 2026-07-18
+
 ### Added
 - **Signed module responses (`moduleResponseSignatureV1`, M8 transport authentication)**: the
   elected responder GM now signs every `rpc.response` / `rpc.error` with its own Ed25519 key, closing
