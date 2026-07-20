@@ -1,5 +1,5 @@
 import type { ProcedureRegistry } from "../rpc/registry.js";
-import { systemId } from "./foundry.js";
+import { supportsKnightActorUpsertV1Runtime, systemId } from "./foundry.js";
 import { ping } from "./ping.js";
 import { presence } from "./presence.js";
 import { rollExecute } from "./rollExecute.js";
@@ -8,6 +8,7 @@ import { sheetDerived } from "./sheetDerived.js";
 import { effectApply, effectRemove, effectSetValue } from "./effects.js";
 import { compendiumIndex, compendiumGet } from "./compendium.js";
 import { displayShow, displayClear } from "./display.js";
+import { actorUpsertV1 } from "./actorUpsert.js";
 
 /** Register every built-in procedure. Each registration adds one capability to
  * the module's advertised set. */
@@ -41,4 +42,9 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   // capability is the app's feature-detect key.
   registry.register("display.show", displayShow);
   registry.register("display.clear", displayClear);
+  // Consequential, signed-response-only actor provisioning. The agent refuses
+  // to invoke it without moduleResponseSignatureV1; only Knight registers the
+  // system-specific mapping.
+  if (supportsKnightActorUpsertV1Runtime())
+    registry.register("actor.upsert.v1", actorUpsertV1);
 }

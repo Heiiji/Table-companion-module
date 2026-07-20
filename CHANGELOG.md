@@ -6,7 +6,39 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **Durable Knight actor provisioning (`actor.upsert.v1`)**: a signed-response-only procedure can
+  create a new Knight, adopt one explicitly assigned unbound Actor, or update the uniquely bound
+  Actor without ever matching by name. Drafts contain only name, Table Companion binding, target
+  user ownership, public creation provenance, and sync flags; approved requests map a narrow
+  semantic DTO to an allowlist of authored Knight v3.58.33 fields, then apply current-only
+  resources (including fixture-verified `contacts.actuel`) after actor preparation. IA
+  personalization may be omitted without overwriting Foundry. The authoritative 1–5 minor
+  motivations reconcile only module-managed `motivationMineure` Items.
+  Duplicate bindings, stale revisions, deleted known links, and already-bound assignments fail
+  closed with stable RPC codes. Optional equipment uses an exact Knight Compendium 14.0.1
+  crosswalk pinned to source commit `a7c06e20245247752b5d350f8252a8b89ddeed9c`: all nine
+  creation armours, twelve creation weapons, and forty module-level IDs are admitted. Multi-mode
+  weapons expand to their exact documents and cumulative module levels reconcile as one Item at
+  the highest purchased level. The constrained selection DTO preserves quantity, canonical armour
+  slot placement, and improvement parentage without exposing Foundry paths. Missing/version-
+  mismatched compendium data and unverified
+  improvements report a partial result and are never synthesized. Only module-stamped equipment
+  is reconciled, while all unrelated Items are preserved.
+- **Public creation provenance:** the Actor stores only three catalog digests, approved revision,
+  five public dealt-card ids, redacted public selections/roleplay, and five derived-source ids under
+  `flags.table-companion.characterCreationV1`. `gmSecretPending`, secret pasts/advantages, and
+  Maison-Dieu private choices never enter the procedure payload; partial public fields need no
+  private-state reason bit.
+
+### Security
+- `actor.upsert.v1` is advertised and callable by the agent only when the elected responder can
+  sign module responses. The procedure independently requires a GM responder, Knight on Foundry
+  13 or 14, and exact Knight v3.58.33. A target User is optional (GM-only Actor plus an actionable
+  assignment warning); when present it must be real. The procedure replaces the whole ownership
+  map and rejects unknown fields recursively. It accepts no raw
+  Foundry paths, ownership maps, flags, Item JSON, Tarot secrets, prepared/effective values,
+  derived statistics, or maxima.
 
 ## [0.7.0] - 2026-07-18
 

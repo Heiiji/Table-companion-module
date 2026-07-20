@@ -16,6 +16,9 @@ unlocks richer, system-aware features over time.
 - **One-click setup** — creates the dedicated `Companion` user with a strong
   password and shows it once to paste into the app.
 - **Link status** — a panel showing whether the app is connected to your world.
+- **Knight character provisioning** — when the app finishes or resumes its guided Knight creator,
+  a signed GM-side procedure can create, explicitly adopt, or safely update the matching Foundry
+  Actor without name-based guessing or overwriting unrelated equipment.
 - **Capability channel** — a small, versioned link the app's backend uses to add
   higher-fidelity features (native system rolls, …) in future updates. The agent
   signs every message (Ed25519); the module pins the agent's public key on first
@@ -55,8 +58,9 @@ Gamemaster can open setup from the console with
 ## Compatibility
 
 - **Foundry VTT:** v13 – v14 (verified on v14)
-- **Game systems:** system-agnostic (system-specific fidelity arrives in later
-  versions)
+- **Game systems:** system-agnostic baseline; exact Knight v3.58.33 on Foundry 13–14 has an
+  additive, constrained actor-provisioning integration. Exact equipment materialization optionally
+  uses Knight Compendium 14.0.1; other/missing versions remain safely partial.
 - **Languages:** English, Français
 
 ## Developing

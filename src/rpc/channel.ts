@@ -12,19 +12,10 @@ import { MODULE_ID } from "../constants.js";
 import { isResponder } from "../setup/election.js";
 import { worldId as foundryWorldId } from "../procedures/foundry.js";
 import { log } from "../util/log.js";
-import {
-  Envelope,
-  makeEnvelope,
-  parseEnvelope,
-  PeerInfo,
-} from "./envelope.js";
+import { Envelope, makeEnvelope, parseEnvelope, PeerInfo } from "./envelope.js";
 import { ProcedureRegistry, RpcContext } from "./registry.js";
 import { RpcError } from "./errors.js";
-import {
-  fingerprint,
-  parseSignedMessage,
-  verifySignature,
-} from "./signing.js";
+import { fingerprint, parseSignedMessage, verifySignature } from "./signing.js";
 import type { ModuleResponseSigner } from "./responseSigning.js";
 
 /** Best-effort access to Foundry's toast notifications, tolerant of the harness
@@ -134,7 +125,12 @@ export class Channel {
   /** Capabilities advertised in hello / hello.ack: the registered procedures,
    * plus the response-signing token when this client signs. */
   private advertisedCapabilities(): string[] {
-    const caps = this.registry.capabilities();
+    // Mutation-consequential procedures are invisible until this elected GM
+    // responder can authenticate their replies. This prevents a capability-only
+    // client from submitting work that can never cross the signed-result gate.
+    const caps = this.registry
+      .capabilities()
+      .filter((name) => name !== "actor.upsert.v1" || this.canSign());
     if (this.canSign()) caps.push(CAP_RESPONSE_SIG);
     return caps.sort();
   }

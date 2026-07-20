@@ -1,0 +1,129 @@
+{
+  "foundryGeneration": 13,
+  "knightSystemVersion": "3.58.33",
+  "actorCreateAPI": "Actor.implementation.create",
+  "actor": {
+    "_id": "actor00000000001",
+    "name": "Sanitized Knight fixture",
+    "type": "knight",
+    "system": {
+      "description": "",
+      "descriptionLimitee": "",
+      "histoire": "",
+      "origin": "",
+      "age": "",
+      "archetype": "",
+      "metaarmure": "",
+      "blason": "",
+      "surnom": "",
+      "section": "",
+      "hautFait": "",
+      "motivations": {
+        "majeure": ""
+      },
+      "equipements": {
+        "ia": {
+          "code": "",
+          "surnom": "",
+          "caractere": ""
+        },
+        "armure": {
+          "armure": {
+            "value": 0
+          },
+          "energie": {
+            "value": 0
+          }
+        }
+      },
+      "sante": {
+        "value": 0
+      },
+      "espoir": {
+        "value": 0
+      },
+      "contacts": {
+        "actuel": 0,
+        "value": 0
+      },
+      "aspects": {
+        "chair": {
+          "base": 0,
+          "caracteristiques": {
+            "deplacement": {
+              "base": 0
+            },
+            "force": {
+              "base": 0
+            },
+            "endurance": {
+              "base": 0
+            }
+          }
+        },
+        "bete": {
+          "base": 0,
+          "caracteristiques": {
+            "combat": {
+              "base": 0
+            },
+            "hargne": {
+              "base": 0
+            },
+            "instinct": {
+              "base": 0
+            }
+          }
+        },
+        "machine": {
+          "base": 0,
+          "caracteristiques": {
+            "tir": {
+              "base": 0
+            },
+            "savoir": {
+              "base": 0
+            },
+            "technique": {
+              "base": 0
+            }
+          }
+        },
+        "dame": {
+          "base": 0,
+          "caracteristiques": {
+            "aura": {
+              "base": 0
+            },
+            "parole": {
+              "base": 0
+            },
+            "sangFroid": {
+              "base": 0
+            }
+          }
+        },
+        "masque": {
+          "base": 0,
+          "caracteristiques": {
+            "discretion": {
+              "base": 0
+            },
+            "dexterite": {
+              "base": 0
+            },
+            "perception": {
+              "base": 0
+            }
+          }
+        }
+      }
+    }
+  },
+  "minorMotivationItem": {
+    "type": "motivationMineure",
+    "system": {
+      "description": ""
+    }
+  }
+}

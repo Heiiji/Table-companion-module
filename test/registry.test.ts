@@ -27,6 +27,8 @@ const NON_PF2_CAPABILITIES = [
   "sheet.derived",
 ];
 
+const KNIGHT_CAPABILITIES = ["actor.upsert.v1", ...NON_PF2_CAPABILITIES].sort();
+
 const RETIRED_OR_UNSAFE_PF2_PROCEDURES = [
   "pf2e.advancement.preview",
   "pf2e.advancement.apply",
@@ -86,7 +88,7 @@ describe("ProcedureRegistry", () => {
     expect(actorLookup).not.toHaveBeenCalled();
   });
 
-  it.each(["dnd5e", "knight", "custom-system"])(
+  it.each(["dnd5e", "custom-system"])(
     "keeps the complete non-PF2 capability set for %s",
     (systemId) => {
       vi.stubGlobal("game", { system: { id: systemId } });
@@ -97,4 +99,32 @@ describe("ProcedureRegistry", () => {
       expect(registry.capabilities()).toEqual(NON_PF2_CAPABILITIES);
     },
   );
+
+  it("registers actor.upsert.v1 only for Knight", () => {
+    vi.stubGlobal("game", {
+      system: { id: "knight", version: "3.58.33" },
+      release: { generation: 14 },
+    });
+    const registry = new ProcedureRegistry();
+    registerBuiltinProcedures(registry);
+    expect(registry.capabilities()).toEqual(KNIGHT_CAPABILITIES);
+  });
+
+  it("does not advertise actor.upsert.v1 outside the exact fixture-pinned Knight runtime", () => {
+    for (const game of [
+      {
+        system: { id: "knight", version: "3.58.34" },
+        release: { generation: 14 },
+      },
+      {
+        system: { id: "knight", version: "3.58.33" },
+        release: { generation: 15 },
+      },
+    ]) {
+      vi.stubGlobal("game", game);
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      expect(registry.capabilities()).toEqual(NON_PF2_CAPABILITIES);
+    }
+  });
 });

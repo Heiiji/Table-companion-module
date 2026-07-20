@@ -54,7 +54,8 @@ Two jobs:
 - `src/procedures/` — one file per RPC procedure: `ping`, `presence`, `rollExecute`
   (`roll.execute`), `rollAction` (`roll.action`), `sheetDerived` (`sheet.derived`),
   `effects` (`effect.apply|remove|setValue`), `compendium` (`compendium.index|get`),
-  and `display` (`display.show|clear`); `index.ts` registers them and applies the PF2e
+  `display` (`display.show|clear`), and `actorUpsert` (Knight-only, consequential
+  `actor.upsert.v1`); `index.ts` registers them and applies the PF2e
   clean-cut capability filter. **These proc-name strings are duplicated in the agent (Go)** — see
   Parity.
 - `src/rpc/` — `envelope` (shape + `EnvelopeType` union), `channel` (handshake, correlation,
@@ -84,6 +85,26 @@ Two jobs:
   escaped anything.
 - **Signing is mandatory.** Every `rpc.request` is verified against the pinned agent key.
   Never relax the freshness window or the pinning without updating the agent's signer.
+- **Consequential actor provisioning is signed-response-only.** `actor.upsert.v1` is advertised
+  only by a signing elected GM responder, and the agent additionally requires the current
+  `moduleResponseSignatureV1` capability before relaying a queued job. Its `KnightActorUpsertV1`
+  DTO is semantic and recursively exact: no raw document paths/maps, caller ownership/flags,
+  secret Tarot, prepared/derived/max values, or arbitrary equipment. Lookup is by the unique
+  `flags["table-companion"].binding`, then optionally one explicit unbound assigned Actor — never
+  by name. Current runtime mapping and capability advertisement are pinned to exact Knight v3.58.33
+  on Foundry 13–14; the procedure repeats the gate. `foundryUserId` is optional: the whole Actor
+  ownership map becomes default NONE plus only that player OWNER, or GM-only with an
+  `assign_foundry_user` warning. Approved IA is optional and omitted IA never overwrites Foundry.
+  The authoritative 1–5 nonblank minor motivations reconcile only Items stamped by this module.
+  Public Tarot/derived-source provenance, three catalog digests, and approved revision persist only
+  at `flags.table-companion.characterCreationV1`; `gmSecretPending`, secret pasts/advantages, and
+  Maison-Dieu private choices have no accepted field. Contact current value maps only to the
+  fixture-backed `system.contacts.actuel`; maxima remain derived.
+- **Equipment import is deliberately fail-closed.** The v1 catalog→compendium crosswalk is pinned to
+  Knight Compendium 14.0.1 and admits the fixture-proven nine creation armours, twelve creation
+  weapons, and forty module-level IDs. Missing or mismatched compendium data and unverified
+  improvements report `partial`; only module-stamped Items are reconciled and every unrelated Item
+  is preserved.
 - **Module response signing (M8, `src/rpc/responseSigning.ts`).** The elected responder signs
   every `rpc.response` / `rpc.error` with its own Ed25519 key; the additive `sig` + `signedAt`
   envelope fields carry an Ed25519 signature over the canonical string

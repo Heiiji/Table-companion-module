@@ -5,8 +5,17 @@
  *
  * Codes in use: `permission_denied` (the paired Companion user lacks the required
  * per-actor ownership), `payload_too_large` (a response would exceed the envelope
- * cap), `procedure_timeout` (a handler exceeded the per-request deadline). Handlers
- * that throw a plain `Error` still map to the generic `procedure_failed`.
+ * cap), `procedure_timeout` (a handler exceeded the per-request deadline),
+ * `invalid_args` (the request payload failed procedure-specific validation),
+ * `unsupported_runtime` (the connected Foundry/system version does not support the
+ * procedure), `binding_collision` (more than one Actor carries the same Table
+ * Companion binding), `deleted_link` (the previously linked Actor no longer
+ * exists), `binding_conflict` (the binding or assignedActorId points at a
+ * different Actor than expected), `actor_not_found` (assignedActorId does not
+ * identify an existing Actor), `stale_revision` (the Actor already carries a newer
+ * approved revision), and `revision_conflict` (the same approved revision was
+ * resubmitted with different content). Handlers that throw a plain `Error` still
+ * map to the generic `procedure_failed`.
  */
 import { MAX_ENVELOPE_BYTES } from "../constants.js";
 

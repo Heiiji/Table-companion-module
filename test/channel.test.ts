@@ -62,7 +62,11 @@ beforeAll(async () => {
 
 type Fields = Record<string, unknown>;
 
-function agentEnv(type: string, fields: Fields = {}, withPubKey = false): Fields {
+function agentEnv(
+  type: string,
+  fields: Fields = {},
+  withPubKey = false,
+): Fields {
   return {
     v: ENVELOPE_VERSION,
     type,
@@ -126,13 +130,14 @@ function stubGame(opts: { pinned?: string; responder?: boolean } = {}): void {
   });
 }
 
-function startChannel(timeoutMs?: number): Channel {
+function startChannel(timeoutMs?: number, withActorUpsert = false): Channel {
   const registry = new ProcedureRegistry();
   registry.register("echo", (payload) => ({ echoed: payload }));
   registry.register("boom", () => {
     throw new Error("kaboom");
   });
   registry.register("hang", () => new Promise(() => {})); // never settles
+  if (withActorUpsert) registry.register("actor.upsert.v1", () => ({}));
   const channel = new Channel(registry, "0.0.0-test", timeoutMs);
   channel.start();
   emitSpy.mockClear(); // discard the hello broadcast on start
@@ -268,7 +273,9 @@ describe("Channel.onMessage", () => {
   it("maps a throwing handler to rpc.error procedure_failed", async () => {
     stubGame({ pinned: agentPubB64 });
     startChannel();
-    await deliver(await sign(agentEnv("rpc.request", { id: "b1", proc: "boom" })));
+    await deliver(
+      await sign(agentEnv("rpc.request", { id: "b1", proc: "boom" })),
+    );
     const [err] = emitted("rpc.error");
     expect(err.id).toBe("b1");
     expect((err.error as Fields).code).toBe("procedure_failed");
@@ -278,7 +285,9 @@ describe("Channel.onMessage", () => {
   it("times out a hung handler with rpc.error procedure_timeout (C7/C8)", async () => {
     stubGame({ pinned: agentPubB64 });
     startChannel(20); // 20ms per-request deadline
-    await deliver(await sign(agentEnv("rpc.request", { id: "h1", proc: "hang" })));
+    await deliver(
+      await sign(agentEnv("rpc.request", { id: "h1", proc: "hang" })),
+    );
     const errs = emitted("rpc.error");
     expect(errs).toHaveLength(1); // exactly one — the late handler resolution is ignored
     expect(errs[0].id).toBe("h1");
@@ -297,7 +306,9 @@ describe("Channel.onMessage", () => {
     stubGame({ pinned: agentPubB64, responder: false });
     startChannel();
     await deliver(await sign(agentEnv("ping", { id: "p2" })));
-    await deliver(await sign(agentEnv("rpc.request", { id: "r2", proc: "echo" })));
+    await deliver(
+      await sign(agentEnv("rpc.request", { id: "r2", proc: "echo" })),
+    );
     expect(emitSpy).not.toHaveBeenCalled();
   });
 });
@@ -305,7 +316,10 @@ describe("Channel.onMessage", () => {
 // --- M8: module -> agent response signing ----------------------------------
 
 describe("Channel response signing (M8)", () => {
-  async function withSigner(): Promise<{ channel: Channel; signer: ModuleResponseSigner }> {
+  async function withSigner(): Promise<{
+    channel: Channel;
+    signer: ModuleResponseSigner;
+  }> {
     const channel = startChannel();
     const { signer } = await ModuleResponseSigner.generate();
     channel.setResponseSigner(signer); // re-announces hello
@@ -332,6 +346,22 @@ describe("Channel response signing (M8)", () => {
     expect(hello.worldId).toBe("test-world");
   });
 
+  it("keeps consequential actor.upsert.v1 invisible until this responder can sign", async () => {
+    stubGame({ pinned: agentPubB64, responder: true });
+    const channel = startChannel(undefined, true);
+    channel.sendHello();
+    expect(emitted("hello").at(-1)!.capabilities).not.toContain(
+      "actor.upsert.v1",
+    );
+
+    const { signer } = await ModuleResponseSigner.generate();
+    emitSpy.mockClear();
+    channel.setResponseSigner(signer);
+    const capabilities = emitted("hello").at(-1)!.capabilities as string[];
+    expect(capabilities).toContain("actor.upsert.v1");
+    expect(capabilities).toContain(CAP_RESPONSE_SIG);
+  });
+
   it("does not advertise/sign when a signer is set but this client is NOT the responder", async () => {
     stubGame({ pinned: agentPubB64, responder: false });
     const channel = startChannel();
@@ -349,7 +379,9 @@ describe("Channel response signing (M8)", () => {
     const { signer } = await withSigner();
 
     await deliver(
-      await sign(agentEnv("rpc.request", { id: "s1", proc: "echo", payload: { n: 7 } })),
+      await sign(
+        agentEnv("rpc.request", { id: "s1", proc: "echo", payload: { n: 7 } }),
+      ),
     );
     const resp = emitted("rpc.response")[0];
     expect(resp).toBeDefined();
@@ -365,7 +397,11 @@ describe("Channel response signing (M8)", () => {
       resp.signedAt as number,
       resp.payload,
     );
-    const ok = await verifyResponseSig(signer.publicKeyB64, resp.sig as string, message);
+    const ok = await verifyResponseSig(
+      signer.publicKeyB64,
+      resp.sig as string,
+      message,
+    );
     expect(ok).toBe(true);
   });
 
@@ -373,7 +409,9 @@ describe("Channel response signing (M8)", () => {
     stubGame({ pinned: agentPubB64, responder: true });
     const { signer } = await withSigner();
 
-    await deliver(await sign(agentEnv("rpc.request", { id: "e1", proc: "boom" })));
+    await deliver(
+      await sign(agentEnv("rpc.request", { id: "e1", proc: "boom" })),
+    );
     const err = emitted("rpc.error")[0];
     expect(err).toBeDefined();
     expect(typeof err.sig).toBe("string");
@@ -385,7 +423,11 @@ describe("Channel response signing (M8)", () => {
       err.signedAt as number,
       err.error,
     );
-    const ok = await verifyResponseSig(signer.publicKeyB64, err.sig as string, message);
+    const ok = await verifyResponseSig(
+      signer.publicKeyB64,
+      err.sig as string,
+      message,
+    );
     expect(ok).toBe(true);
   });
 
