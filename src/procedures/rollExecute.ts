@@ -13,7 +13,9 @@ import type { Procedure } from "../rpc/registry.js";
  */
 export const rollExecute: Procedure = async (payload) => {
   const formula =
-    payload && typeof payload === "object" && "formula" in payload &&
+    payload &&
+    typeof payload === "object" &&
+    "formula" in payload &&
     typeof (payload as { formula: unknown }).formula === "string"
       ? (payload as { formula: string }).formula
       : "";

@@ -117,7 +117,10 @@ function setupContent(statusBlock: string): string {
 }
 
 /** Replace just the status panel in the open dialog, leaving wired buttons. */
-async function refreshStatus(channel: Channel, dialog: DialogInstance): Promise<void> {
+async function refreshStatus(
+  channel: Channel,
+  dialog: DialogInstance,
+): Promise<void> {
   const host = dialog.element?.querySelector(".tca-status-host");
   if (host) host.innerHTML = await statusHtml(channel);
 }
@@ -201,7 +204,9 @@ export async function openSetupApp(channel: Channel): Promise<void> {
     const dialog = new (DialogV2())({
       window: { title: localize("setup.title"), icon: "fa-solid fa-dice-d20" },
       content: setupContent(await statusHtml(channel)),
-      buttons: [{ action: "close", label: localize("common.close"), default: true }],
+      buttons: [
+        { action: "close", label: localize("common.close"), default: true },
+      ],
     }) as DialogInstance;
     setupDialog = dialog;
     await dialog.render({ force: true });
@@ -259,15 +264,23 @@ async function showPassword(password: string): Promise<void> {
   }
 
   const dialog = new (DialogV2())({
-    window: { title: localize("setup.password.title"), icon: "fa-solid fa-key" },
+    window: {
+      title: localize("setup.password.title"),
+      icon: "fa-solid fa-key",
+    },
     content,
-    buttons: [{ action: "done", label: localize("common.done"), default: true }],
+    buttons: [
+      { action: "done", label: localize("common.done"), default: true },
+    ],
   }) as DialogInstance;
   passwordDialog = dialog;
   await dialog.render({ force: true });
   dialog.element
     .querySelector('[data-tca="copy"]')
-    ?.addEventListener("click", () => void copyPassword(password, dialog.element));
+    ?.addEventListener(
+      "click",
+      () => void copyPassword(password, dialog.element),
+    );
   renderPairingQr(password, dialog.element);
   selectPasswordCode(dialog.element);
 }
@@ -325,7 +338,9 @@ function renderPairingQr(password: string, root: HTMLElement): void {
     qr.addData(link);
     qr.make();
     host.innerHTML = qr.createImgTag(4, 8);
-    host.querySelector("img")?.setAttribute("alt", localize("setup.password.scanHint"));
+    host
+      .querySelector("img")
+      ?.setAttribute("alt", localize("setup.password.scanHint"));
   } catch (err) {
     host.remove();
     log.warn("could not render the pairing QR code", err);
@@ -353,7 +368,10 @@ function selectPasswordCode(root: HTMLElement): void {
  * copy (which works on Firefox over plain HTTP, where the Clipboard API is
  * blocked). Falls back to a "select it yourself" notice — the dialog stays open
  * either way. */
-async function copyPassword(password: string, root: HTMLElement): Promise<void> {
+async function copyPassword(
+  password: string,
+  root: HTMLElement,
+): Promise<void> {
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(password);

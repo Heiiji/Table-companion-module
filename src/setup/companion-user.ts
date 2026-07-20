@@ -35,7 +35,8 @@ export function findCompanionUser(): User | undefined {
   return (
     users.find(
       (u) =>
-        (u as unknown as FlagReader).getFlag(MODULE_ID, COMPANION_FLAG) === true,
+        (u as unknown as FlagReader).getFlag(MODULE_ID, COMPANION_FLAG) ===
+        true,
     ) ??
     users.find((u) => u.name === COMPANION_USER_NAME) ??
     undefined

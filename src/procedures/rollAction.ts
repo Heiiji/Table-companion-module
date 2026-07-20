@@ -1,5 +1,10 @@
 import type { Procedure } from "../rpc/registry.js";
-import { actors, assertCompanionPermission, PermissionActorLike, systemId } from "./foundry.js";
+import {
+  actors,
+  assertCompanionPermission,
+  PermissionActorLike,
+  systemId,
+} from "./foundry.js";
 import { RpcError } from "../rpc/errors.js";
 
 /**
@@ -31,7 +36,9 @@ interface RollLike {
   options?: { degreeOfSuccess?: number } & Record<string, unknown>;
   evaluate?: () => Promise<RollLike>;
 }
-type RollMethod = (...args: unknown[]) => Promise<RollLike | null | undefined> | RollLike | null | undefined;
+type RollMethod = (
+  ...args: unknown[]
+) => Promise<RollLike | null | undefined> | RollLike | null | undefined;
 
 interface ActorLike extends PermissionActorLike {
   system?: Record<string, unknown>;
@@ -57,7 +64,10 @@ interface ActionOptions {
 }
 
 /** Normalize any system Roll into our wire shape plus optional enrichment. */
-function packageRoll(roll: RollLike, enrichment?: Record<string, unknown>): Record<string, unknown> {
+function packageRoll(
+  roll: RollLike,
+  enrichment?: Record<string, unknown>,
+): Record<string, unknown> {
   const dice = (roll.dice ?? []).map((term) => ({
     faces: Number(term.faces ?? 0),
     results: (term.results ?? []).map((r) => r.result),
@@ -87,7 +97,11 @@ async function awaitRoll(value: ReturnType<RollMethod>): Promise<RollLike> {
 const DND5E_DIALOG = { configure: false } as const;
 const DND5E_MESSAGE = { create: false } as const;
 
-async function rollDnd5e(actor: ActorLike, type: string, opts: ActionOptions): Promise<Record<string, unknown>> {
+async function rollDnd5e(
+  actor: ActorLike,
+  type: string,
+  opts: ActionOptions,
+): Promise<Record<string, unknown>> {
   const cfg = { advantage: opts.advantage, disadvantage: opts.disadvantage };
   const legacyOpts = { ...cfg, fastForward: true, chatMessage: false };
   switch (type) {
@@ -117,7 +131,14 @@ async function rollDnd5e(actor: ActorLike, type: string, opts: ActionOptions): P
       // rollSkill was never renamed across the 3.x→4.x change; the module floor is Foundry 13
       // (dnd5e 4.x+), so use the modern object-config shape.
       return packageRoll(
-        await awaitRoll(actor.rollSkill.call(actor, { skill, ...cfg }, DND5E_DIALOG, DND5E_MESSAGE)),
+        await awaitRoll(
+          actor.rollSkill.call(
+            actor,
+            { skill, ...cfg },
+            DND5E_DIALOG,
+            DND5E_MESSAGE,
+          ),
+        ),
         { type: "skill", skill },
       );
     }
@@ -137,7 +158,10 @@ interface KnightAspect {
 }
 
 /** Read a numeric characteristic value out of an aspect, tolerating both FR spellings. */
-function knightCharacteristicValue(aspect: KnightAspect | undefined, characteristic: string): number | undefined {
+function knightCharacteristicValue(
+  aspect: KnightAspect | undefined,
+  characteristic: string,
+): number | undefined {
   const bag = aspect?.caracteristiques ?? aspect?.caracteristique;
   const v = bag?.[characteristic]?.value;
   return typeof v === "number" ? v : undefined;
@@ -179,17 +203,26 @@ function knightEffective(
 ): { effective: number; aspect: string } {
   const aspectKey = KNIGHT_ASPECT_OF[characteristic];
   if (!aspectKey) {
-    throw new RpcError("invalid_args", `unknown knight characteristic '${characteristic}'`);
+    throw new RpcError(
+      "invalid_args",
+      `unknown knight characteristic '${characteristic}'`,
+    );
   }
-  const aspects = sys.aspects as Record<string, KnightAspect | undefined> | undefined;
+  const aspects = sys.aspects as
+    | Record<string, KnightAspect | undefined>
+    | undefined;
   const node = aspects?.[aspectKey];
   const aspectValue = typeof node?.value === "number" ? node.value : undefined;
   const characteristicValue = knightCharacteristicValue(node, characteristic);
-  if (aspectValue === undefined) throw new Error(`knight aspect '${aspectKey}' has no value`);
+  if (aspectValue === undefined)
+    throw new Error(`knight aspect '${aspectKey}' has no value`);
   if (characteristicValue === undefined) {
     throw new Error(`knight characteristic '${characteristic}' has no value`);
   }
-  return { effective: Math.max(0, Math.min(characteristicValue, aspectValue)), aspect: aspectKey };
+  return {
+    effective: Math.max(0, Math.min(characteristicValue, aspectValue)),
+    aspect: aspectKey,
+  };
 }
 
 /** Normalize one evaluated system Roll's dice into our wire shape (faces + flat results). */
@@ -201,7 +234,9 @@ function wireDice(roll: RollLike): Array<{ faces: number; results: number[] }> {
 }
 
 /** Knight success count: a d6 succeeds iff EVEN (2/4/6). No 4+ threshold, no 6-doubles. */
-function countKnightSuccesses(dice: Array<{ faces: number; results: number[] }>): number {
+function countKnightSuccesses(
+  dice: Array<{ faces: number; results: number[] }>,
+): number {
   let n = 0;
   for (const term of dice) {
     if (term.faces !== 6) continue;
@@ -210,15 +245,21 @@ function countKnightSuccesses(dice: Array<{ faces: number; results: number[] }>)
   return n;
 }
 
-async function rollKnight(actor: ActorLike, type: string, opts: ActionOptions): Promise<Record<string, unknown>> {
-  if (type !== "aspect") throw new Error(`knight roll type '${type}' is not supported`);
+async function rollKnight(
+  actor: ActorLike,
+  type: string,
+  opts: ActionOptions,
+): Promise<Record<string, unknown>> {
+  if (type !== "aspect")
+    throw new Error(`knight roll type '${type}' is not supported`);
   // KNT-R-001: a normal test is a COMBO of two different characteristics — the GM-named `base`
   // plus the player-chosen `combo`. The pool is effective(base) + effective(combo); each side is
   // capped by its own aspect (KNT-R-006), and no aspect value is ever added to the pool.
   const base = opts.base ?? "";
   const combo = opts.combo ?? "";
   if (!base) throw new RpcError("invalid_args", "knight roll requires 'base'");
-  if (!combo) throw new RpcError("invalid_args", "knight roll requires 'combo'");
+  if (!combo)
+    throw new RpcError("invalid_args", "knight roll requires 'combo'");
   if (base === combo) {
     throw new RpcError(
       "invalid_args",
@@ -228,14 +269,20 @@ async function rollKnight(actor: ActorLike, type: string, opts: ActionOptions): 
   const sys = actor.system ?? {};
   const b = knightEffective(sys, base);
   const c = knightEffective(sys, combo);
-  const bonus = typeof opts.bonus === "number" && opts.bonus > 0 ? Math.floor(opts.bonus) : 0;
+  const bonus =
+    typeof opts.bonus === "number" && opts.bonus > 0
+      ? Math.floor(opts.bonus)
+      : 0;
   const pool = b.effective + c.effective + bonus;
-  if (pool <= 0) throw new Error(`knight pool for '${base}'+'${combo}' is empty`);
+  if (pool <= 0)
+    throw new Error(`knight pool for '${base}'+'${combo}' is empty`);
 
   // No clean standalone Knight roll API exists (the system builds its pool inside its sheet/dialog),
   // so we roll the pool ourselves and count successes module-side, returning `successes` so the app
   // renders ground truth without re-banding.
-  const RollCtor = (globalThis as unknown as { Roll: new (f: string) => RollLike }).Roll;
+  const RollCtor = (
+    globalThis as unknown as { Roll: new (f: string) => RollLike }
+  ).Roll;
   const first = await awaitRoll(new RollCtor(`${pool}d6`).evaluate?.());
   const dice = wireDice(first);
   const firstSuccesses = countKnightSuccesses(dice); // KNT-R-002: a d6 succeeds iff EVEN (2/4/6)
@@ -279,7 +326,11 @@ async function rollKnight(actor: ActorLike, type: string, opts: ActionOptions): 
 }
 
 export const rollAction: Procedure = async (payload) => {
-  const p = (payload ?? {}) as { actorId?: unknown; type?: unknown; options?: unknown };
+  const p = (payload ?? {}) as {
+    actorId?: unknown;
+    type?: unknown;
+    options?: unknown;
+  };
   const actorId = String(p.actorId ?? "").trim();
   const type = String(p.type ?? "").trim();
   if (!actorId) throw new Error("roll.action requires 'actorId'");
@@ -305,6 +356,8 @@ export const rollAction: Procedure = async (payload) => {
     case "knight":
       return rollKnight(actor, type, opts);
     default:
-      throw new Error(`roll.action is not supported for system '${activeSystem}'`);
+      throw new Error(
+        `roll.action is not supported for system '${activeSystem}'`,
+      );
   }
 };

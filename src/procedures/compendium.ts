@@ -72,7 +72,8 @@ function packs(): PacksLike {
 
 export const compendiumIndex: Procedure = async (payload) => {
   const p = (payload ?? {}) as IndexPayload;
-  const documentName = CONTENT_TYPE_TO_DOCUMENT[p.contentType ?? "creature"] ?? "Actor";
+  const documentName =
+    CONTENT_TYPE_TO_DOCUMENT[p.contentType ?? "creature"] ?? "Actor";
   const query = (p.query ?? "").trim().toLowerCase();
   const limit = Math.min(Math.max(p.limit ?? 100, 1), MAX_INDEX_RESULTS);
 
@@ -83,7 +84,8 @@ export const compendiumIndex: Procedure = async (payload) => {
   outer: for (const pack of packs()) {
     if (pack.metadata?.type !== documentName) continue;
     // Only filter by system when the pack declares one (world/module packs often don't).
-    if (p.system && pack.metadata.system && pack.metadata.system !== p.system) continue;
+    if (p.system && pack.metadata.system && pack.metadata.system !== p.system)
+      continue;
 
     const index = await pack.getIndex();
     for (const entry of index) {
@@ -110,7 +112,15 @@ export const compendiumIndex: Procedure = async (payload) => {
   // Deterministic order: by name (code-unit), then id as a stable tie-break — locale-independent
   // so the same world yields the same paging on every client.
   matched.sort((a, b) =>
-    a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+    a.name < b.name
+      ? -1
+      : a.name > b.name
+        ? 1
+        : a.id < b.id
+          ? -1
+          : a.id > b.id
+            ? 1
+            : 0,
   );
 
   const total = matched.length;

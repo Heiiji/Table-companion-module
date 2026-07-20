@@ -14,7 +14,9 @@ import { localize, log } from "../util/log.js";
 const DialogV2 = (): (new (opts: unknown) => unknown) | undefined =>
   (
     globalThis as unknown as {
-      foundry?: { applications?: { api?: { DialogV2?: new (opts: unknown) => unknown } } };
+      foundry?: {
+        applications?: { api?: { DialogV2?: new (opts: unknown) => unknown } };
+      };
     }
   ).foundry?.applications?.api?.DialogV2;
 
@@ -45,7 +47,9 @@ export async function openProjector(
       classes: ["tca-projector"],
       window: { title, icon: "fa-solid fa-tv" },
       content: contentHtml,
-      buttons: [{ action: "close", label: localize("common.close"), default: true }],
+      buttons: [
+        { action: "close", label: localize("common.close"), default: true },
+      ],
     }) as DialogInstance;
     projectorDialog = dialog;
     await dialog.render({ force: true });

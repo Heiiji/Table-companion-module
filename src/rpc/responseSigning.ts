@@ -79,7 +79,8 @@ export function canonicalize(v: unknown): string {
   const t = typeof v;
   if (t === "boolean") return v ? "true" : "false";
   if (t === "number") {
-    if (!Number.isFinite(v)) throw new Error("cannot canonicalize non-finite number");
+    if (!Number.isFinite(v))
+      throw new Error("cannot canonicalize non-finite number");
     return JSON.stringify(v);
   }
   if (t === "string") return canonicalString(v as string);
@@ -91,7 +92,9 @@ export function canonicalize(v: unknown): string {
       .sort(compareUtf8);
     return (
       "{" +
-      keys.map((k) => canonicalString(k) + ":" + canonicalize(obj[k])).join(",") +
+      keys
+        .map((k) => canonicalString(k) + ":" + canonicalize(obj[k]))
+        .join(",") +
       "}"
     );
   }
@@ -188,7 +191,10 @@ export class ModuleResponseSigner {
 
   /** Generate a fresh keypair. Returns the signer and the exported private JWK
    * to persist (client-scoped). */
-  static async generate(): Promise<{ signer: ModuleResponseSigner; jwk: JsonWebKey }> {
+  static async generate(): Promise<{
+    signer: ModuleResponseSigner;
+    jwk: JsonWebKey;
+  }> {
     const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
       "sign",
       "verify",

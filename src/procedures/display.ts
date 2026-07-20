@@ -65,8 +65,10 @@ export function normalizeDisplayPayload(payload: unknown): DisplayView {
     const label = typeof fr.label === "string" ? fr.label.trim() : "";
     const value = typeof fr.value === "string" ? fr.value : "";
     if (!label) throw new Error("display.show field needs a non-empty 'label'");
-    if (label.length > MAX_LABEL) throw new Error("display.show field label is too long");
-    if (value.length > MAX_VALUE) throw new Error("display.show field value is too long");
+    if (label.length > MAX_LABEL)
+      throw new Error("display.show field label is too long");
+    if (value.length > MAX_VALUE)
+      throw new Error("display.show field value is too long");
     fields.push({ label, value });
   }
 
@@ -108,7 +110,10 @@ export function parseDisplayBroadcast(
   if (tag === "clear") return { kind: "clear" };
   if (tag === "show") {
     try {
-      return { kind: "show", view: normalizeDisplayPayload((raw as { view?: unknown }).view) };
+      return {
+        kind: "show",
+        view: normalizeDisplayPayload((raw as { view?: unknown }).view),
+      };
     } catch {
       return null;
     }

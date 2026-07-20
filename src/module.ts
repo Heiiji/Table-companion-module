@@ -98,7 +98,12 @@ Hooks.once("init", () => {
 
   // Publish the public API as early as possible so dependents can read it.
   if (mod) {
-    (mod as { api?: unknown }).api = buildApi(version, registry, channel, openSetup);
+    (mod as { api?: unknown }).api = buildApi(
+      version,
+      registry,
+      channel,
+      openSetup,
+    );
   }
 
   log.info(`initialized (v${version})`);

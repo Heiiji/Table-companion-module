@@ -1,5 +1,10 @@
 import type { Procedure } from "../rpc/registry.js";
-import { actors, assertCompanionPermission, PermissionActorLike, systemId } from "./foundry.js";
+import {
+  actors,
+  assertCompanionPermission,
+  PermissionActorLike,
+  systemId,
+} from "./foundry.js";
 import { RpcError } from "../rpc/errors.js";
 
 /**
@@ -35,7 +40,10 @@ interface EffectsCollectionLike {
 }
 interface ActorLike extends PermissionActorLike {
   effects?: EffectsCollectionLike;
-  toggleStatusEffect?: (statusId: string, options?: Record<string, unknown>) => Promise<unknown>;
+  toggleStatusEffect?: (
+    statusId: string,
+    options?: Record<string, unknown>,
+  ) => Promise<unknown>;
 }
 
 function assertEffectProceduresSupported(): void {
@@ -47,7 +55,10 @@ function assertEffectProceduresSupported(): void {
   }
 }
 
-function requireActor(payload: unknown): { actor: ActorLike; p: Record<string, unknown> } {
+function requireActor(payload: unknown): {
+  actor: ActorLike;
+  p: Record<string, unknown>;
+} {
   const p = (payload ?? {}) as Record<string, unknown>;
   const actorId = String(p.actorId ?? "").trim();
   if (!actorId) throw new Error("effect procedures require 'actorId'");
@@ -64,7 +75,8 @@ export const effectApply: Procedure = async (payload) => {
   const statusId = String(p.statusId ?? "").trim();
   if (!statusId) throw new Error("effect.apply requires 'statusId'");
 
-  if (!actor.toggleStatusEffect) throw new Error("this system cannot apply status effects via the API");
+  if (!actor.toggleStatusEffect)
+    throw new Error("this system cannot apply status effects via the API");
   await actor.toggleStatusEffect(statusId, { active: true });
   return { ok: true, applied: statusId };
 };
@@ -86,7 +98,8 @@ export const effectSetValue: Procedure = async (payload) => {
   const statusId = String(p.statusId ?? "").trim();
   const value = typeof p.value === "number" ? p.value : NaN;
   if (!statusId) throw new Error("effect.setValue requires 'statusId'");
-  if (Number.isNaN(value) || value < 0) throw new Error("effect.setValue requires a non-negative 'value'");
+  if (Number.isNaN(value) || value < 0)
+    throw new Error("effect.setValue requires a non-negative 'value'");
 
   throw new Error("this system cannot set a condition value via the API");
 };

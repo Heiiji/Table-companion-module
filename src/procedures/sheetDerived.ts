@@ -1,5 +1,10 @@
 import type { Procedure } from "../rpc/registry.js";
-import { actors, assertCompanionPermission, PermissionActorLike, systemId } from "./foundry.js";
+import {
+  actors,
+  assertCompanionPermission,
+  PermissionActorLike,
+  systemId,
+} from "./foundry.js";
 import { assertPayloadWithinCap, RpcError } from "../rpc/errors.js";
 
 /**
@@ -51,7 +56,11 @@ interface ActorLike extends PermissionActorLike {
 function num(obj: unknown, ...path: string[]): number | undefined {
   let cur: unknown = obj;
   for (const key of path) {
-    if (cur && typeof cur === "object" && key in (cur as Record<string, unknown>)) {
+    if (
+      cur &&
+      typeof cur === "object" &&
+      key in (cur as Record<string, unknown>)
+    ) {
       cur = (cur as Record<string, unknown>)[key];
     } else {
       return undefined;
@@ -72,7 +81,10 @@ function defined<T extends Record<string, unknown>>(obj: T): Partial<T> {
  * Normalize one spell-slot bucket (system.spells.spellN or .pact) into {value,max}, dropping it
  * when neither side is present so non-casters / unused levels don't emit empty buckets.
  */
-function slotBucket(spells: unknown, key: string): { value?: number; max?: number } | undefined {
+function slotBucket(
+  spells: unknown,
+  key: string,
+): { value?: number; max?: number } | undefined {
   const value = num(spells, key, "value");
   const max = num(spells, key, "max");
   if (value === undefined && max === undefined) return undefined;
@@ -84,7 +96,9 @@ function slotBucket(spells: unknown, key: string): { value?: number; max?: numbe
  * Verified paths: system.spells.spellN.value/.max and system.spells.pact.value/.max (dnd5e
  * Roll-Formulas wiki). Returns undefined when no bucket has data (caller drops it via defined()).
  */
-function dnd5eSpellSlots(sys: Record<string, unknown>): Record<string, unknown> | undefined {
+function dnd5eSpellSlots(
+  sys: Record<string, unknown>,
+): Record<string, unknown> | undefined {
   const spells = sys.spells;
   if (!spells || typeof spells !== "object") return undefined;
   const out: Record<string, unknown> = {};
@@ -102,7 +116,9 @@ function dnd5eSpellSlots(sys: Record<string, unknown>): Record<string, unknown> 
  * .value/.max (the HitDice document); v3 stored a bare integer (remaining only, no max here).
  * Coerce both into the same {value,max} shape. Verified: dnd5e v4 HitDice getters value()/max().
  */
-function dnd5eHitDice(sys: Record<string, unknown>): Record<string, unknown> | undefined {
+function dnd5eHitDice(
+  sys: Record<string, unknown>,
+): Record<string, unknown> | undefined {
   const attrs = sys.attributes;
   if (!attrs || typeof attrs !== "object") return undefined;
   const hd = (attrs as Record<string, unknown>).hd;
@@ -114,7 +130,9 @@ function dnd5eHitDice(sys: Record<string, unknown>): Record<string, unknown> | u
 }
 
 /** deathSaves {success,failure} — system.attributes.death.success/.failure (0..3). */
-function dnd5eDeathSaves(sys: Record<string, unknown>): Record<string, unknown> | undefined {
+function dnd5eDeathSaves(
+  sys: Record<string, unknown>,
+): Record<string, unknown> | undefined {
   const success = num(sys, "attributes", "death", "success");
   const failure = num(sys, "attributes", "death", "failure");
   if (success === undefined && failure === undefined) return undefined;
@@ -128,9 +146,15 @@ function dnd5eDeathSaves(sys: Record<string, unknown>): Record<string, unknown> 
  * falls back to its local concentration_spell field when Foundry is absent).
  */
 function dnd5eConcentration(effects: EffectLike[]): Record<string, unknown> {
-  const eff = effects.find((e) => !e.disabled && statuses(e).includes("concentrating"));
+  const eff = effects.find(
+    (e) => !e.disabled && statuses(e).includes("concentrating"),
+  );
   if (!eff) return { active: false };
-  return defined({ active: true, spellName: eff.name ?? undefined, effectId: eff.id ?? undefined });
+  return defined({
+    active: true,
+    spellName: eff.name ?? undefined,
+    effectId: eff.id ?? undefined,
+  });
 }
 
 function dnd5eDerived(
@@ -141,7 +165,9 @@ function dnd5eDerived(
     ac: num(sys, "attributes", "ac", "value"),
     proficiency: num(sys, "attributes", "prof"),
     spellcasting: defined({
-      dc: num(sys, "attributes", "spelldc") ?? num(sys, "attributes", "spell", "dc"),
+      dc:
+        num(sys, "attributes", "spelldc") ??
+        num(sys, "attributes", "spell", "dc"),
       attack: num(sys, "attributes", "spell", "attack"),
     }),
     spellSlots: dnd5eSpellSlots(sys),
@@ -152,7 +178,10 @@ function dnd5eDerived(
 }
 
 /** A single Knight aspect's pool value (system.aspects.{x}.value). */
-function knightAspectPool(sys: Record<string, unknown>, aspect: string): number | undefined {
+function knightAspectPool(
+  sys: Record<string, unknown>,
+  aspect: string,
+): number | undefined {
   return num(sys, "aspects", aspect, "value");
 }
 
@@ -170,7 +199,8 @@ function knightAspectPool(sys: Record<string, unknown>, aspect: string): number 
 function knightDerived(sys: Record<string, unknown>): Record<string, unknown> {
   const wear = typeof sys.wear === "string" ? (sys.wear as string) : undefined;
   const energyMax =
-    (wear ? num(sys, "equipements", wear, "energie", "max") : undefined) ?? num(sys, "energie", "max");
+    (wear ? num(sys, "equipements", wear, "energie", "max") : undefined) ??
+    num(sys, "energie", "max");
   const aspectPools = defined({
     chair: knightAspectPool(sys, "chair"),
     bete: knightAspectPool(sys, "bete"),
@@ -206,7 +236,9 @@ function statuses(effect: EffectLike): string[] {
 }
 
 export const sheetDerived: Procedure = async (payload) => {
-  const actorId = String((payload as { actorId?: unknown } | null)?.actorId ?? "").trim();
+  const actorId = String(
+    (payload as { actorId?: unknown } | null)?.actorId ?? "",
+  ).trim();
   if (!actorId) throw new Error("sheet.derived requires 'actorId'");
 
   if (systemId() === "pf2e") {
