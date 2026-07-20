@@ -2,7 +2,7 @@
   "id": "table-companion",
   "title": "Table Companion",
   "description": "Optional companion module for the Table Companion mobile apps. Adds one-click setup of the Companion service user, a live link-status panel, and a versioned RPC channel the Table Companion agent uses to unlock higher-fidelity features. Everything in Table Companion works without this module — it only makes things smoother and richer.",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "authors": [
     {
       "name": "Heiiji"
