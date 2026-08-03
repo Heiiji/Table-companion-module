@@ -4,7 +4,17 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.0] - 2026-08-03
+
+> **Upgrade note — deploy the agent and the module together.** The response-signing scheme moves
+> from v1 to v2, and the scheme tag is the first field of the signed string, so the two versions
+> cannot verify each other's replies. A mismatched pair **fails closed**: signatures are rejected,
+> replies are dropped, the agent answers 409, and the apps fall back to their local engine. Nothing
+> breaks and nothing is lost — Foundry enrichment simply goes quiet until both sides match, which
+> is easy to mistake for "the module stopped working". Upgrade the agent first, or at the same time.
+>
+> This release also contains a **breaking public-API change**: `api.registerProcedure()` now takes a
+> required third argument. Any add-on registering its own procedures must declare a descriptor.
 
 ### Security
 - **Response-signing scheme v1 → v2: the envelope `type` is now part of the signed string.**
