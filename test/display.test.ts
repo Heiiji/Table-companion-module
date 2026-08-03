@@ -126,9 +126,12 @@ describe("display broadcast", () => {
 });
 
 describe("display.show / display.clear procedures", () => {
-  it("display.show returns ok and broadcasts the show view to peers", async () => {
+  // No DialogV2 in this environment, so the popout genuinely cannot come up.
+  // The honest answer is ok:false — this used to report {ok:true} regardless,
+  // which is how a GM in front of a blank screen was told it was showing.
+  it("display.show reports the real render outcome and broadcasts to peers", async () => {
     const res = await displayShow(view, {} as never);
-    expect(res).toEqual({ ok: true });
+    expect(res).toEqual({ ok: false, rendered: false, broadcast: true });
     const calls = emitMock().mock.calls;
     expect(calls).toHaveLength(1);
     expect(calls[0][0]).toBe(CHANNEL);
@@ -140,9 +143,12 @@ describe("display.show / display.clear procedures", () => {
     expect(emitMock()).not.toHaveBeenCalled();
   });
 
-  it("display.clear returns ok and broadcasts a clear", async () => {
+  // Clearing always succeeds locally (closing is idempotent), but `broadcast`
+  // is still only "handed to the relay" — Foundry acknowledges nothing, so the
+  // other clients' state stays unknowable and is never claimed.
+  it("display.clear reports the teardown and broadcasts a clear", async () => {
     const res = await displayClear(undefined, {} as never);
-    expect(res).toEqual({ ok: true });
+    expect(res).toEqual({ ok: true, rendered: false, broadcast: true });
     expect(emitMock()).toHaveBeenCalledWith(CHANNEL, { tcaDisplay: "clear" });
   });
 

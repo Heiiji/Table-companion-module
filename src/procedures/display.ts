@@ -159,23 +159,42 @@ function socket(): SocketLike | undefined {
 }
 
 /** Render the projector locally on THIS client (no broadcast). Used by the
- * responder via present() and by every other client via the socket listener. */
-async function renderLocal(view: DisplayView): Promise<void> {
-  await openProjector(view.name, projectorContentHtml(view));
+ * responder via present() and by every other client via the socket listener.
+ * Returns whether the popout actually came up. */
+async function renderLocal(view: DisplayView): Promise<boolean> {
+  return openProjector(view.name, projectorContentHtml(view));
+}
+
+/** What a display push could actually establish.
+ *
+ * `rendered` is the only DELIVERY fact available: it is this client's own
+ * popout. `broadcast` says the socket frame was emitted, which is not the same
+ * as anyone receiving it — Foundry's `module.*` relay gives no acknowledgement,
+ * so the other clients' state is genuinely unknown and is reported as such
+ * rather than folded into a blanket success. */
+export interface DisplayReceipt {
+  /** The projector popout is up on the responder's own client. */
+  rendered: boolean;
+  /** The show/clear frame was handed to Foundry's socket relay. */
+  broadcast: boolean;
 }
 
 /** Show a projection: render locally and broadcast to every other Foundry client.
  * `game.socket.emit` does not echo to the sender, so the responder renders here and
  * peers render via the listener — exactly one render per client. */
-export async function present(view: DisplayView): Promise<void> {
-  await renderLocal(view);
-  socket()?.emit(CHANNEL, buildShowBroadcast(view));
+export async function present(view: DisplayView): Promise<DisplayReceipt> {
+  const rendered = await renderLocal(view);
+  const sock = socket();
+  sock?.emit(CHANNEL, buildShowBroadcast(view));
+  return { rendered, broadcast: sock !== undefined };
 }
 
 /** Clear the projection locally and on every other client. */
-export async function clearDisplay(): Promise<void> {
+export async function clearDisplay(): Promise<DisplayReceipt> {
   await closeProjector();
-  socket()?.emit(CHANNEL, buildClearBroadcast());
+  const sock = socket();
+  sock?.emit(CHANNEL, buildClearBroadcast());
+  return { rendered: false, broadcast: sock !== undefined };
 }
 
 /**
@@ -201,16 +220,34 @@ export function startDisplayListener(): void {
   });
 }
 
-/** display.show — render a GM-authored, already-redacted projection to ALL Foundry
- * clients. The payload carries ONLY revealed content; no redaction, no Actor lookup. */
+/**
+ * display.show — render a GM-authored, already-redacted projection to ALL
+ * Foundry clients. The payload carries ONLY revealed content; no redaction, no
+ * Actor lookup.
+ *
+ * PUBLIC SHARED SCREEN. Its audience is every user logged into this Foundry
+ * world, which is NOT the same set as the devices seated at the table — a
+ * Foundry world can have users who are not at tonight's session, and the GM has
+ * no way to see who is connected from inside the app. Anything per-player, or
+ * anything that only some players may see, therefore travels the redacted
+ * mobile mesh instead and never comes through here.
+ *
+ * Returns what it could actually establish (see DisplayReceipt): the responder's
+ * own popout is the only delivery fact available, because Foundry's `module.*`
+ * relay acknowledges nothing. It used to return a blanket `{ok:true}` even when
+ * the popout had failed to open — so a GM standing in front of a blank screen
+ * was told it was showing.
+ */
 export const displayShow: Procedure = async (payload) => {
   const view = normalizeDisplayPayload(payload);
-  await present(view);
-  return { ok: true };
+  const receipt = await present(view);
+  return { ok: receipt.rendered, ...receipt };
 };
 
-/** display.clear — tear down the projector popout on all clients. */
+/** display.clear — tear down the projector popout on all clients. `ok` reports
+ * the local teardown, which always succeeds (closing is idempotent); the other
+ * clients' state remains unknowable for the same reason as in `display.show`. */
 export const displayClear: Procedure = async () => {
-  await clearDisplay();
-  return { ok: true };
+  const receipt = await clearDisplay();
+  return { ok: true, ...receipt };
 };

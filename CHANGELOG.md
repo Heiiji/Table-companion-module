@@ -42,6 +42,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it covered them — and Vitest runs through esbuild, which strips types without checking them.
   Three call sites were already passing the wrong arity undetected.
 
+### Fixed (projector)
+- **`display.show` no longer reports success when the projector failed to open.** `openProjector`
+  caught the render error, logged it, and the procedure returned `{ok: true}` regardless — so a GM
+  standing in front of a blank screen was told the shared screen was showing. It now returns a
+  receipt: `rendered` (this client's own popout — the only delivery fact available) and `broadcast`
+  (the frame was handed to Foundry's relay, which acknowledges nothing, so the other clients' state
+  stays honestly unknown). `ok` now means the projector actually came up.
+- The projector is documented as a **public shared screen**: its audience is every user logged into
+  the Foundry world, which is *not* the set of devices seated at the table, and the GM cannot see
+  that list from the app. Only table-public content may traverse it; per-player content stays on the
+  redacted mesh. See `specs/pnj-refactor/backend-plan.md` §1.
+
 ### Removed
 - **`effect.setValue` is no longer registered or advertised.** No Foundry system ever had a
   working implementation: the handler validated its arguments and then threw unconditionally, so
@@ -129,6 +141,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   document id as a locale-independent tie-break) and returned as `{ entries, total, truncated }`
   instead of a silently-capped bare list, so the app can show "N of M". Additive to the response
   (existing readers of `entries` are unaffected).
+
+### Fixed (projector)
+- **`display.show` no longer reports success when the projector failed to open.** `openProjector`
+  caught the render error, logged it, and the procedure returned `{ok: true}` regardless — so a GM
+  standing in front of a blank screen was told the shared screen was showing. It now returns a
+  receipt: `rendered` (this client's own popout — the only delivery fact available) and `broadcast`
+  (the frame was handed to Foundry's relay, which acknowledges nothing, so the other clients' state
+  stays honestly unknown). `ok` now means the projector actually came up.
+- The projector is documented as a **public shared screen**: its audience is every user logged into
+  the Foundry world, which is *not* the set of devices seated at the table, and the GM cannot see
+  that list from the app. Only table-public content may traverse it; per-player content stays on the
+  redacted mesh. See `specs/pnj-refactor/backend-plan.md` §1.
 
 ### Removed
 - Removed the unpublished PF2e advancement preview/apply/status implementation and its dormant

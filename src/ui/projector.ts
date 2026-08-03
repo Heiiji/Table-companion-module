@@ -31,15 +31,19 @@ interface DialogInstance {
 let projectorDialog: DialogInstance | undefined;
 
 /** Open (or replace) the projector popout with pre-built, already-escaped content.
- * Best-effort: if the Application framework is unavailable (a very old Foundry, or
- * a unit test) this no-ops — the mesh spotlight still drives the app UI, so the
- * canvas popout is pure enrichment and its absence is never fatal. */
+ *
+ * Returns whether it actually rendered. Best-effort remains the POLICY — if the
+ * Application framework is unavailable (a very old Foundry, or a unit test) the
+ * mesh spotlight still drives the app UI, so the popout's absence is never fatal
+ * — but the caller is told, rather than the failure being swallowed into a
+ * blanket success. The GM is the one who has to know the projector did not come
+ * up, because they are standing in front of a screen that is still blank. */
 export async function openProjector(
   title: string,
   contentHtml: string,
-): Promise<void> {
+): Promise<boolean> {
   const Ctor = DialogV2();
-  if (!Ctor) return;
+  if (!Ctor) return false;
   await closeProjector();
   try {
     const dialog = new Ctor({
@@ -53,9 +57,11 @@ export async function openProjector(
     }) as DialogInstance;
     projectorDialog = dialog;
     await dialog.render({ force: true });
+    return true;
   } catch (err) {
     projectorDialog = undefined;
     log.error("could not open the projector display", err);
+    return false;
   }
 }
 
