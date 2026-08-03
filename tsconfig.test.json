@@ -1,0 +1,18 @@
+// Type-checks the TESTS as well as src.
+//
+// The base tsconfig includes only `src`, because that is what the Vite build
+// compiles. That left `tsc --noEmit` silently skipping every test file while
+// `npm run lint` still read as if it covered them — and Vitest runs through
+// esbuild, which strips types without checking them. So a test could call a
+// changed signature with the wrong arity and stay green: exactly what happened
+// when `ProcedureRegistry.register` gained its required descriptor argument.
+//
+// `npm run lint` type-checks against THIS config so the tests are held to the
+// same contract as the code they claim to test.
+{
+  "extends": "./tsconfig.json",
+  // The base sets rootDir to `src` for the build's emit layout. Nothing is
+  // emitted here (--noEmit), so widen it to the repo root and let both trees in.
+  "compilerOptions": { "rootDir": "." },
+  "include": ["src", "test"]
+}

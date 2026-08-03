@@ -123,8 +123,12 @@ export class Channel {
   }
 
   /** Capabilities advertised in hello / hello.ack: the registered procedures,
-   * plus the response-signing token when this client signs. */
-  private advertisedCapabilities(): string[] {
+   * plus the response-signing token when this client signs.
+   *
+   * Public because this — not the raw registry — is what the agent actually
+   * sees, so it is the only honest answer to "what does this module offer?".
+   * The public API reports this list for the same reason. */
+  advertisedCapabilities(): string[] {
     // Mutation-consequential procedures are invisible until this elected GM
     // responder can authenticate their replies. This prevents a capability-only
     // client from submitting work that can never cross the signed-result gate.
@@ -485,6 +489,7 @@ export class Channel {
     if (!this.canSign() || !requestId) return;
     try {
       const { sig, signedAt } = await this.responseSigner!.sign(
+        env.type,
         requestId,
         foundryWorldId(),
         proc,

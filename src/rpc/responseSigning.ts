@@ -109,8 +109,15 @@ async function sha256hex(s: string): Promise<string> {
     .join("");
 }
 
-/** Build the canonical signing string for a response body. */
+/** Build the canonical signing string for a response body.
+ *
+ * `type` is the envelope type being signed — `"rpc.response"` or `"rpc.error"`.
+ * It is bound into the signature (scheme v2) because a signed error's body
+ * `{code, message}` canonicalizes identically to a response payload of the same
+ * shape, so without it one could be replayed as the other. Parity-locked with
+ * the agent's `moduleResponseSigningString`. */
 export async function responseSigningString(
+  type: string,
   requestId: string,
   worldId: string,
   procedure: string,
@@ -118,7 +125,7 @@ export async function responseSigningString(
   body: unknown,
 ): Promise<string> {
   const bodyHash = await sha256hex(canonicalize(body));
-  return `${RESPONSE_SIG_SCHEME}|${requestId}|${worldId}|${procedure}|${signedAt}|${bodyHash}`;
+  return `${RESPONSE_SIG_SCHEME}|${type}|${requestId}|${worldId}|${procedure}|${signedAt}|${bodyHash}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,8 +159,11 @@ export class ModuleResponseSigner {
     readonly publicKeyB64: string,
   ) {}
 
-  /** Sign a response body, returning the wire `sig` + `signedAt`. */
+  /** Sign a response body, returning the wire `sig` + `signedAt`. `type` is the
+   * envelope type being signed (`"rpc.response"` / `"rpc.error"`); it is part of
+   * the signed bytes so the two cannot be swapped for each other. */
   async sign(
+    type: string,
     requestId: string,
     worldId: string,
     procedure: string,
@@ -161,6 +171,7 @@ export class ModuleResponseSigner {
   ): Promise<ResponseSignature> {
     const signedAt = Date.now();
     const message = await responseSigningString(
+      type,
       requestId,
       worldId,
       procedure,

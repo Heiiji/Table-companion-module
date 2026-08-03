@@ -59,8 +59,21 @@ export const SETTING_MODULE_KEYPAIR = "moduleResponseKeypair";
 export const CAP_RESPONSE_SIG = "moduleResponseSignatureV1";
 
 /** Version tag prefixed to the canonical response-signing string (independent of
- * ENVELOPE_VERSION — it versions the signing scheme, not the envelope shape). */
-export const RESPONSE_SIG_SCHEME = "v1";
+ * ENVELOPE_VERSION — it versions the signing scheme, not the envelope shape).
+ *
+ * **v2** binds the envelope TYPE into the signed bytes. Under v1 the type lived
+ * outside the signature: a signed `rpc.error` could be replayed as an
+ * `rpc.response` whose payload was exactly `{code, message}`, because both
+ * canonicalize identically and every other signed field was unchanged. The
+ * agent would then resolve a call with a garbage success instead of the
+ * authored failure. Binding the type makes the two shapes unforgeable for each
+ * other.
+ *
+ * The scheme tag is the FIRST field of the signed string, so a v1 signature can
+ * never accidentally verify as v2 — the bytes differ before anything else is
+ * read. Agent and module must move together; a mismatched pair fails closed
+ * (reply dropped, 409, app falls back to its local engine). */
+export const RESPONSE_SIG_SCHEME = "v2";
 
 /** roll.execute guard: reject formulas longer than this many characters, a cheap
  * first bound on complexity before we even construct a Roll. */

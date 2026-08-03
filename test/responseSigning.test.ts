@@ -19,6 +19,7 @@ interface Vectors {
   canonicalJSON: { name: string; value: unknown; canonical: string }[];
   signingStrings: {
     name: string;
+    type: string;
     requestId: string;
     worldId: string;
     procedure: string;
@@ -35,8 +36,13 @@ const vectors: Vectors = JSON.parse(
   readFileSync(new URL("./vectors/response_signing_vectors.json", import.meta.url), "utf8"),
 );
 
-function b64ToBytes(b64: string): Uint8Array {
-  return new Uint8Array(Buffer.from(b64, "base64"));
+function b64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
+  // Copy into a plain ArrayBuffer: Buffer's is ArrayBufferLike, which WebCrypto's
+  // BufferSource does not accept.
+  const src = Buffer.from(b64, "base64");
+  const out = new Uint8Array(new ArrayBuffer(src.length));
+  out.set(src);
+  return out;
 }
 function toB64(bytes: ArrayBuffer | Uint8Array): string {
   const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
@@ -105,6 +111,7 @@ describe("responseSigningString", () => {
   it("matches every shared signing-string vector", async () => {
     for (const v of vectors.signingStrings) {
       const s = await responseSigningString(
+        v.type,
         v.requestId,
         v.worldId,
         v.procedure,
@@ -113,6 +120,72 @@ describe("responseSigningString", () => {
       );
       expect(s, v.name).toBe(v.signingString);
     }
+  });
+});
+
+describe("envelope-type binding (scheme v2)", () => {
+  // The bug this closes: an rpc.error's signed body is {code, message}, which
+  // canonicalizes IDENTICALLY to an rpc.response payload of the same shape.
+  // Under v1 the type lived outside the signature, so every signed field
+  // matched and a captured error verified as a success — the agent resolved the
+  // call with garbage instead of the module's authored failure.
+  it("gives the same body different signing strings per envelope type", async () => {
+    const body = { code: "actor_not_found", message: "no such actor" };
+    const asResponse = await responseSigningString(
+      "rpc.response",
+      "req-9",
+      "w",
+      "roll.action",
+      1737158403000,
+      body,
+    );
+    const asError = await responseSigningString(
+      "rpc.error",
+      "req-9",
+      "w",
+      "roll.action",
+      1737158403000,
+      body,
+    );
+
+    expect(asResponse).not.toBe(asError);
+    // Everything else is identical — only the bound type separates them.
+    expect(asResponse.replace("|rpc.response|", "|")).toBe(
+      asError.replace("|rpc.error|", "|"),
+    );
+  });
+
+  it("a signature over an rpc.error does not verify as an rpc.response", async () => {
+    const { signer } = await ModuleResponseSigner.generate();
+    const body = { code: "actor_not_found", message: "no such actor" };
+    const { sig, signedAt } = await signer.sign(
+      "rpc.error",
+      "req-9",
+      "w",
+      "roll.action",
+      body,
+    );
+
+    const replayed = await responseSigningString(
+      "rpc.response",
+      "req-9",
+      "w",
+      "roll.action",
+      signedAt,
+      body,
+    );
+    expect(await verifySig(signer.publicKeyB64, sig, replayed)).toBe(false);
+
+    // Sanity: it still verifies as what it actually is.
+    const honest = await responseSigningString(
+      "rpc.error",
+      "req-9",
+      "w",
+      "roll.action",
+      signedAt,
+      body,
+    );
+    expect(await verifySig(signer.publicKeyB64, sig, honest)).toBe(true);
   });
 });
 
@@ -140,12 +213,19 @@ describe("ModuleResponseSigner", () => {
   it("round-trips: sign then verify against its own public key", async () => {
     const { signer } = await ModuleResponseSigner.generate();
     const body = { formula: "2d6+3", total: 10, dice: [{ faces: 6, results: [4, 3] }] };
-    const { sig, signedAt } = await signer.sign("req-1", "world-x", "roll.execute", body);
+    const { sig, signedAt } = await signer.sign(
+      "rpc.response",
+      "req-1",
+      "world-x",
+      "roll.execute",
+      body,
+    );
 
     // freshness: signedAt is stamped ~now (the agent's ±90s check would pass).
     expect(Math.abs(Date.now() - signedAt)).toBeLessThan(5000);
 
     const message = await responseSigningString(
+      "rpc.response",
       "req-1",
       "world-x",
       "roll.execute",
@@ -159,8 +239,9 @@ describe("ModuleResponseSigner", () => {
   it("tamper: a signature over one body does not verify against a changed body", async () => {
     const { signer } = await ModuleResponseSigner.generate();
     const body = { total: 10 };
-    const { sig, signedAt } = await signer.sign("req-2", "w", "roll.execute", body);
+    const { sig, signedAt } = await signer.sign("rpc.response", "req-2", "w", "roll.execute", body);
     const tamperedMsg = await responseSigningString(
+      "rpc.response",
       "req-2",
       "w",
       "roll.execute",
@@ -175,8 +256,15 @@ describe("ModuleResponseSigner", () => {
     const a = (await ModuleResponseSigner.generate()).signer;
     const b = (await ModuleResponseSigner.generate()).signer;
     const body = { total: 7 };
-    const { sig, signedAt } = await a.sign("req-3", "w", "roll.execute", body);
-    const msg = await responseSigningString("req-3", "w", "roll.execute", signedAt, body);
+    const { sig, signedAt } = await a.sign("rpc.response", "req-3", "w", "roll.execute", body);
+    const msg = await responseSigningString(
+      "rpc.response",
+      "req-3",
+      "w",
+      "roll.execute",
+      signedAt,
+      body,
+    );
     const ok = await verifySig(b.publicKeyB64, sig, msg);
     expect(ok).toBe(false);
   });

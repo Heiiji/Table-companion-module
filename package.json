@@ -7,7 +7,7 @@
   "scripts": {
     "build": "vite build",
     "watch": "vite build --watch",
-    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" && tsc --noEmit",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "format": "prettier --write \"src/**/*.ts\""

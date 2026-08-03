@@ -51,6 +51,34 @@ export function foundryGeneration(): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/**
+ * Foundry systems with a verified contract for the system-aware oracle
+ * procedures (`sheet.derived`, `roll.action`, `effect.*`). Registration in
+ * `./index.ts` gates on this list, and each handler re-asserts it below.
+ *
+ * FAIL CLOSED — an unlisted system gets none of them. Adding one is a contract
+ * decision needing fixtures for a pinned system version, not a convenience.
+ */
+export const ADMITTED_ORACLE_SYSTEMS: readonly string[] = ["dnd5e", "knight"];
+
+/**
+ * Reject a call to a system-aware oracle on a system with no admitted contract.
+ *
+ * Defence in depth: `registerBuiltinProcedures` already withholds these
+ * procedures from the advertised set, so this only fires on a stale or direct
+ * call. It rejects BEFORE any Actor lookup or permission check, so an
+ * unsupported system never reads world state and never leaks whether an actor
+ * exists or who owns it.
+ */
+export function assertOracleSystemAdmitted(procedure: string): void {
+  const system = systemId();
+  if (ADMITTED_ORACLE_SYSTEMS.includes(system)) return;
+  throw new RpcError(
+    "unsupported_runtime",
+    `${procedure} has no verified contract for system '${system}'`,
+  );
+}
+
 /** Exact fixture gate for the only Knight actor mapping admitted by this release. */
 export function supportsKnightActorUpsertV1Runtime(): boolean {
   return (

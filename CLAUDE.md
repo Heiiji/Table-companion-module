@@ -108,7 +108,10 @@ Two jobs:
 - **Module response signing (M8, `src/rpc/responseSigning.ts`).** The elected responder signs
   every `rpc.response` / `rpc.error` with its own Ed25519 key; the additive `sig` + `signedAt`
   envelope fields carry an Ed25519 signature over the canonical string
-  `v1|<requestId>|<worldId>|<procedure>|<signedAt>|sha256hex(canonical-body)`. The canonicalizer
+  `v2|<envelopeType>|<requestId>|<worldId>|<procedure>|<signedAt>|sha256hex(canonical-body)`.
+  The envelope type is bound in (scheme v2) because an error body `{code,message}` canonicalizes
+  identically to a response payload of the same shape, so without it a signed `rpc.error` could be
+  replayed as a signed success. The canonicalizer
   is **byte-identical** with the agent's `internal/connector/moduleresponsesig.go` and locked by
   the shared vectors in `test/vectors/response_signing_vectors.json` (== the agent's testdata
   copy — do not edit one without the other; regenerate both from `gen-vectors.mjs`). The keypair

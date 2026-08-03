@@ -15,7 +15,7 @@ function stubCompanionUser(): { id: string; name: string } {
 describe("assertCompanionPermission", () => {
   it("passes when the Companion user holds the required ownership", () => {
     const companion = stubCompanionUser();
-    const testUserPermission = vi.fn((user: unknown, level: string) => {
+    const testUserPermission = vi.fn((user: unknown, level: unknown) => {
       expect(user).toBe(companion);
       expect(level).toBe("OWNER");
       return true;

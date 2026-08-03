@@ -6,6 +6,42 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+- **Response-signing scheme v1 → v2: the envelope `type` is now part of the signed string.**
+  An `rpc.error`'s signed body is `{code, message}`, which canonicalizes *identically* to an
+  `rpc.response` payload of the same shape. Under v1 the type sat outside the signature, so every
+  signed field matched under both readings: anyone who could observe a signed error on Foundry's
+  socket relay could re-emit it as a success and the signature still verified — the agent resolved
+  the call with a garbage payload in place of the module's authored failure, and the app rendered
+  it as a real result. The scheme tag is the first field of the signed string, so a v1 signature
+  can never accidentally verify as v2. **Agent and module must be upgraded together**; a
+  mismatched pair fails closed (reply dropped → 409 → the app uses its local engine).
+
+### Changed
+- **The advertised capability set now fails closed on unverified systems.** `sheet.derived`,
+  `roll.action`, `effect.apply` and `effect.remove` are advertised only for systems with a
+  verified contract (`dnd5e`, `knight`). Previously PF2e was carved out *by name* while every
+  other unknown system silently kept the whole surface — backwards, since the systems nobody has
+  looked at are the ones we can vouch for least. Concretely: `roll.action` implements exactly two
+  systems but was offered on all of them, performing an Actor lookup and an OWNER check before
+  failing with a generic `procedure_failed`; and `sheet.derived` returned an empty `derived` block
+  for an unverified system while still exporting the entire prepared `actor.system` subtree plus
+  every embedded Item's `system`, behind only an OBSERVER check. All four handlers now reject an
+  unadmitted system *before* any Actor lookup, so an unsupported world learns nothing.
+- **Every procedure must declare a descriptor to be registered** (`kind`, plus `minPermission`
+  and `systems` where they apply). The agent routes fallback behaviour on the declared `kind`: a
+  read that times out may fall back to the app's local engine, a mutation with an unknown outcome
+  may not. **Breaking API change** — `api.registerProcedure()` takes a third argument.
+- `api.capabilities()` now reports the WIRE list rather than the raw registry, so it no longer
+  claims the module offers something the agent will never be shown (`actor.upsert.v1` is withheld
+  until this client can sign, and `moduleResponseSignatureV1` is added when it can).
+
+### Fixed
+- `npm run lint` now type-checks the test suite. `tsconfig.json` includes only `src`, so
+  `tsc --noEmit` had been silently skipping every test file while the lint script read as though
+  it covered them — and Vitest runs through esbuild, which strips types without checking them.
+  Three call sites were already passing the wrong arity undetected.
+
 ### Removed
 - **`effect.setValue` is no longer registered or advertised.** No Foundry system ever had a
   working implementation: the handler validated its arguments and then threw unconditionally, so

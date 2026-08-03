@@ -2,8 +2,8 @@ import type { Procedure } from "../rpc/registry.js";
 import {
   actors,
   assertCompanionPermission,
+  assertOracleSystemAdmitted,
   PermissionActorLike,
-  systemId,
 } from "./foundry.js";
 import { RpcError } from "../rpc/errors.js";
 
@@ -47,12 +47,11 @@ interface ActorLike extends PermissionActorLike {
 }
 
 function assertEffectProceduresSupported(): void {
-  if (systemId() === "pf2e") {
-    throw new RpcError(
-      "unsupported_runtime",
-      "generic effect procedures are unavailable for PF2e until a versioned semantic contract is verified",
-    );
-  }
+  // These write to the world, so an unverified system mapping is a mutation we
+  // cannot vouch for — not merely a read we cannot interpret. PF2e is one such
+  // system (its embedded condition Items are not modelled here); so is every
+  // system we have never proven.
+  assertOracleSystemAdmitted("generic effect procedures");
 }
 
 function requireActor(payload: unknown): {

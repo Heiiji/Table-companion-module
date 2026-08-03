@@ -211,18 +211,26 @@ describe("sheet.derived", () => {
     expect(res.derived.aspectPools).toEqual({ chair: 5 }); // only present aspects emitted
   });
 
-  it("returns an empty derived block for unknown systems but still the raw system", async () => {
-    setGame("homebrew", { id: "x", name: "X", type: "npc", system: { foo: 1 } });
-    const res = (await sheetDerived({ actorId: "x" }, {} as never)) as {
-      derived: Record<string, unknown>;
-      system: Record<string, unknown>;
-    };
-    expect(res.derived).toEqual({});
-    expect(res.system).toEqual({ foo: 1 });
+  // This used to return `derived: {}` alongside the FULL raw `system` subtree —
+  // all of the exposure, none of the value, behind only an OBSERVER check. An
+  // unverified system now gets nothing at all, and is refused before the actor
+  // is even looked up.
+  it("refuses an unadmitted system without reading the actor", async () => {
+    const getActor = vi.fn();
+    vi.stubGlobal("game", {
+      system: { id: "homebrew" },
+      actors: { get: getActor },
+      users: [],
+    });
+
+    await expect(
+      sheetDerived({ actorId: "x" }, {} as never),
+    ).rejects.toMatchObject({ code: "unsupported_runtime" });
+    expect(getActor).not.toHaveBeenCalled();
   });
 
   it("throws on a missing actor", async () => {
-    setGame("homebrew", undefined);
+    setGame("dnd5e", undefined);
     await expect(sheetDerived({ actorId: "ghost" }, {} as never)).rejects.toThrow(/unknown actor/);
   });
 
@@ -232,7 +240,7 @@ describe("sheet.derived", () => {
   });
 
   it("rejects an oversized prepared actor with payload_too_large", async () => {
-    setGame("homebrew", {
+    setGame("dnd5e", {
       id: "whale",
       name: "Whale",
       type: "npc",

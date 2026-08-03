@@ -2,6 +2,7 @@ import type { Procedure } from "../rpc/registry.js";
 import {
   actors,
   assertCompanionPermission,
+  assertOracleSystemAdmitted,
   PermissionActorLike,
   systemId,
 } from "./foundry.js";
@@ -338,12 +339,11 @@ export const rollAction: Procedure = async (payload) => {
   const opts = (p.options ?? {}) as ActionOptions;
 
   const activeSystem = systemId();
-  if (activeSystem === "pf2e") {
-    throw new RpcError(
-      "unsupported_runtime",
-      "roll.action is unavailable for PF2e until a spoiler-safe versioned result contract is verified",
-    );
-  }
+  // Before the lookup and the OWNER check: an unadmitted system used to pay for
+  // both and only then get a generic `procedure_failed`, which told the caller
+  // nothing about why. PF2e additionally awaits a spoiler-safe versioned result
+  // contract.
+  assertOracleSystemAdmitted("roll.action");
 
   const actor = actors<ActorLike>().get(actorId);
   if (!actor) throw new Error(`unknown actor ${actorId}`);

@@ -95,7 +95,7 @@ async function sign(env: Fields, key: CryptoKey = agentKey.privateKey) {
 // --- game stub -------------------------------------------------------------
 
 let socketHandler: ((raw: unknown) => unknown) | undefined;
-let emitSpy: ReturnType<typeof vi.fn>;
+let emitSpy: ReturnType<typeof vi.fn<(env: unknown) => void>>;
 let setSpy: ReturnType<typeof vi.fn>;
 
 function stubGame(opts: { pinned?: string; responder?: boolean } = {}): void {
@@ -132,12 +132,22 @@ function stubGame(opts: { pinned?: string; responder?: boolean } = {}): void {
 
 function startChannel(timeoutMs?: number, withActorUpsert = false): Channel {
   const registry = new ProcedureRegistry();
-  registry.register("echo", (payload) => ({ echoed: payload }));
-  registry.register("boom", () => {
-    throw new Error("kaboom");
-  });
-  registry.register("hang", () => new Promise(() => {})); // never settles
-  if (withActorUpsert) registry.register("actor.upsert.v1", () => ({}));
+  const READ = { kind: "read" } as const;
+  registry.register("echo", (payload) => ({ echoed: payload }), READ);
+  registry.register(
+    "boom",
+    () => {
+      throw new Error("kaboom");
+    },
+    READ,
+  );
+  registry.register("hang", () => new Promise(() => {}), READ); // never settles
+  if (withActorUpsert)
+    registry.register("actor.upsert.v1", () => ({}), {
+      kind: "mutation",
+      minPermission: "OWNER",
+      systems: ["knight"],
+    });
   const channel = new Channel(registry, "0.0.0-test", timeoutMs);
   channel.start();
   emitSpy.mockClear(); // discard the hello broadcast on start
@@ -391,6 +401,7 @@ describe("Channel response signing (M8)", () => {
 
     // Rebuild the canonical signing string exactly as the agent would and verify.
     const message = await responseSigningString(
+      "rpc.response",
       "s1",
       "test-world",
       "echo",
@@ -417,6 +428,7 @@ describe("Channel response signing (M8)", () => {
     expect(typeof err.sig).toBe("string");
 
     const message = await responseSigningString(
+      "rpc.error",
       "e1",
       "test-world",
       "boom",

@@ -2,10 +2,11 @@ import type { Procedure } from "../rpc/registry.js";
 import {
   actors,
   assertCompanionPermission,
+  assertOracleSystemAdmitted,
   PermissionActorLike,
   systemId,
 } from "./foundry.js";
-import { assertPayloadWithinCap, RpcError } from "../rpc/errors.js";
+import { assertPayloadWithinCap } from "../rpc/errors.js";
 
 /**
  * Tier-1 oracle (read): expose a fully-prepared actor's system-aware data over the RPC channel for
@@ -241,12 +242,12 @@ export const sheetDerived: Procedure = async (payload) => {
   ).trim();
   if (!actorId) throw new Error("sheet.derived requires 'actorId'");
 
-  if (systemId() === "pf2e") {
-    throw new RpcError(
-      "unsupported_runtime",
-      "sheet.derived is unavailable for PF2e until a narrow versioned projection is verified",
-    );
-  }
+  // Before the lookup: an unadmitted system must not learn whether the actor
+  // exists. PF2e is one such system (it awaits a narrow versioned projection);
+  // so is every system we have never verified — this response still carries the
+  // whole prepared `actor.system` subtree, so an unproven mapping is exposure
+  // without value.
+  assertOracleSystemAdmitted("sheet.derived");
 
   const actor = actors<ActorLike>().get(actorId);
   if (!actor) throw new Error(`unknown actor ${actorId}`);

@@ -1,6 +1,6 @@
 {
-  "_comment": "M8 module->agent response-signing vectors. Embedded byte-identically in Table-companion-module (vitest) and Table-companion-agent (go); regenerate crypto cases from gen-vectors.mjs. The canonicalJSON cases carry no signature and are self-verified by each suite's canonicalizer, so pure canonical-JSON cases (e.g. key-sort-utf8-astral) may be appended by hand — both suites recompute and must agree.",
-  "canonicalScheme": "v1",
+  "_comment": "M8 module->agent response-signing vectors (scheme v2: the envelope `type` is bound into the signed string, so an rpc.error cannot be replayed as an rpc.response). Embedded byte-identically in Table-companion-module (vitest) and Table-companion-agent (go); regenerate crypto cases from gen-vectors.mjs. The canonicalJSON cases carry no signature and are self-verified by each suite's canonicalizer, so pure canonical-JSON cases (e.g. key-sort-utf8-astral) may be appended by hand — both suites recompute and must agree.",
+  "canonicalScheme": "v2",
   "freshnessWindowMs": 90000,
   "signingKey": {
     "seedB64": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=",
@@ -177,8 +177,9 @@
       },
       "canonicalBody": "{\"dice\":[{\"faces\":6,\"results\":[4,3]}],\"formula\":\"2d6+3\",\"total\":10}",
       "bodyHashHex": "f5de6d11e59ae68aeca785a2f0ff2c9ee29eaa2d8fbd02b556135dac0eb4b89a",
-      "signingString": "v1|0123456789abcdef0123456789abcdef|my-campaign|roll.execute|1737158400000|f5de6d11e59ae68aeca785a2f0ff2c9ee29eaa2d8fbd02b556135dac0eb4b89a",
-      "sigB64": "vMCv9XpXPFQDKJ6Ti8I9qSxtfly9RiKW/xZAo9F0dBF3jqmvrEIYfeevXTEiNhdWdi6IBLpp3AnyDD92AjvRBg=="
+      "signingString": "v2|rpc.response|0123456789abcdef0123456789abcdef|my-campaign|roll.execute|1737158400000|f5de6d11e59ae68aeca785a2f0ff2c9ee29eaa2d8fbd02b556135dac0eb4b89a",
+      "sigB64": "Tkdq6pH8FC5el7olWmTo5SheAic/TdDn8X6PlQsMHe3U0K17xy2dqs0t3BsfuLTp2MlIs17VKPoBxAikmIqhAA==",
+      "type": "rpc.response"
     },
     {
       "name": "error",
@@ -192,8 +193,9 @@
       },
       "canonicalBody": "{\"code\":\"actor_not_found\",\"message\":\"no such actor\"}",
       "bodyHashHex": "dbef1d01f38919972edb8626afb073f144e159104c81888399122031c9420fd6",
-      "signingString": "v1|fedcba9876543210fedcba9876543210|my-campaign|roll.action|1737158400500|dbef1d01f38919972edb8626afb073f144e159104c81888399122031c9420fd6",
-      "sigB64": "efF6htFo5XkNWQhake8sLmcHcNrM9dW0RasWnbzFCbYvrezFI5MMnWH9YkQbNn1sbMIXOw1iSErPeuDHRh3cBw=="
+      "signingString": "v2|rpc.error|fedcba9876543210fedcba9876543210|my-campaign|roll.action|1737158400500|dbef1d01f38919972edb8626afb073f144e159104c81888399122031c9420fd6",
+      "sigB64": "FJs/v0AiI5RUAxhh6zf3HfZWsZ/WkHTCCI/+V64BECQS1hDOFhdAYKbThBVV0o4IsQIQiRh41IBzqhqZrcMfDQ==",
+      "type": "rpc.error"
     },
     {
       "name": "null-payload",
@@ -204,8 +206,9 @@
       "body": null,
       "canonicalBody": "null",
       "bodyHashHex": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-      "signingString": "v1|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|world-2|display.show|1737158401000|74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
-      "sigB64": "fCS8hAywuqndhLMVaVule8lluslYI+cYOcmneFyGgds8wzsORrIbOfB1p31nvO0S1CKGW8Um4b84+pg0cRtzBQ=="
+      "signingString": "v2|rpc.response|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|world-2|display.show|1737158401000|74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "sigB64": "9pcVvHAQ+8+I4ZSwb3lQz4rOHt+WGTnFYNGN6vubge+urPja0QLHnsOJ9WGcw5b07Vinj1HgeIsbyk7L05yNCg==",
+      "type": "rpc.response"
     },
     {
       "name": "unicode-body",
@@ -223,8 +226,41 @@
       },
       "canonicalBody": "{\"ac\":17,\"keys\":{\"a\":1,\"b\":2},\"name\":\"Café 🎲\"}",
       "bodyHashHex": "ed5c8d95bb55a636267a061b0298feaed533c6820fad5d92ed160ebed2c87b47",
-      "signingString": "v1|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|château|sheet.derived|1737158402000|ed5c8d95bb55a636267a061b0298feaed533c6820fad5d92ed160ebed2c87b47",
-      "sigB64": "dYrUqeySQUFzhSII4lXciFMzWlIeim9USqC2vb/6kf1LtoLjEhaSlwsIIdSPxtLoXTpyLwloDM9wlIGIn9NGBQ=="
+      "signingString": "v2|rpc.response|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|château|sheet.derived|1737158402000|ed5c8d95bb55a636267a061b0298feaed533c6820fad5d92ed160ebed2c87b47",
+      "sigB64": "hmLljAqUC41ZGBlIk1VqqrR8HuVuz+9mmmbX+cvA3XgJ4OwGJPz0SHxlvucW1SBwUvsDOKGUHr4IpK4SkXiDBw==",
+      "type": "rpc.response"
+    },
+    {
+      "name": "type-binding-rpc.response",
+      "type": "rpc.response",
+      "requestId": "cccccccccccccccccccccccccccccccc",
+      "worldId": "my-campaign",
+      "procedure": "roll.action",
+      "signedAt": 1737158403000,
+      "body": {
+        "code": "actor_not_found",
+        "message": "no such actor"
+      },
+      "canonicalBody": "{\"code\":\"actor_not_found\",\"message\":\"no such actor\"}",
+      "bodyHashHex": "dbef1d01f38919972edb8626afb073f144e159104c81888399122031c9420fd6",
+      "signingString": "v2|rpc.response|cccccccccccccccccccccccccccccccc|my-campaign|roll.action|1737158403000|dbef1d01f38919972edb8626afb073f144e159104c81888399122031c9420fd6",
+      "sigB64": "xFqjzc4c9/X7ad8FJllIUJDqKEoQasKennzvACODpi0c9uMHs7LIe4DEZqqiUb3pk9YS604UQSp50jfLcgHJAg=="
+    },
+    {
+      "name": "type-binding-rpc.error",
+      "type": "rpc.error",
+      "requestId": "cccccccccccccccccccccccccccccccc",
+      "worldId": "my-campaign",
+      "procedure": "roll.action",
+      "signedAt": 1737158403000,
+      "body": {
+        "code": "actor_not_found",
+        "message": "no such actor"
+      },
+      "canonicalBody": "{\"code\":\"actor_not_found\",\"message\":\"no such actor\"}",
+      "bodyHashHex": "dbef1d01f38919972edb8626afb073f144e159104c81888399122031c9420fd6",
+      "signingString": "v2|rpc.error|cccccccccccccccccccccccccccccccc|my-campaign|roll.action|1737158403000|dbef1d01f38919972edb8626afb073f144e159104c81888399122031c9420fd6",
+      "sigB64": "sbACPhgypV/T1hJKuopp5IhUmQWTs14jrwlomu/Ssxh5yCmbuIJmIzOl5LvdZEPXgpZUQLmle5y65o6m8yQvCA=="
     }
   ]
 }
