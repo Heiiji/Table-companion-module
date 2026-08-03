@@ -65,6 +65,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it covered them — and Vitest runs through esbuild, which strips types without checking them.
   Three call sites were already passing the wrong arity undetected.
 
+### Build
+- Toolchain moved to **ESLint 10** and **Vite 8**. The bundle is ~10% smaller (117.7 → 106.3 KB,
+  gzip 34.1 → 30.4 KB) purely from better inlining — the emitted `dist/` contains the same module
+  manifest, styles, both language files and every wire constant, and lints/tests/builds clean.
+- **TypeScript stays on 5.9.** TypeScript 7 is not adoptable yet: `typescript-eslint` refuses to
+  load against it (upstream tracks support for TS ≥ 7.1), so taking it would mean dropping lint
+  coverage of the whole codebase to gain a version number.
+
 ### Removed
 - **`effect.setValue` is no longer registered or advertised.** No Foundry system ever had a
   working implementation: the handler validated its arguments and then threw unconditionally, so
