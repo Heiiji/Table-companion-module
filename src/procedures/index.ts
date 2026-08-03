@@ -5,7 +5,7 @@ import { presence } from "./presence.js";
 import { rollExecute } from "./rollExecute.js";
 import { rollAction } from "./rollAction.js";
 import { sheetDerived } from "./sheetDerived.js";
-import { effectApply, effectRemove, effectSetValue } from "./effects.js";
+import { effectApply, effectRemove } from "./effects.js";
 import { compendiumIndex, compendiumGet } from "./compendium.js";
 import { displayShow, displayClear } from "./display.js";
 import { actorUpsertV1 } from "./actorUpsert.js";
@@ -30,7 +30,11 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
     registry.register("roll.action", rollAction);
     registry.register("effect.apply", effectApply);
     registry.register("effect.remove", effectRemove);
-    registry.register("effect.setValue", effectSetValue);
+    // effect.setValue is NOT registered: no system ever had a working
+    // implementation — it validated its arguments then threw unconditionally.
+    // An advertised capability is a claim the apps feature-detect on, so a
+    // never-succeeding one is worse than an absent one. The handler survives as
+    // a rejecting tombstone in effects.ts.
   }
   // Phase 3 live library passthrough: surface content from the GM's licensed/local Foundry session
   // as a transient world section. This access is not content admission or redistribution rights;

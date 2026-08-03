@@ -4,6 +4,23 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+- **`effect.setValue` is no longer registered or advertised.** No Foundry system ever had a
+  working implementation: the handler validated its arguments and then threw unconditionally, so
+  every call failed. Because the advertised capability set is what the apps feature-detect on, a
+  capability that can never succeed is worse than an absent one. The handler survives as a
+  tombstone that rejects with `unsupported_runtime` *before* any Actor lookup or permission check,
+  so a stale or direct call is cheap and no longer distinguishes "unknown actor" from "permission
+  denied" on a procedure that could not work either way. `effect.apply` and `effect.remove` are
+  unaffected. No app change: neither the iOS nor the Android client ever referenced the procedure.
+
+### Changed
+- The agent's `POST /v1/worlds/{id}/effects` now accepts `apply|remove` only, and validates the
+  action *before* consulting module availability — an unknown action is an honest 400 rather than
+  a 409 that would tell the app to fall back and retry something that will never work.
+
 ## [0.8.0] - 2026-07-20
 
 ### Added

@@ -96,9 +96,19 @@ describe("effect.remove", () => {
   });
 });
 
-describe("effect.setValue", () => {
-  it("rejects a negative value", async () => {
-    vi.stubGlobal("game", { system: { id: "dnd5e" }, actors: { get: () => ({}) } });
-    await expect(effectSetValue({ actorId: "a1", statusId: "x", value: -1 }, {} as never)).rejects.toThrow(/value/);
+describe("effect.setValue — tombstone", () => {
+  it("rejects on every system, before any actor lookup", async () => {
+    // It is unregistered, so this only fires on a stale or direct call. Rejecting
+    // ahead of the lookup keeps it cheap and stops it distinguishing "unknown
+    // actor" from "permission denied" on a procedure that never worked anyway.
+    for (const systemId of ["dnd5e", "knight", "custom-system"]) {
+      const getActor = vi.fn();
+      vi.stubGlobal("game", { system: { id: systemId }, actors: { get: getActor } });
+
+      await expect(
+        effectSetValue({ actorId: "a1", statusId: "x", value: 1 }, {} as never),
+      ).rejects.toMatchObject({ code: "unsupported_runtime" });
+      expect(getActor, systemId).not.toHaveBeenCalled();
+    }
   });
 });

@@ -92,14 +92,22 @@ export const effectRemove: Procedure = async (payload) => {
   return { ok: true, removed: effectId };
 };
 
-export const effectSetValue: Procedure = async (payload) => {
-  assertEffectProceduresSupported();
-  const { p } = requireActor(payload);
-  const statusId = String(p.statusId ?? "").trim();
-  const value = typeof p.value === "number" ? p.value : NaN;
-  if (!statusId) throw new Error("effect.setValue requires 'statusId'");
-  if (Number.isNaN(value) || value < 0)
-    throw new Error("effect.setValue requires a non-negative 'value'");
-
-  throw new Error("this system cannot set a condition value via the API");
+/**
+ * TOMBSTONE — `effect.setValue` is no longer registered or advertised.
+ *
+ * No system ever had a working implementation: every call validated its
+ * arguments and then threw unconditionally, so the capability was a promise the
+ * module could not keep. An advertised capability is a claim the apps
+ * feature-detect on, so a never-succeeding one is worse than an absent one.
+ *
+ * It is kept exported, and rejects BEFORE any Actor lookup or permission check,
+ * so a stale or direct call is cheap and leaks nothing (the old shape let a
+ * caller distinguish "unknown actor" from "permission denied" on a procedure
+ * that could not work either way). Same posture as the retired PF2e names.
+ */
+export const effectSetValue: Procedure = async () => {
+  throw new RpcError(
+    "unsupported_runtime",
+    "effect.setValue is not implemented for any system and is no longer advertised",
+  );
 };

@@ -19,13 +19,17 @@ const NON_PF2_CAPABILITIES = [
   "display.show",
   "effect.apply",
   "effect.remove",
-  "effect.setValue",
   "ping",
   "presence",
   "roll.action",
   "roll.execute",
   "sheet.derived",
 ];
+
+// Never advertised on ANY system — no implementation exists. Registering it
+// would be a promise the module cannot keep, and the apps feature-detect on the
+// advertised set. See the tombstone in src/procedures/effects.ts.
+const NEVER_ADVERTISED = ["effect.setValue"];
 
 const KNIGHT_CAPABILITIES = ["actor.upsert.v1", ...NON_PF2_CAPABILITIES].sort();
 
@@ -108,6 +112,34 @@ describe("ProcedureRegistry", () => {
     const registry = new ProcedureRegistry();
     registerBuiltinProcedures(registry);
     expect(registry.capabilities()).toEqual(KNIGHT_CAPABILITIES);
+  });
+
+  // Totality, not a spot-check: an unimplemented procedure must be absent from
+  // EVERY roster, so this sweeps genuinely different capability sets (PF2e's
+  // clean-cut set, the generic non-PF2 set, and Knight's superset) rather than
+  // trusting one fixture to stand in for the rest.
+  it.each([
+    ["pf2e", { system: { id: "pf2e", version: "8.3.0" }, version: "14.364" }],
+    ["dnd5e", { system: { id: "dnd5e" } }],
+    ["custom-system", { system: { id: "custom-system" } }],
+    [
+      "knight",
+      {
+        system: { id: "knight", version: "3.58.33" },
+        release: { generation: 14 },
+      },
+    ],
+  ])("never advertises an unimplemented procedure on %s", (_label, game) => {
+    vi.stubGlobal("game", { actors: { get: vi.fn() }, ...game });
+    const registry = new ProcedureRegistry();
+
+    registerBuiltinProcedures(registry);
+
+    const advertised = registry.capabilities();
+    for (const procedure of NEVER_ADVERTISED) {
+      expect(advertised, procedure).not.toContain(procedure);
+      expect(registry.get(procedure), procedure).toBeUndefined();
+    }
   });
 
   it("does not advertise actor.upsert.v1 outside the exact fixture-pinned Knight runtime", () => {
