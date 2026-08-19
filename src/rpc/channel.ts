@@ -18,6 +18,11 @@ import { RpcError } from "./errors.js";
 import { fingerprint, parseSignedMessage, verifySignature } from "./signing.js";
 import type { ModuleResponseSigner } from "./responseSigning.js";
 
+/** Consequential provisioning mutations that must never be advertised by a
+ * responder that cannot sign its replies. Parity-locked with the agent's
+ * relay-side signing requirement (internal/connector/modulechannel.go). */
+const SIGNED_ONLY_PROCEDURES = new Set(["actor.upsert.v1", "npc.upsert.v1"]);
+
 /** Best-effort access to Foundry's toast notifications, tolerant of the harness
  * where the `ui` global is absent. */
 function notify(kind: "warn" | "info", message: string): void {
@@ -134,7 +139,7 @@ export class Channel {
     // client from submitting work that can never cross the signed-result gate.
     const caps = this.registry
       .capabilities()
-      .filter((name) => name !== "actor.upsert.v1" || this.canSign());
+      .filter((name) => !SIGNED_ONLY_PROCEDURES.has(name) || this.canSign());
     if (this.canSign()) caps.push(CAP_RESPONSE_SIG);
     return caps.sort();
   }

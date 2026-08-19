@@ -9,6 +9,7 @@ import { effectApply, effectRemove } from "./effects.js";
 import { compendiumIndex, compendiumGet } from "./compendium.js";
 import { displayShow, displayClear } from "./display.js";
 import { actorUpsertV1 } from "./actorUpsert.js";
+import { npcUpsertV1 } from "./npcUpsert.js";
 
 /**
  * Foundry systems with a verified, admitted contract for the system-aware
@@ -88,12 +89,21 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   registry.register("display.show", displayShow, { kind: "clientState" });
   registry.register("display.clear", displayClear, { kind: "clientState" });
   // Consequential, signed-response-only actor provisioning. The agent refuses
-  // to invoke it without moduleResponseSignatureV1; only Knight registers the
-  // system-specific mapping.
-  if (supportsKnightActorUpsertV1Runtime())
+  // to invoke these without moduleResponseSignatureV1; only Knight registers
+  // the system-specific mappings. The two lanes target different Knight actor
+  // types (PC "knight" vs NPC "pnj") and share ONE runtime gate — the pnj data
+  // model is verified byte-identical 3.58.33 → 3.58.35, so a future gate
+  // widening moves both together.
+  if (supportsKnightActorUpsertV1Runtime()) {
     registry.register("actor.upsert.v1", actorUpsertV1, {
       kind: "mutation",
       minPermission: "OWNER",
       systems: ["knight"],
     });
+    registry.register("npc.upsert.v1", npcUpsertV1, {
+      kind: "mutation",
+      minPermission: "OWNER",
+      systems: ["knight"],
+    });
+  }
 }

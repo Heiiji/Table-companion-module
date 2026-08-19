@@ -1,6 +1,5 @@
 import { MODULE_ID } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
-import { canonicalize } from "../rpc/responseSigning.js";
 import type { Procedure } from "../rpc/registry.js";
 import {
   KNIGHT_COMPENDIUM_MODULE_ID,
@@ -9,14 +8,35 @@ import {
   type KnightEquipmentCrosswalkDocumentV1,
 } from "../refdata/knightCompendiumCrosswalkV14_0_1.js";
 import { supportsKnightActorUpsertV1Runtime } from "./foundry.js";
+import {
+  OWNERSHIP_NONE,
+  OWNERSHIP_OWNER,
+  actorCollection,
+  actorID,
+  allActors,
+  bindingId,
+  bindingOf,
+  canonicalDigest,
+  currentGame,
+  exactBinding,
+  flagValue,
+  foundryId,
+  identifier,
+  integer,
+  invalid,
+  record,
+  text,
+  type ActorItemLike,
+  type ActorLike,
+  type BindingV1,
+  type Dict,
+} from "./upsertShared.js";
 
 const SCHEMA_VERSION = 1;
 const ACTOR_TYPE = "knight";
-const OWNER_LEVEL = 3;
-const NONE_LEVEL = 0;
-const utf8 = new TextEncoder();
+const OWNER_LEVEL = OWNERSHIP_OWNER;
+const NONE_LEVEL = OWNERSHIP_NONE;
 
-type Dict = Record<string, unknown>;
 type State = "draft" | "approved";
 type Outcome = "created" | "adopted" | "updated";
 type EquipmentCompleteness = "not_requested" | "complete" | "partial";
@@ -135,68 +155,8 @@ export interface ActorUpsertResultV1 {
   warnings: string[];
 }
 
-interface BindingV1 {
-  schemaVersion: 1;
-  worldId: string;
-  tableId: string;
-  characterId: string;
-}
-
 interface SyncV1 extends ActorUpsertResultV1 {
   state: State;
-}
-
-interface ActorLike {
-  id?: string;
-  _id?: string;
-  name?: string;
-  type?: string;
-  flags?: Dict;
-  ownership?: Dict;
-  system?: unknown;
-  items?: { contents?: ActorItemLike[] } | Iterable<ActorItemLike>;
-  getFlag?(namespace: string, key: string): unknown;
-  update(changes: Dict): Promise<unknown>;
-  prepareData?(): void;
-  createEmbeddedDocuments?(type: "Item", data: Dict[]): Promise<unknown>;
-  deleteEmbeddedDocuments?(type: "Item", ids: string[]): Promise<unknown>;
-}
-
-interface ActorItemLike {
-  id?: string;
-  _id?: string;
-  type?: string;
-  system?: unknown;
-  getFlag?(namespace: string, key: string): unknown;
-  flags?: Dict;
-  update?(changes: Dict): Promise<unknown>;
-}
-
-interface ActorsLike {
-  contents?: ActorLike[];
-  get(id: string): ActorLike | undefined;
-  [Symbol.iterator]?(): Iterator<ActorLike>;
-}
-
-interface UserCollectionLike {
-  get(id: string): unknown;
-}
-
-interface PackLike {
-  getDocument(id: string): Promise<{ toObject(): unknown } | null | undefined>;
-}
-
-interface PacksLike {
-  get(id: string): PackLike | undefined;
-}
-
-interface ModuleLike {
-  active?: boolean;
-  version?: string;
-}
-
-interface ModulesLike {
-  get(id: string): ModuleLike | undefined;
 }
 
 interface EquipmentCatalogSourceV1 {
@@ -217,68 +177,6 @@ interface EquipmentCatalogVariantV1 {
   moduleLevel?: 1 | 2 | 3;
 }
 
-function invalid(message: string): never {
-  throw new RpcError("invalid_args", message);
-}
-
-function record(
-  value: unknown,
-  path: string,
-  allowed: readonly string[],
-): Dict {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return invalid(`${path} must be an object`);
-  }
-  const out = value as Dict;
-  const allowedSet = new Set(allowed);
-  for (const key of Object.keys(out)) {
-    if (!allowedSet.has(key)) invalid(`${path}.${key} is not allowed`);
-  }
-  return out;
-}
-
-function text(
-  value: unknown,
-  path: string,
-  max: number,
-  required = false,
-): string {
-  if (typeof value !== "string") return invalid(`${path} must be a string`);
-  if (
-    value.includes("\0") ||
-    [...value].length > max ||
-    (required && value.trim() === "")
-  ) {
-    return invalid(`${path} is empty, too long, or contains NUL`);
-  }
-  return value;
-}
-
-function integer(
-  value: unknown,
-  path: string,
-  min: number,
-  max: number,
-): number {
-  if (
-    !Number.isSafeInteger(value) ||
-    (value as number) < min ||
-    (value as number) > max
-  ) {
-    return invalid(`${path} must be an integer in ${min}-${max}`);
-  }
-  return value as number;
-}
-
-function identifier(value: unknown, path: string, pattern: RegExp): string {
-  const id = text(value, path, 128, true);
-  if (!pattern.test(id))
-    return invalid(`${path} has an invalid identifier shape`);
-  return id;
-}
-
-const bindingId = /^[A-Za-z0-9._-]{1,128}$/;
-const foundryId = /^[A-Za-z0-9_-]{1,64}$/;
 const catalogId = /^[A-Za-z0-9._:-]{1,128}$/;
 const catalogDigest = /^sha256:[0-9a-f]{64}$/;
 
@@ -753,22 +651,6 @@ export function validateKnightActorUpsertV1(
   };
 }
 
-function currentGame(): {
-  user?: { isGM?: boolean };
-  users?: UserCollectionLike;
-  actors?: ActorsLike;
-  packs?: PacksLike;
-  modules?: ModulesLike;
-  system?: { id?: string };
-  release?: { generation?: number };
-  version?: string;
-} {
-  return (
-    (globalThis as unknown as { game?: ReturnType<typeof currentGame> }).game ??
-    {}
-  );
-}
-
 function assertRuntimeAndAuthority(req: KnightActorUpsertV1): void {
   const g = currentGame();
   if (!g.user?.isGM)
@@ -784,59 +666,6 @@ function assertRuntimeAndAuthority(req: KnightActorUpsertV1): void {
   }
   if (req.foundryUserId && !g.users?.get(req.foundryUserId))
     invalid("foundryUserId is not a User in this world");
-}
-
-function actorCollection(): ActorsLike {
-  const actors = currentGame().actors;
-  if (!actors)
-    throw new RpcError(
-      "unsupported_runtime",
-      "Foundry game.actors is unavailable",
-    );
-  return actors;
-}
-
-function allActors(collection: ActorsLike): ActorLike[] {
-  if (Array.isArray(collection.contents)) return collection.contents;
-  const iterator = collection[Symbol.iterator];
-  if (iterator)
-    return [
-      ...({
-        [Symbol.iterator]: iterator.bind(collection),
-      } as Iterable<ActorLike>),
-    ];
-  return [];
-}
-
-function actorID(actor: ActorLike): string {
-  return actor.id ?? actor._id ?? "";
-}
-
-function flagValue(actor: ActorLike | ActorItemLike, key: string): unknown {
-  if (typeof actor.getFlag === "function") return actor.getFlag(MODULE_ID, key);
-  const namespace = actor.flags?.[MODULE_ID];
-  return typeof namespace === "object" && namespace !== null
-    ? (namespace as Dict)[key]
-    : undefined;
-}
-
-function bindingOf(actor: ActorLike): BindingV1 | null {
-  const value = flagValue(actor, "binding");
-  if (typeof value !== "object" || value === null) return null;
-  const p = value as Dict;
-  if (
-    p.schemaVersion !== 1 ||
-    typeof p.worldId !== "string" ||
-    typeof p.tableId !== "string" ||
-    typeof p.characterId !== "string"
-  )
-    return null;
-  return {
-    schemaVersion: 1,
-    worldId: p.worldId,
-    tableId: p.tableId,
-    characterId: p.characterId,
-  };
 }
 
 function syncOf(actor: ActorLike): SyncV1 | null {
@@ -866,16 +695,6 @@ function syncOf(actor: ActorLike): SyncV1 | null {
     equipmentCompleteness: p.equipmentCompleteness as EquipmentCompleteness,
     warnings: p.warnings as string[],
   };
-}
-
-async function canonicalDigest(value: unknown): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    utf8.encode(canonicalize(value)),
-  );
-  return [...new Uint8Array(digest)]
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 async function createActor(
@@ -1586,15 +1405,6 @@ async function applyEquipment(
     equipmentCompleteness: warnings.length === 0 ? "complete" : "partial",
     warnings,
   };
-}
-
-function exactBinding(binding: BindingV1 | null, expected: BindingV1): boolean {
-  return (
-    binding?.schemaVersion === 1 &&
-    binding.worldId === expected.worldId &&
-    binding.tableId === expected.tableId &&
-    binding.characterId === expected.characterId
-  );
 }
 
 /**

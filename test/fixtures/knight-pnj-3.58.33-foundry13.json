@@ -1,0 +1,103 @@
+{
+  "foundryGeneration": 13,
+  "knightSystemVersion": "3.58.33",
+  "actorCreateAPI": "Actor.implementation.create",
+  "upstreamModelCommit": "1a79c6b48c7987d2fe40f5c97612caa34e41801f",
+  "modelUnchangedThrough": "3.58.35",
+  "actor": {
+    "_id": "actor00000000pnj",
+    "name": "Sanitized Knight pnj fixture",
+    "type": "pnj",
+    "ownership": {
+      "default": 0
+    },
+    "prototypeToken": {
+      "disposition": 0
+    },
+    "system": {
+      "description": "",
+      "descriptionLimitee": "",
+      "histoire": "",
+      "tactique": "",
+      "pointsFaibles": "",
+      "origin": "",
+      "type": "",
+      "limited": {
+        "showDescriptionFull": false,
+        "showDescriptionLimited": true,
+        "showPointsFaibles": false
+      },
+      "aspects": {
+        "chair": {
+          "value": 0,
+          "ae": {
+            "mineur": { "value": 0 },
+            "majeur": { "value": 0 }
+          }
+        },
+        "bete": {
+          "value": 0,
+          "ae": {
+            "mineur": { "value": 0 },
+            "majeur": { "value": 0 }
+          }
+        },
+        "machine": {
+          "value": 0,
+          "ae": {
+            "mineur": { "value": 0 },
+            "majeur": { "value": 0 }
+          }
+        },
+        "dame": {
+          "value": 0,
+          "ae": {
+            "mineur": { "value": 0 },
+            "majeur": { "value": 0 }
+          }
+        },
+        "masque": {
+          "value": 0,
+          "ae": {
+            "mineur": { "value": 0 },
+            "majeur": { "value": 0 }
+          }
+        }
+      },
+      "sante": {
+        "base": 0,
+        "value": 0
+      },
+      "armure": {
+        "base": 0,
+        "value": 0
+      },
+      "energie": {
+        "base": 0,
+        "value": 0
+      },
+      "champDeForce": {
+        "base": 0
+      },
+      "bouclier": {
+        "base": 0
+      },
+      "defense": {
+        "base": 0
+      },
+      "reaction": {
+        "base": 0
+      },
+      "initiative": {
+        "diceBase": 3,
+        "bonus": {
+          "user": 0
+        }
+      },
+      "resilience": {
+        "value": 0,
+        "max": 50
+      }
+    }
+  }
+}

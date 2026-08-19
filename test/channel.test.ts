@@ -142,12 +142,18 @@ function startChannel(timeoutMs?: number, withActorUpsert = false): Channel {
     READ,
   );
   registry.register("hang", () => new Promise(() => {}), READ); // never settles
-  if (withActorUpsert)
+  if (withActorUpsert) {
     registry.register("actor.upsert.v1", () => ({}), {
       kind: "mutation",
       minPermission: "OWNER",
       systems: ["knight"],
     });
+    registry.register("npc.upsert.v1", () => ({}), {
+      kind: "mutation",
+      minPermission: "OWNER",
+      systems: ["knight"],
+    });
+  }
   const channel = new Channel(registry, "0.0.0-test", timeoutMs);
   channel.start();
   emitSpy.mockClear(); // discard the hello broadcast on start
@@ -356,19 +362,20 @@ describe("Channel response signing (M8)", () => {
     expect(hello.worldId).toBe("test-world");
   });
 
-  it("keeps consequential actor.upsert.v1 invisible until this responder can sign", async () => {
+  it("keeps consequential provisioning mutations invisible until this responder can sign", async () => {
     stubGame({ pinned: agentPubB64, responder: true });
     const channel = startChannel(undefined, true);
     channel.sendHello();
-    expect(emitted("hello").at(-1)!.capabilities).not.toContain(
-      "actor.upsert.v1",
-    );
+    const unsigned = emitted("hello").at(-1)!.capabilities as string[];
+    expect(unsigned).not.toContain("actor.upsert.v1");
+    expect(unsigned).not.toContain("npc.upsert.v1");
 
     const { signer } = await ModuleResponseSigner.generate();
     emitSpy.mockClear();
     channel.setResponseSigner(signer);
     const capabilities = emitted("hello").at(-1)!.capabilities as string[];
     expect(capabilities).toContain("actor.upsert.v1");
+    expect(capabilities).toContain("npc.upsert.v1");
     expect(capabilities).toContain(CAP_RESPONSE_SIG);
   });
 

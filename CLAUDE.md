@@ -54,8 +54,10 @@ Two jobs:
 - `src/procedures/` — one file per RPC procedure: `ping`, `presence`, `rollExecute`
   (`roll.execute`), `rollAction` (`roll.action`), `sheetDerived` (`sheet.derived`),
   `effects` (`effect.apply|remove|setValue`), `compendium` (`compendium.index|get`),
-  `display` (`display.show|clear`), and `actorUpsert` (Knight-only, consequential
-  `actor.upsert.v1`); `index.ts` registers them and applies the PF2e
+  `display` (`display.show|clear`), `actorUpsert` (Knight-only, consequential
+  `actor.upsert.v1`), and `npcUpsert` (Knight-only, consequential `npc.upsert.v1`, actor type
+  `pnj`; shares `upsertShared.ts` primitives and the PC lane's exact runtime gate);
+  `index.ts` registers them and applies the PF2e
   clean-cut capability filter. **These proc-name strings are duplicated in the agent (Go)** — see
   Parity.
 - `src/rpc/` — `envelope` (shape + `EnvelopeType` union), `channel` (handshake, correlation,
@@ -100,6 +102,18 @@ Two jobs:
   at `flags.table-companion.characterCreationV1`; `gmSecretPending`, secret pasts/advantages, and
   Maison-Dieu private choices have no accepted field. Contact current value maps only to the
   fixture-backed `system.contacts.actuel`; maxima remain derived.
+- **`npc.upsert.v1` is the NPC twin, against the different Knight actor type `pnj`.** Same
+  signed-response-only posture, same runtime gate (the pnj data model is verified byte-identical
+  3.58.33 → 3.58.35, so one gate widening moves both lanes), same shared
+  `flags["table-companion"].binding` identity so a characterId can never bind two Actors. Its
+  `KnightNpcUpsertV1` DTO has no draft/approved state (convergence key is the app-side
+  `contentRevision`, the sheet's updatedAt in epoch ms), no foundryUserId, and no unbound-actor
+  adoption: a missing binding always creates, and a hand-deleted bound Actor is deliberately
+  recreated (the app owns its NPCs). The app's Masqué/Visible maps fail-closed to ownership
+  `{default: NONE}` + prototype disposition SECRET vs `{default: LIMITED}` + NEUTRAL; per-user
+  grants are never written and are revoked wholesale on every apply. Fixtures:
+  `test/fixtures/knight-pnj-3.58.33-foundry{13,14}.json`; contract:
+  `../docs/game-systems/knight/foundry-interop.md` § "NPC provisioning".
 - **Equipment import is deliberately fail-closed.** The v1 catalog→compendium crosswalk is pinned to
   Knight Compendium 14.0.1 and admits the fixture-proven nine creation armours, twelve creation
   weapons, and forty module-level IDs. Missing or mismatched compendium data and unverified

@@ -4,6 +4,25 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`npc.upsert.v1` — durable Knight NPC provisioning (actor type `pnj`).** The signed-response
+  twin of `actor.upsert.v1`: an app-created Knight NPC now appears in Foundry's actor list as a
+  `pnj` Actor. The recursively exact `KnightNpcUpsertV1` DTO carries identity, a hidden/visible
+  flag, direct NPC aspect values, health/armour/energy pools, force field, defense/reaction bases
+  and a fixed initiative bonus — no caractéristiques, Items, descriptions, aspects exceptionnels
+  or caller-selected Foundry paths. Visibility maps **fail-closed** onto document ownership plus
+  prototype-token disposition: hidden ⇒ `{default: NONE}` + SECRET, visible ⇒
+  `{default: LIMITED}` + NEUTRAL, and ownership is replaced wholesale on every apply so a
+  visibility flip revokes stale grants. Lookup is exclusively the shared
+  `flags["table-companion"].binding` (never by name); a missing binding creates, a hand-deleted
+  bound Actor is deliberately recreated, and re-sends converge by content revision + canonical
+  digest with a zero-write replay. Advertised only by a signing elected GM responder on the same
+  exact Knight 3.58.33 / Foundry 13–14 gate as the PC lane — the pnj data model is verified
+  byte-identical from 3.58.33 to 3.58.35, so a future gate widening moves both lanes together.
+  New sanitized fixtures `knight-pnj-3.58.33-foundry{13,14}.json`.
+
 ## [0.9.0] - 2026-08-03
 
 > **Upgrade note — deploy the agent and the module together.** The response-signing scheme moves

@@ -38,6 +38,7 @@ const ADMITTED_CAPABILITIES = [
 
 const KNIGHT_CAPABILITIES = [
   "actor.upsert.v1",
+  "npc.upsert.v1",
   ...ADMITTED_CAPABILITIES,
 ].sort();
 
@@ -45,7 +46,12 @@ const KNIGHT_CAPABILITIES = [
 // and routes its fallback on it: a read that times out may fall back silently to
 // the app's local engine, a mutation with an unknown outcome may NOT. Keep in
 // step with docs/CONTRACTS.md.
-const MUTATION_PROCEDURES = ["actor.upsert.v1", "effect.apply", "effect.remove"];
+const MUTATION_PROCEDURES = [
+  "actor.upsert.v1",
+  "effect.apply",
+  "effect.remove",
+  "npc.upsert.v1",
+];
 
 const READ = { kind: "read" } as const;
 
