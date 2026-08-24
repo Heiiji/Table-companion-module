@@ -1,8 +1,8 @@
 {
   "id": "table-companion",
   "title": "Table Companion",
-  "description": "Optional companion module for the Table Companion mobile apps. Adds one-click setup of the Companion service user, a live link-status panel, and a versioned RPC channel the Table Companion agent uses to unlock higher-fidelity features. Everything in Table Companion works without this module — it only makes things smoother and richer.",
-  "version": "0.9.0",
+  "description": "Optional companion module for the Table Companion mobile apps. Adds one-click setup of the Companion service user, a live link-status panel, and a versioned RPC channel the Table Companion agent uses to unlock higher-fidelity features. Everything in Table Companion works without this module \u2014 it only makes things smoother and richer.",
+  "version": "0.10.0",
   "authors": [
     {
       "name": "Heiiji"
@@ -12,11 +12,23 @@
     "minimum": "13",
     "verified": "14"
   },
-  "esmodules": ["module.js"],
-  "styles": ["module.css"],
+  "esmodules": [
+    "module.js"
+  ],
+  "styles": [
+    "module.css"
+  ],
   "languages": [
-    { "lang": "en", "name": "English", "path": "lang/en.json" },
-    { "lang": "fr", "name": "Français", "path": "lang/fr.json" }
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    },
+    {
+      "lang": "fr",
+      "name": "Fran\u00e7ais",
+      "path": "lang/fr.json"
+    }
   ],
   "socket": true,
   "url": "https://github.com/Heiiji/Table-companion-module",

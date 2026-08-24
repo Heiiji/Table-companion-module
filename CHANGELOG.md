@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-24
+
 ### Added
 - **`npc.upsert.v1` — durable Knight NPC provisioning (actor type `pnj`).** The signed-response
   twin of `actor.upsert.v1`: an app-created Knight NPC now appears in Foundry's actor list as a
@@ -22,6 +24,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   exact Knight 3.58.33 / Foundry 13–14 gate as the PC lane — the pnj data model is verified
   byte-identical from 3.58.33 to 3.58.35, so a future gate widening moves both lanes together.
   New sanitized fixtures `knight-pnj-3.58.33-foundry{13,14}.json`.
+
+### Changed
+- **Build toolchain refreshed; no behavioural change.** The bundle is now emitted by Vite 8.2.2
+  and TypeScript 6.0.3 (was 8.2.0 / 5.9.3), and the Foundry type definitions moved from the v13
+  line to `14.366` to match the Foundry generation this module already declares as verified. All
+  of these are dev-time dependencies — the single runtime dependency (`qrcode-generator`) is
+  unchanged and no `src/` file was touched by the refresh — but the emitted `module.js` bytes
+  differ from 0.9.0's as a result, so a byte-diff of the artifact will show more than the feature.
 
 ## [0.9.0] - 2026-08-03
 
