@@ -284,6 +284,50 @@ describe("roll.action", () => {
     expect(formulas).toEqual(["6d6"]); // min(4,3)=3 + min(3,5)=3
   });
 
+  /**
+   * **R-ORACLE (GR-233, Phase 6) — the oracle says what it did NOT compute.**
+   *
+   * `successes` is the even faces in the rolled pool, plus one Exploit. It never includes the
+   * automatic successes an actor's Overdrives grant (KNT-R-003) and the pool is never reduced by
+   * the KNT-R-011 despair tax, because this procedure reads neither field. The two flags are the
+   * wire's way of saying so — this actor carries an Overdrive AND a low Espoir, and the answer is
+   * unchanged by both.
+   */
+  it("knight reports pool-only successes and flags the two halves it does not compute (GR-233)", async () => {
+    const withOverdriveAndDespair = {
+      espoir: { value: 4 },
+      aspects: {
+        chair: { value: 3, caracteristiques: { force: { value: 4, overdrive: 3 } } },
+        bete: { value: 5, caracteristiques: { instinct: { value: 2, overdrive: 1 } } },
+      },
+    };
+    const evaluate = vi.fn(async () => d6pool([4, 6, 1, 3, 5])); // evens 4,6 → 2 successes
+    const { formulas } = stubKnight(evaluate, withOverdriveAndDespair);
+
+    const res = (await rollAction(
+      { actorId: "vex", type: "aspect", options: { base: "force", combo: "instinct" } },
+      {} as never,
+    )) as {
+      successes?: number;
+      system?: {
+        pool?: number;
+        successes?: number;
+        automaticSuccessesIncluded?: boolean;
+        hopeTaxApplied?: boolean;
+      };
+    };
+
+    // The pool is the capped combo and nothing else — the despair tax would have cut it to 0.
+    expect(formulas).toEqual(["5d6"]);
+    expect(res.system?.pool).toBe(5);
+    // The successes are the dice's — OD 3 + OD 1 would have added four.
+    expect(res.successes).toBe(2);
+    expect(res.system?.successes).toBe(2);
+    // And the response says which halves are missing, for any consumer that is not the apps.
+    expect(res.system?.automaticSuccessesIncluded).toBe(false);
+    expect(res.system?.hopeTaxApplied).toBe(false);
+  });
+
   it("knight throws a plain error when a characteristic value is missing so the app rolls locally", async () => {
     stubKnight(vi.fn());
     // 'endurance' is in the KNT-R-006 graph (chair) but absent from this actor's data.

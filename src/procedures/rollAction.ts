@@ -19,6 +19,17 @@ import { RpcError } from "../rpc/errors.js";
  *     (statistic / ability / skill / base / combo / bonus / advantage / dc)
  *   system: enrichment carried through verbatim (e.g. { degreeOfSuccess }) for the app to render
  *
+ * **Knight (`type: "aspect"`) is the DICE half of a test, and says so** (GR-233, narrowed in the
+ * planning hub's Phase 6). The response's `successes` counts even faces in the rolled pool, plus
+ * one Exploit reroll (KNT-R-003); it does NOT include the automatic successes an actor's Overdrives
+ * grant, and the pool is NOT reduced by the KNT-R-011 despair tax, because this procedure reads
+ * neither `system.aspects.*.caracteristiques.*.overdrive` nor `system.espoir.value`. The two flags
+ * `system.automaticSuccessesIncluded` and `system.hopeTaxApplied` are `false` for exactly that
+ * reason, so a consumer can see the boundary without reading this comment. The Table Companion apps
+ * never route a Knight test through here — their own reducers are the authority (standalone-first)
+ * — so this is enrichment, and enrichment must not overstate itself. Extending it needs a 3.58.x
+ * actor fixture carrying those two fields, and that is an owner decision, not a code change.
+ *
  * PF2e is intentionally unavailable: the former result omitted DC visibility, adjustment,
  * fortune/reroll, MAP, target, trait, and secret-check provenance. A stale/direct PF2e invocation
  * is rejected here even though PF2e capability registration also omits roll.action. A new narrow,
@@ -278,9 +289,21 @@ async function rollKnight(
   if (pool <= 0)
     throw new Error(`knight pool for '${base}'+'${combo}' is empty`);
 
+  // **R-ORACLE (GR-233, Phase 6) — what this oracle computes, and what it does NOT.**
+  //
   // No clean standalone Knight roll API exists (the system builds its pool inside its sheet/dialog),
-  // so we roll the pool ourselves and count successes module-side, returning `successes` so the app
-  // renders ground truth without re-banding.
+  // so we roll the pool ourselves and count successes module-side. What comes back is the DICE
+  // half of a Knight test and nothing else: the capped pool (KNT-R-006), the even-face successes
+  // (KNT-R-002), one Exploit (KNT-R-003) and the critical failure. It never reads the actor's
+  // Overdrives (`system.aspects.*.caracteristiques.*.overdrive`) or Espoir, so it does NOT include
+  // KNT-R-003's automatic successes or KNT-R-011's despair tax — a Knight with OD 3 on Combat
+  // scores three more than this reports, and one below 10 Espoir rolls fewer dice than this rolled.
+  //
+  // That was previously described as "ground truth the app renders without re-banding", which is
+  // a claim about the whole test rather than about the dice. The apps never route a Knight test
+  // through here (their own reducers are the authority, standalone-first), so this is enrichment
+  // that must simply not overstate itself: the two `false` flags on the response say so in the
+  // wire, for any consumer that is not reading this comment.
   const RollCtor = (
     globalThis as unknown as { Roll: new (f: string) => RollLike }
   ).Roll;
@@ -322,6 +345,12 @@ async function rollKnight(
       successes,
       exploited,
       criticalFailure,
+      // R-ORACLE (GR-233): `successes` is FROM DICE ONLY. Both flags are constants here because
+      // this oracle reads neither Overdrive nor Espoir; a future version that does flips them
+      // rather than changing the meaning of `successes`. Additive keys on the module's own
+      // response object — `ENVELOPE_VERSION` is unchanged and the agent relays `system` verbatim.
+      automaticSuccessesIncluded: false,
+      hopeTaxApplied: false,
     },
   };
 }
