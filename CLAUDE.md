@@ -82,7 +82,11 @@ Two jobs:
   (for example D&D 5e advantage or Knight combo outcomes). The agent relays them **verbatim** and
   stays system-agnostic — keep integration logic here, not in the agent. Treat those results as
   exact for the pinned Foundry/system version, then reconcile game semantics with the workspace
-  reference pack; the current Knight roll path is recorded there as divergent.
+  reference pack. The Knight roll path was recorded there as *divergent*; since 0.10.1 it is
+  **narrowed** — `roll.action` type `aspect` returns the DICE half of a Knight test and says so on
+  the wire (`system.automaticSuccessesIncluded: false`, `system.hopeTaxApplied: false`), because it
+  reads neither Overdrive nor Espoir. Extending it needs a 3.58.x actor fixture and is owner-parked;
+  see `docs/game-systems/knight/foundry-interop.md` § *The module's `roll.action` oracle*.
 - **The module is the sole HTML escaper** for display payloads. Do not assume the agent
   escaped anything.
 - **Signing is mandatory.** Every `rpc.request` is verified against the pinned agent key.

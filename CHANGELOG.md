@@ -6,6 +6,27 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-09-02
+
+### Changed
+- **The Knight `roll.action` oracle says what it does NOT compute (GR-233).** `type: "aspect"` has
+  always returned the dice half of a Knight test — the capped pool (KNT-R-006), the even-face
+  successes (KNT-R-002), one Exploit and the critical failure (KNT-R-003) — and has never read the
+  actor's Overdrives or Espoir, so its `successes` excludes KNT-R-003's automatic successes and its
+  pool is not reduced by the KNT-R-011 despair tax. The arithmetic is unchanged; the **claim** was
+  wrong. Its own comment described the answer as "ground truth the app renders without re-banding",
+  which is a statement about a whole test rather than about its dice. The response now carries
+  **`system.automaticSuccessesIncluded: false`** and **`system.hopeTaxApplied: false`** so a consumer
+  can see the boundary without reading the source, the procedure header and the workspace's
+  `docs/game-systems/knight/foundry-interop.md` say the same thing, and a test drives an actor with
+  OD 3 + OD 1 and Espoir 4 whose pool and successes are unchanged by both.
+  **Additive and non-breaking:** two new keys on the module's own response object, relayed verbatim
+  by the agent; `ENVELOPE_VERSION` stays **1** and no procedure, argument or capability changed.
+  Extending the oracle to the whole test needs a Knight 3.58.x actor fixture carrying
+  `system.aspects.*.caracteristiques.*.overdrive` and `system.espoir.value`; that fixture does not
+  exist, and no Table Companion app routes a Knight test through the oracle (both apps compute it
+  locally, which is what standalone-first requires).
+
 ## [0.10.0] - 2026-08-24
 
 ### Added
