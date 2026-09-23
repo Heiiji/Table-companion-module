@@ -131,8 +131,12 @@ Two jobs:
   identically to a response payload of the same shape, so without it a signed `rpc.error` could be
   replayed as a signed success. The canonicalizer
   is **byte-identical** with the agent's `internal/connector/moduleresponsesig.go` and locked by
-  the shared vectors in `test/vectors/response_signing_vectors.json` (== the agent's testdata
-  copy — do not edit one without the other; regenerate both from `gen-vectors.mjs`). The keypair
+  the shared vectors in `test/vectors/response_signing_vectors.json` — **frozen**, byte-identical
+  to the agent's `internal/connector/testdata/response_signing_vectors.json`; the hub gate
+  `tools/verify-module-envelope-parity.sh` `cmp`s both copies and asserts both version constants.
+  Regenerate only by writing a new generator under `test/vectors/` and committing it beside the
+  vectors (there is no generator in the tree today — the old `scratchpad/gen-vectors.mjs` was
+  never committed). The keypair
   is **client-scoped** (`SETTING_MODULE_KEYPAIR`, the responder GM's browser localStorage only) —
   NEVER a world setting, which broadcasts to every player and would let them forge responses. The
   agent advertises `moduleResponseSignatureV1` when it can sign; when it can't (older runtime) it
@@ -181,6 +185,8 @@ modulechannel.go` + `internal/service/{worlds,display}.go`.
 The **M8 response-signing** contract is also parity-locked: the `moduleResponseSignatureV1`
 capability token, the canonical signing string, the canonicalizer, and the ±90s freshness window
 must match `Table-companion-agent/internal/connector/moduleresponsesig.go`. The shared vectors in
-`test/vectors/response_signing_vectors.json` are byte-identical to the agent's
-`internal/connector/testdata/` copy and both test suites assert against them — change both files
-together (regenerate from `scratchpad/gen-vectors.mjs`).
+`test/vectors/response_signing_vectors.json` are frozen and byte-identical to the agent's
+`internal/connector/testdata/response_signing_vectors.json`; both test suites assert against them
+and the hub gate `tools/verify-module-envelope-parity.sh` checks both copies and both version
+constants (`ENVELOPE_VERSION` here, `moduleEnvelopeVersion` in the agent). Change both files
+together, and regenerate only by writing a new generator under `test/vectors/` and committing it.
