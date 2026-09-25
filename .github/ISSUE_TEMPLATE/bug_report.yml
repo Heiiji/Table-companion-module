@@ -1,0 +1,63 @@
+name: Bug report
+description: Something in the Table Companion module does not work as described.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+
+        **Never paste the Companion user's password, your Foundry server address, invite codes or
+        screenshots that show them.** Nobody needs them to investigate a bug.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Settings → Configure Settings → Table Companion
+        2. ...
+    validations:
+      required: false
+  - type: input
+    id: module-version
+    attributes:
+      label: Module version
+      placeholder: e.g. 0.11.0
+    validations:
+      required: true
+  - type: input
+    id: foundry-version
+    attributes:
+      label: Foundry VTT version
+      placeholder: e.g. 13.351 or 14.366
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Game system and version
+      placeholder: e.g. Knight 3.58.33, D&D 5e 5.1.0
+    validations:
+      required: true
+  - type: input
+    id: app
+    attributes:
+      label: Table Companion app platform and version
+      placeholder: e.g. iOS 0.4.0, Android 0.4.0
+    validations:
+      required: false
+  - type: textarea
+    id: console
+    attributes:
+      label: Browser console lines starting with "Table Companion |"
+      description: Open the browser console (F12) on the Gamemaster's browser and copy the module's lines. Remove anything that looks like a password or a key.
+      render: text
+    validations:
+      required: false

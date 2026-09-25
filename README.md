@@ -19,12 +19,12 @@ unlocks richer, system-aware features over time.
 - **Knight character provisioning** — when the app finishes or resumes its guided Knight creator,
   a signed GM-side procedure can create, explicitly adopt, or safely update the matching Foundry
   Actor without name-based guessing or overwriting unrelated equipment.
-- **Capability channel** — a small, versioned link the app's backend uses to add
-  higher-fidelity features (native system rolls, …) in future updates. The agent
-  signs every message (Ed25519); the module pins the agent's public key on first
-  contact and verifies it thereafter, so another logged-in client cannot
-  impersonate the agent. The paired key's fingerprint is shown in **Settings →
-  Table Companion**, with a **Reset pairing** button if you ever need to re-pair.
+- **Capability channel** — a small, versioned link the app's backend uses for
+  Foundry-native dice (`roll.execute`), your compendiums, the shared-screen popout
+  and Knight provisioning. Every backend message is signed (Ed25519) and bound to
+  the Foundry user and world it was sent for; the Gamemaster's replies are signed
+  too and go to the backend only, never to players' browsers. See **Pairing**
+  below.
 
 ## Install
 
@@ -49,6 +49,25 @@ Companion** to run setup.
 > **Important:** never log in to Foundry as the `Companion` user yourself —
 > Foundry allows one session per user, so it would disconnect the app.
 
+## Pairing
+
+The first time the app's backend connects while the setup window is open, the
+module remembers ("pairs with") its signing key and the Foundry user it logs in
+as. After that it only listens to that key, from that user.
+
+- If the backend logs in as the `Companion` user this module created, pairing is
+  automatic.
+- If it logs in as any other user (for example one you created by hand), setup
+  shows a **pairing request** naming that user and a key fingerprint. Click
+  **Trust** only if that is the user you linked in the app; otherwise **Ignore**.
+  A Gamemaster account can never pair.
+- **Reset pairing** forgets the pairing on both sides; the next connection pairs
+  again.
+
+Anyone you grant Foundry's *Modify Configuration Settings* permission can change
+world settings, including this pairing. By default only Assistant GMs and
+Gamemasters have it.
+
 The password is shown only once. If you lose it, open setup and click **Reset
 password** to generate a new one — no need to delete the user or re-grant
 permissions. If the **Table Companion** settings entry is ever missing, a
@@ -66,15 +85,24 @@ Gamemaster can open setup from the console with
 ## Developing
 
 ```bash
-npm install
+npm ci
 npm run build      # bundles to dist/ (a drop-in module folder)
 npm run watch      # rebuild on change
 npm run lint       # eslint + tsc --noEmit
+npm test           # vitest, no Foundry needed
 ```
 
 Symlink `dist/` into your Foundry `Data/modules/table-companion` for local
 testing. The public API is exposed at `game.modules.get("table-companion").api`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE). The release also bundles
+[qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (MIT); see
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+Table Companion is an independent project, not affiliated with or endorsed by
+Foundry Gaming LLC (Foundry Virtual Tabletop), Antre Monde Éditions (Knight),
+Paizo Inc. (Pathfinder) or Wizards of the Coast (Dungeons & Dragons). Those names
+are used only to say what the module works with.

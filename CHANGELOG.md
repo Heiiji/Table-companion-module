@@ -47,6 +47,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   protocol-relative URLs are dropped and the card renders without an image.
 
 ### Changed
+- **The release zip now carries `LICENSE` and `THIRD-PARTY-NOTICES.md`.** The bundled
+  qrcode-generator is MIT-licensed and its copyright line does not survive minification, so its
+  notice now ships beside the code. Releases also carry a signed build-provenance attestation
+  (`gh attestation verify module.zip -R Heiiji/Table-companion-module`).
 - **Only the elected Gamemaster announces the module to the backend.** Every connected browser used
   to, and the backend kept the capability list from the last one it heard, so a player or second
   GM joining could hide the Knight provisioning procedures until the next announcement. The new
@@ -66,16 +70,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.10.1] - 2026-09-02
 
 ### Changed
-- **The Knight `roll.action` oracle says what it does NOT compute (GR-233).** `type: "aspect"` has
-  always returned the dice half of a Knight test — the capped pool (KNT-R-006), the even-face
-  successes (KNT-R-002), one Exploit and the critical failure (KNT-R-003) — and has never read the
-  actor's Overdrives or Espoir, so its `successes` excludes KNT-R-003's automatic successes and its
-  pool is not reduced by the KNT-R-011 despair tax. The arithmetic is unchanged; the **claim** was
+- **The Knight `roll.action` oracle says what it does NOT compute.** `type: "aspect"` has
+  always returned the dice half of a Knight test — the capped pool, the even-face successes, one
+  Exploit and the critical failure — and has never read the actor's Overdrives or Espoir, so its
+  `successes` excludes the automatic successes Overdrives grant and its pool is not reduced by the
+  despair (Espoir) penalty. The arithmetic is unchanged; the **claim** was
   wrong. Its own comment described the answer as "ground truth the app renders without re-banding",
   which is a statement about a whole test rather than about its dice. The response now carries
   **`system.automaticSuccessesIncluded: false`** and **`system.hopeTaxApplied: false`** so a consumer
-  can see the boundary without reading the source, the procedure header and the workspace's
-  `docs/game-systems/knight/foundry-interop.md` say the same thing, and a test drives an actor with
+  can see the boundary without reading the source, the procedure header says the same thing, and a
+  test drives an actor with
   OD 3 + OD 1 and Espoir 4 whose pool and successes are unchanged by both.
   **Additive and non-breaking:** two new keys on the module's own response object, relayed verbatim
   by the agent; `ENVELOPE_VERSION` stays **1** and no procedure, argument or capability changed.
@@ -229,7 +233,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.7.0] - 2026-07-18
 
 ### Added
-- **Signed module responses (`moduleResponseSignatureV1`, M8 transport authentication)**: the
+- **Signed module responses (`moduleResponseSignatureV1`, transport authentication)**: the
   elected responder GM now signs every `rpc.response` / `rpc.error` with its own Ed25519 key, closing
   the reverse direction of the channel (the agent already signs agent→module). The public key +
   Foundry world id travel to the agent in the existing `hello` / `hello.ack` (additive `peer.pubKey`
@@ -314,9 +318,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `system.aspects.{aspect}.caracteristiques.{characteristic}.value`), accepting a
   `characteristic` option. Success bands stay app-side, so the module keeps shipping the
   system's own roll without baking in rules interpretation. Absent ⇒ the app falls back to
-  its local dice engine. **Historical behavior note:** this path is now classified as divergent
-  from the indexed Knight v1.5 player-combo rule; see the workspace
-  [`Knight implementation status`](../docs/game-systems/knight/implementation-status.md).
+  its local dice engine. **Historical behavior note:** this path was later found to diverge from
+  the Knight v1.5 player-combo rule (fixed in 0.6.0).
 - **Knight sheet oracle** (`sheet.derived`): `knightDerived` surfaces a Knight actor's
   system-aware derived data — `energyMax`, `defense`, `reaction`, and per-aspect
   `aspectPools` — with gear-scoped energy and a top-level fallback. Strictly additive;
