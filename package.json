@@ -13,7 +13,8 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "format": "prettier --write \"src/**/*.ts\""
+    "format": "prettier --write src test \"*.config.{js,ts}\"",
+    "format:check": "prettier --check src test \"*.config.{js,ts}\""
   },
   "author": "Heiiji",
   "license": "MIT",
