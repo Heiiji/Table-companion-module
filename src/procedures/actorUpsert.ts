@@ -7,38 +7,43 @@ import {
   KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1,
   type KnightEquipmentCrosswalkDocumentV1,
 } from "../refdata/knightCompendiumCrosswalkV14_0_1.js";
-import { supportsKnightActorUpsertV1Runtime } from "./foundry.js";
 import {
+  ASPECT_KEYS,
   OWNERSHIP_NONE,
   OWNERSHIP_OWNER,
+  SCHEMA_VERSION,
   actorCollection,
   actorID,
-  allActors,
+  alreadyApplied,
+  assertKnightUpsertAuthority,
+  bindingFor,
   bindingId,
   bindingOf,
   canonicalDigest,
+  createActorDocument,
   currentGame,
-  exactBinding,
   flagValue,
   foundryId,
   identifier,
   integer,
   invalid,
+  ownershipReplacement,
+  parseAspectScores,
+  parseStoredResult,
   record,
   text,
+  uniqueBoundActor,
   type ActorItemLike,
   type ActorLike,
+  type AspectScoresV1,
   type BindingV1,
   type Dict,
+  type Outcome,
 } from "./upsertShared.js";
 
-const SCHEMA_VERSION = 1;
 const ACTOR_TYPE = "knight";
-const OWNER_LEVEL = OWNERSHIP_OWNER;
-const NONE_LEVEL = OWNERSHIP_NONE;
 
 type State = "draft" | "approved";
-type Outcome = "created" | "adopted" | "updated";
 type EquipmentCompleteness = "not_requested" | "complete" | "partial";
 
 interface ProfileV1 {
@@ -63,13 +68,8 @@ interface AIV1 {
   personality: string;
 }
 
-interface AspectsV1 {
-  chair: number;
-  bete: number;
-  machine: number;
-  dame: number;
-  masque: number;
-}
+/** PC aspect bases (the prepared values stay derived in Foundry). */
+type AspectsV1 = AspectScoresV1;
 
 interface CharacteristicsV1 {
   chair: { deplacement: number; force: number; endurance: number };
@@ -365,23 +365,6 @@ function base(value: unknown, path: string): number {
   return integer(value, path, 0, 20);
 }
 
-function parseAspects(value: unknown): AspectsV1 {
-  const p = record(value, "aspects", [
-    "chair",
-    "bete",
-    "machine",
-    "dame",
-    "masque",
-  ]);
-  return {
-    chair: base(p.chair, "aspects.chair"),
-    bete: base(p.bete, "aspects.bete"),
-    machine: base(p.machine, "aspects.machine"),
-    dame: base(p.dame, "aspects.dame"),
-    masque: base(p.masque, "aspects.masque"),
-  };
-}
-
 function parseCharacteristics(value: unknown): CharacteristicsV1 {
   const p = record(value, "characteristics", [
     "chair",
@@ -635,7 +618,8 @@ export function validateKnightActorUpsertV1(
     expectedActorId,
     profile,
     ai: p.ai === undefined ? undefined : parseAI(p.ai),
-    aspects: p.aspects === undefined ? undefined : parseAspects(p.aspects),
+    aspects:
+      p.aspects === undefined ? undefined : parseAspectScores(p.aspects),
     characteristics:
       p.characteristics === undefined
         ? undefined
@@ -652,109 +636,59 @@ export function validateKnightActorUpsertV1(
 }
 
 function assertRuntimeAndAuthority(req: KnightActorUpsertV1): void {
-  const g = currentGame();
-  if (!g.user?.isGM)
-    throw new RpcError(
-      "permission_denied",
-      "actor.upsert.v1 requires a GM responder",
-    );
-  if (!supportsKnightActorUpsertV1Runtime()) {
-    throw new RpcError(
-      "unsupported_runtime",
-      "actor.upsert.v1 requires Knight 3.58.33 on Foundry 13 or 14",
-    );
-  }
-  if (req.foundryUserId && !g.users?.get(req.foundryUserId))
+  assertKnightUpsertAuthority("actor.upsert.v1");
+  if (req.foundryUserId && !currentGame().users?.get(req.foundryUserId))
     invalid("foundryUserId is not a User in this world");
 }
 
+const EQUIPMENT_COMPLETENESS: readonly string[] = [
+  "not_requested",
+  "complete",
+  "partial",
+];
+
 function syncOf(actor: ActorLike): SyncV1 | null {
-  const value = flagValue(actor, "actorUpsertV1");
-  if (typeof value !== "object" || value === null) return null;
-  const p = value as Dict;
+  const stored = parseStoredResult(actor, "actorUpsertV1");
+  if (!stored) return null;
+  const { result, flag } = stored;
   if (
-    p.schemaVersion !== 1 ||
-    (p.state !== "draft" && p.state !== "approved") ||
-    !Number.isSafeInteger(p.appliedRevision) ||
-    typeof p.appliedDigest !== "string" ||
-    !["created", "adopted", "updated"].includes(String(p.outcome)) ||
-    !["not_requested", "complete", "partial"].includes(
-      String(p.equipmentCompleteness),
-    ) ||
-    !Array.isArray(p.warnings) ||
-    !p.warnings.every((w) => typeof w === "string")
+    (flag.state !== "draft" && flag.state !== "approved") ||
+    !EQUIPMENT_COMPLETENESS.includes(String(flag.equipmentCompleteness))
   )
     return null;
   return {
-    schemaVersion: 1,
-    state: p.state,
-    resultDocId: actorID(actor),
-    outcome: p.outcome as Outcome,
-    appliedRevision: p.appliedRevision as number,
-    appliedDigest: p.appliedDigest,
-    equipmentCompleteness: p.equipmentCompleteness as EquipmentCompleteness,
-    warnings: p.warnings as string[],
+    ...result,
+    state: flag.state,
+    equipmentCompleteness: flag.equipmentCompleteness as EquipmentCompleteness,
   };
 }
 
-async function createActor(
+function createActor(
   req: KnightActorUpsertV1,
   binding: BindingV1,
 ): Promise<ActorLike> {
-  const factory = (
-    globalThis as unknown as {
-      Actor?: {
-        implementation?: {
-          create(data: Dict, options?: Dict): Promise<unknown>;
-        };
-      };
-    }
-  ).Actor?.implementation;
-  if (!factory?.create)
-    throw new RpcError(
-      "unsupported_runtime",
-      "Actor.implementation.create is unavailable",
-    );
-  const created = await factory.create(
-    {
-      name: req.name,
-      type: ACTOR_TYPE,
-      flags: { [MODULE_ID]: { binding } },
-      ownership: normalizedOwnership(req.foundryUserId),
-    },
-    { renderSheet: false },
-  );
-  const actor = Array.isArray(created) ? created[0] : created;
-  if (
-    typeof actor !== "object" ||
-    actor === null ||
-    typeof (actor as ActorLike).update !== "function"
-  ) {
-    throw new Error("Foundry did not return the created Actor");
-  }
-  return actor as ActorLike;
+  return createActorDocument({
+    name: req.name,
+    type: ACTOR_TYPE,
+    flags: { [MODULE_ID]: { binding } },
+    ownership: normalizedOwnership(req.foundryUserId),
+  });
 }
 
 function normalizedOwnership(foundryUserId: string | undefined): Dict {
   return foundryUserId
-    ? { default: NONE_LEVEL, [foundryUserId]: OWNER_LEVEL }
-    : { default: NONE_LEVEL };
+    ? { default: OWNERSHIP_NONE, [foundryUserId]: OWNERSHIP_OWNER }
+    : { default: OWNERSHIP_NONE };
 }
 
-// Foundry merges object updates recursively. Deletion directives are therefore required when an
-// adopted/bound Actor already carries explicit grants; merely sending the desired object would
-// leave stale owners behind. Actor.create receives the plain normalized map, while Actor.update
-// receives this merge-safe shape and ends with exactly default:NONE plus, when supplied, one OWNER.
+// Actor.create receives the plain normalized map; Actor.update receives the
+// merge-safe replacement, which ends with exactly default:NONE plus, when
+// supplied, one OWNER — whatever grants an adopted or bound Actor carried.
 function normalizedOwnershipUpdate(
   actor: ActorLike,
   foundryUserId: string | undefined,
 ): Dict {
-  const update: Dict = { default: NONE_LEVEL };
-  for (const key of Object.keys(actor.ownership ?? {})) {
-    if (key !== "default" && key !== foundryUserId) update[`-=${key}`] = null;
-  }
-  if (foundryUserId) update[foundryUserId] = OWNER_LEVEL;
-  return update;
+  return ownershipReplacement(actor, OWNERSHIP_NONE, foundryUserId);
 }
 
 function storedCharacterCreation(
@@ -802,13 +736,7 @@ function authoredPatch(
     patch["system.equipements.ia.surnom"] = req.ai.nickname;
     patch["system.equipements.ia.caractere"] = req.ai.personality;
   }
-  for (const aspect of [
-    "chair",
-    "bete",
-    "machine",
-    "dame",
-    "masque",
-  ] as const) {
+  for (const aspect of ASPECT_KEYS) {
     patch[`system.aspects.${aspect}.base`] = aspects[aspect];
   }
   const characteristicGroups: Record<string, Record<string, number>> = {
@@ -1418,23 +1346,9 @@ export const actorUpsertV1: Procedure = async (payload) => {
   const req = validateKnightActorUpsertV1(payload);
   assertRuntimeAndAuthority(req);
   const digest = await canonicalDigest(req);
-  const binding: BindingV1 = {
-    schemaVersion: 1,
-    worldId: req.worldId,
-    tableId: req.tableId,
-    characterId: req.characterId,
-  };
+  const binding = bindingFor(req);
   const collection = actorCollection();
-  const matches = allActors(collection).filter((actor) =>
-    exactBinding(bindingOf(actor), binding),
-  );
-  if (matches.length > 1)
-    throw new RpcError(
-      "binding_collision",
-      "multiple Actors carry this Table Companion binding",
-    );
-
-  let actor: ActorLike | undefined = matches[0];
+  let actor = uniqueBoundActor(collection, binding);
   let outcome: Outcome = "updated";
   if (req.expectedActorId) {
     if (!actor)
@@ -1477,30 +1391,19 @@ export const actorUpsertV1: Procedure = async (payload) => {
     throw new Error("Foundry returned an invalid Actor id");
 
   const previous = syncOf(actor);
-  if (previous) {
-    if (previous.appliedRevision > req.approvedRevision) {
-      throw new RpcError(
-        "stale_revision",
-        "Actor has a newer approved revision",
-      );
-    }
-    if (previous.appliedRevision === req.approvedRevision) {
-      if (previous.appliedDigest !== digest) {
-        throw new RpcError(
-          "revision_conflict",
-          "the same approved revision carries different content",
-        );
-      }
-      return {
-        schemaVersion: 1,
-        resultDocId: id,
-        outcome: previous.outcome,
-        appliedRevision: previous.appliedRevision,
-        appliedDigest: previous.appliedDigest,
-        equipmentCompleteness: previous.equipmentCompleteness,
-        warnings: [...previous.warnings],
-      } satisfies ActorUpsertResultV1;
-    }
+  if (
+    previous &&
+    alreadyApplied(previous, req.approvedRevision, digest, "approved")
+  ) {
+    return {
+      schemaVersion: 1,
+      resultDocId: id,
+      outcome: previous.outcome,
+      appliedRevision: previous.appliedRevision,
+      appliedDigest: previous.appliedDigest,
+      equipmentCompleteness: previous.equipmentCompleteness,
+      warnings: [...previous.warnings],
+    } satisfies ActorUpsertResultV1;
   }
 
   await actor.update(authoredPatch(actor, req, binding));

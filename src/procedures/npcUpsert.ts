@@ -1,28 +1,35 @@
 import { MODULE_ID } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
-import { supportsKnightActorUpsertV1Runtime } from "./foundry.js";
 import {
+  ASPECT_KEYS,
   OWNERSHIP_LIMITED,
   OWNERSHIP_NONE,
+  SCHEMA_VERSION,
   actorCollection,
   actorID,
-  allActors,
+  alreadyApplied,
+  assertKnightUpsertAuthority,
+  bindingFor,
   bindingId,
-  bindingOf,
   canonicalDigest,
-  currentGame,
-  exactBinding,
-  flagValue,
+  createActorDocument,
   foundryId,
   identifier,
   integer,
   invalid,
+  ownershipReplacement,
+  parseAspectScores,
+  parseStoredResult,
   record,
   text,
+  uniqueBoundActor,
   type ActorLike,
+  type AspectScoresV1,
   type BindingV1,
   type Dict,
+  type Outcome,
+  type StoredResultV1,
 } from "./upsertShared.js";
 
 /**
@@ -42,25 +49,16 @@ import {
  * hand-deleted bound Actor is deliberately recreated on the next send.
  */
 
-const SCHEMA_VERSION = 1;
 const NPC_ACTOR_TYPE = "pnj";
 
 /** Foundry CONST.TOKEN_DISPOSITIONS values (stable across Foundry 13/14). */
 const DISPOSITION_SECRET = -2;
 const DISPOSITION_NEUTRAL = 0;
 
-const ASPECT_KEYS = ["chair", "bete", "machine", "dame", "masque"] as const;
-
-type Outcome = "created" | "adopted" | "updated";
 type Visibility = "hidden" | "visible";
 
-interface NpcAspectsV1 {
-  chair: number;
-  bete: number;
-  machine: number;
-  dame: number;
-  masque: number;
-}
+/** pnj aspect values are direct scores (not bases), in the shared 0-20 range. */
+type NpcAspectsV1 = AspectScoresV1;
 
 interface NpcPoolV1 {
   max: number;
@@ -94,28 +92,7 @@ export interface KnightNpcUpsertV1 {
   defenses?: NpcDefensesV1;
 }
 
-export interface NpcUpsertResultV1 {
-  schemaVersion: 1;
-  resultDocId: string;
-  outcome: Outcome;
-  appliedRevision: number;
-  appliedDigest: string;
-  warnings: string[];
-}
-
-function parseAspects(value: unknown): NpcAspectsV1 {
-  const p = record(value, "aspects", ASPECT_KEYS);
-  const aspect = (key: (typeof ASPECT_KEYS)[number]): number =>
-    // pnj aspect values are direct scores; the upstream schema default max is 20.
-    integer(p[key], `aspects.${key}`, 0, 20);
-  return {
-    chair: aspect("chair"),
-    bete: aspect("bete"),
-    machine: aspect("machine"),
-    dame: aspect("dame"),
-    masque: aspect("masque"),
-  };
-}
+export type NpcUpsertResultV1 = StoredResultV1;
 
 function parsePool(value: unknown, path: string): NpcPoolV1 {
   const p = record(value, path, ["max", "current"]);
@@ -195,26 +172,11 @@ export function validateKnightNpcUpsertV1(payload: unknown): KnightNpcUpsertV1 {
     ),
     name: text(p.name, "name", 200, true),
     visibility: p.visibility as Visibility,
-    aspects: parseAspects(p.aspects),
+    aspects: parseAspectScores(p.aspects),
     resources:
       p.resources === undefined ? undefined : parseResources(p.resources),
     defenses: p.defenses === undefined ? undefined : parseDefenses(p.defenses),
   };
-}
-
-function assertRuntimeAndAuthority(): void {
-  const g = currentGame();
-  if (!g.user?.isGM)
-    throw new RpcError(
-      "permission_denied",
-      "npc.upsert.v1 requires a GM responder",
-    );
-  if (!supportsKnightActorUpsertV1Runtime()) {
-    throw new RpcError(
-      "unsupported_runtime",
-      "npc.upsert.v1 requires Knight 3.58.33 on Foundry 13 or 14",
-    );
-  }
 }
 
 /** Fail-closed visibility projection: only the exact "visible" value widens
@@ -227,78 +189,29 @@ function tokenDisposition(visibility: Visibility): number {
   return visibility === "visible" ? DISPOSITION_NEUTRAL : DISPOSITION_SECRET;
 }
 
-// Foundry merges object updates recursively, so the update shape carries
-// deletion directives for every explicit grant. NPC actors never receive
-// per-user grants (owner delegation in the app does not become Foundry OWNER),
-// which keeps a Masqué NPC unreadable however the app-side roster changes.
+// NPC actors never receive per-user grants (owner delegation in the app does
+// not become Foundry OWNER): every apply replaces the whole map with the
+// visibility default, which keeps a Masqué NPC unreadable however the app-side
+// roster changes.
 function npcOwnershipUpdate(actor: ActorLike, visibility: Visibility): Dict {
-  const update: Dict = { default: ownershipDefault(visibility) };
-  for (const key of Object.keys(actor.ownership ?? {})) {
-    if (key !== "default") update[`-=${key}`] = null;
-  }
-  return update;
+  return ownershipReplacement(actor, ownershipDefault(visibility));
 }
 
 function npcSyncOf(actor: ActorLike): NpcUpsertResultV1 | null {
-  const value = flagValue(actor, "npcUpsertV1");
-  if (typeof value !== "object" || value === null) return null;
-  const p = value as Dict;
-  if (
-    p.schemaVersion !== 1 ||
-    !Number.isSafeInteger(p.appliedRevision) ||
-    typeof p.appliedDigest !== "string" ||
-    !["created", "adopted", "updated"].includes(String(p.outcome)) ||
-    !Array.isArray(p.warnings) ||
-    !p.warnings.every((w) => typeof w === "string")
-  )
-    return null;
-  return {
-    schemaVersion: 1,
-    resultDocId: actorID(actor),
-    outcome: p.outcome as Outcome,
-    appliedRevision: p.appliedRevision as number,
-    appliedDigest: p.appliedDigest,
-    warnings: p.warnings as string[],
-  };
+  return parseStoredResult(actor, "npcUpsertV1")?.result ?? null;
 }
 
-async function createNpcActor(
+function createNpcActor(
   req: KnightNpcUpsertV1,
   binding: BindingV1,
 ): Promise<ActorLike> {
-  const factory = (
-    globalThis as unknown as {
-      Actor?: {
-        implementation?: {
-          create(data: Dict, options?: Dict): Promise<unknown>;
-        };
-      };
-    }
-  ).Actor?.implementation;
-  if (!factory?.create)
-    throw new RpcError(
-      "unsupported_runtime",
-      "Actor.implementation.create is unavailable",
-    );
-  const created = await factory.create(
-    {
-      name: req.name,
-      type: NPC_ACTOR_TYPE,
-      flags: { [MODULE_ID]: { binding } },
-      ownership: { default: ownershipDefault(req.visibility) },
-      prototypeToken: { disposition: tokenDisposition(req.visibility) },
-    },
-    { renderSheet: false },
-  );
-  const actor = Array.isArray(created) ? created[0] : created;
-  if (
-    typeof actor !== "object" ||
-    actor === null ||
-    typeof (actor as ActorLike).update !== "function"
-  ) {
-    throw new Error("Foundry did not return the created Actor");
-  }
-  return actor as ActorLike;
+  return createActorDocument({
+    name: req.name,
+    type: NPC_ACTOR_TYPE,
+    flags: { [MODULE_ID]: { binding } },
+    ownership: { default: ownershipDefault(req.visibility) },
+    prototypeToken: { disposition: tokenDisposition(req.visibility) },
+  });
 }
 
 /** The complete authored write allowlist. Every `system.` path below exists in
@@ -358,25 +271,10 @@ function authoredNpcPatch(
  */
 export const npcUpsertV1: Procedure = async (payload) => {
   const req = validateKnightNpcUpsertV1(payload);
-  assertRuntimeAndAuthority();
+  assertKnightUpsertAuthority("npc.upsert.v1");
   const digest = await canonicalDigest(req);
-  const binding: BindingV1 = {
-    schemaVersion: 1,
-    worldId: req.worldId,
-    tableId: req.tableId,
-    characterId: req.characterId,
-  };
-  const collection = actorCollection();
-  const matches = allActors(collection).filter((actor) =>
-    exactBinding(bindingOf(actor), binding),
-  );
-  if (matches.length > 1)
-    throw new RpcError(
-      "binding_collision",
-      "multiple Actors carry this Table Companion binding",
-    );
-
-  let actor: ActorLike | undefined = matches[0];
+  const binding = bindingFor(req);
+  let actor = uniqueBoundActor(actorCollection(), binding);
   let outcome: Outcome = "updated";
   if (actor && actor.type !== NPC_ACTOR_TYPE) {
     throw new RpcError(
@@ -393,26 +291,15 @@ export const npcUpsertV1: Procedure = async (payload) => {
     throw new Error("Foundry returned an invalid Actor id");
 
   const previous = npcSyncOf(actor);
-  if (previous) {
-    if (previous.appliedRevision > req.contentRevision) {
-      throw new RpcError("stale_revision", "Actor has a newer content revision");
-    }
-    if (previous.appliedRevision === req.contentRevision) {
-      if (previous.appliedDigest !== digest) {
-        throw new RpcError(
-          "revision_conflict",
-          "the same content revision carries different content",
-        );
-      }
-      return {
-        schemaVersion: 1,
-        resultDocId: id,
-        outcome: previous.outcome,
-        appliedRevision: previous.appliedRevision,
-        appliedDigest: previous.appliedDigest,
-        warnings: [...previous.warnings],
-      } satisfies NpcUpsertResultV1;
-    }
+  if (previous && alreadyApplied(previous, req.contentRevision, digest, "content")) {
+    return {
+      schemaVersion: 1,
+      resultDocId: id,
+      outcome: previous.outcome,
+      appliedRevision: previous.appliedRevision,
+      appliedDigest: previous.appliedDigest,
+      warnings: [...previous.warnings],
+    } satisfies NpcUpsertResultV1;
   }
 
   await actor.update(authoredNpcPatch(actor, req, binding));
