@@ -181,8 +181,9 @@ function startChannel(timeoutMs?: number, withActorUpsert = false): Channel {
     READ,
   );
   if (withActorUpsert) {
-    registry.register("actor.upsert.v1", () => ({}), { kind: "mutation" });
-    registry.register("npc.upsert.v1", () => ({}), { kind: "mutation" });
+    const SIGNED_MUTATION = { kind: "mutation", signedOnly: true } as const;
+    registry.register("actor.upsert.v1", () => ({}), SIGNED_MUTATION);
+    registry.register("npc.upsert.v1", () => ({}), SIGNED_MUTATION);
   }
   const channel = new Channel(registry, "0.0.0-test", timeoutMs);
   channel.start();

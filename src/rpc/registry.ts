@@ -36,6 +36,15 @@ export type ProcedureKind = "read" | "mutation" | "clientState";
  */
 export interface ProcedureDescriptor {
   kind: ProcedureKind;
+  /**
+   * Withhold this procedure unless the responder can sign its replies. A
+   * signed-only procedure is left out of the advertised capabilities and
+   * refused as unknown on a responder without a response-signing key, so a
+   * consequential write is never offered — or run — where the agent could not
+   * authenticate its result. The agent applies the same requirement on its side
+   * before relaying a queued job.
+   */
+  signedOnly?: true;
 }
 
 /** Maps procedure name -> handler. The set of registered names IS the module's
@@ -83,6 +92,11 @@ export class ProcedureRegistry {
       .filter(([, d]) => d.kind === "mutation")
       .map(([name]) => name)
       .sort();
+  }
+
+  /** Whether `name` was registered as signed-only (see ProcedureDescriptor). */
+  isSignedOnly(name: string): boolean {
+    return this.meta.get(name)?.signedOnly === true;
   }
 
   /** Sorted, stable capability list advertised in hello / hello.ack. */

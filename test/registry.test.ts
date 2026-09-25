@@ -68,6 +68,17 @@ describe("ProcedureRegistry", () => {
     expect(r.capabilities()).toEqual(["ping", "presence", "roll.execute"]);
   });
 
+  it("reports signed-only only for procedures registered with the flag", () => {
+    const r = new ProcedureRegistry();
+    r.register("ping", () => 1, READ);
+    r.register("write", () => 1, { kind: "mutation" });
+    r.register("signed.write", () => 1, { kind: "mutation", signedOnly: true });
+    expect(r.isSignedOnly("ping")).toBe(false);
+    expect(r.isSignedOnly("write")).toBe(false);
+    expect(r.isSignedOnly("signed.write")).toBe(true);
+    expect(r.isSignedOnly("missing")).toBe(false);
+  });
+
   it("warns when a procedure name is overwritten", () => {
     const r = new ProcedureRegistry();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -195,6 +206,20 @@ describe("ProcedureRegistry", () => {
       registerBuiltinProcedures(other);
       expect(other.mutations(), id).toEqual([]);
     }
+  });
+
+  // The channel withholds a signed-only procedure from a responder that cannot
+  // sign; the flag at registration is what puts the two upserts behind it.
+  it("registers exactly the Knight upserts as signed-only", () => {
+    vi.stubGlobal("game", {
+      system: { id: "knight", version: "3.58.33" },
+      release: { generation: 14 },
+    });
+    const registry = new ProcedureRegistry();
+    registerBuiltinProcedures(registry);
+    expect(
+      registry.capabilities().filter((name) => registry.isSignedOnly(name)),
+    ).toEqual([...MUTATION_PROCEDURES].sort());
   });
 
   it("does not advertise actor.upsert.v1 outside the exact fixture-pinned Knight runtime", () => {

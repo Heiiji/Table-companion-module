@@ -31,14 +31,21 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   // it opens a popout on connected browsers and writes no document.
   registry.register("display.show", displayShow, { kind: "clientState" });
   registry.register("display.clear", displayClear, { kind: "clientState" });
-  // Consequential, signed-response-only actor provisioning. The agent refuses
-  // to invoke these without moduleResponseSignatureV1; only Knight registers
-  // the system-specific mappings. The two lanes target different Knight actor
+  // Consequential, signed-response-only actor provisioning: `signedOnly` keeps
+  // them unadvertised and refused on a responder that cannot sign its replies,
+  // and the agent refuses to invoke them without moduleResponseSignatureV1.
+  // Only Knight registers the system-specific mappings. The two lanes target different Knight actor
   // types (PC "knight" vs NPC "pnj") and share ONE runtime gate — the pnj data
   // model is verified byte-identical 3.58.33 → 3.58.35, so a future gate
   // widening moves both together.
   if (supportsKnightActorUpsertV1Runtime()) {
-    registry.register("actor.upsert.v1", actorUpsertV1, { kind: "mutation" });
-    registry.register("npc.upsert.v1", npcUpsertV1, { kind: "mutation" });
+    registry.register("actor.upsert.v1", actorUpsertV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
+    registry.register("npc.upsert.v1", npcUpsertV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
   }
 }

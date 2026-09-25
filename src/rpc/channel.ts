@@ -30,11 +30,6 @@ import { RpcError } from "./errors.js";
 import { fingerprint, parseSignedMessage, verifySignature } from "./signing.js";
 import type { ModuleResponseSigner } from "./responseSigning.js";
 
-/** Consequential provisioning mutations that must never be advertised by a
- * responder that cannot sign its replies. Parity-locked with the agent's
- * relay-side signing requirement (internal/connector/modulechannel.go). */
-const SIGNED_ONLY_PROCEDURES = new Set(["actor.upsert.v1", "npc.upsert.v1"]);
-
 /** Best-effort access to Foundry's toast notifications, tolerant of the harness
  * where the `ui` global is absent. */
 function notify(kind: "warn" | "info", message: string): void {
@@ -155,12 +150,13 @@ export class Channel {
    * sees, so it is the only honest answer to "what does this module offer?".
    * The public API reports this list for the same reason. */
   advertisedCapabilities(): string[] {
-    // Mutation-consequential procedures are invisible until this elected GM
-    // responder can authenticate their replies. This prevents a capability-only
-    // client from submitting work that can never cross the signed-result gate.
+    // Signed-only procedures (the consequential provisioning mutations) are
+    // invisible until this elected GM responder can authenticate their replies.
+    // This prevents a capability-only client from submitting work that can
+    // never cross the signed-result gate.
     const caps = this.registry
       .capabilities()
-      .filter((name) => !SIGNED_ONLY_PROCEDURES.has(name) || this.canSign());
+      .filter((name) => !this.registry.isSignedOnly(name) || this.canSign());
     if (this.canSign()) caps.push(CAP_RESPONSE_SIG);
     return caps.sort();
   }
@@ -570,7 +566,7 @@ export class Channel {
     // A procedure withheld from the advertised set (a consequential mutation on a
     // responder that cannot sign its reply) is refused exactly as if it did not
     // exist: hiding it from hello is not enough when a request names it directly.
-    if (!handler || (SIGNED_ONLY_PROCEDURES.has(proc) && !this.canSign())) {
+    if (!handler || (this.registry.isSignedOnly(proc) && !this.canSign())) {
       await this.sendError(sender, env.id, proc, {
         code: "unknown_procedure",
         message: `no procedure "${proc}"`,
