@@ -19,9 +19,11 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
           cache: npm
@@ -39,6 +41,10 @@ jobs:
       # The suite under v8 coverage; fails below the floor in vitest.config.ts.
       - run: npm run test:coverage
       - run: npm run build
+
+      # The release zip is dist/; it must carry the licences of what it bundles.
+      - name: Check licence files are packaged
+        run: test -f dist/LICENSE && test -f dist/THIRD-PARTY-NOTICES.md
 
       # Known high/critical advisories in what ships (runtime dependencies only).
       - name: Audit runtime dependencies

@@ -41,7 +41,10 @@ export default defineConfig({
         // release artifact's version is never out of sync with the source.
         const manifest = JSON.parse(readFileSync("module.json", "utf8"));
         manifest.version = pkgVersion;
-        writeFileSync("dist/module.json", JSON.stringify(manifest, null, 2) + "\n");
+        writeFileSync(
+          "dist/module.json",
+          JSON.stringify(manifest, null, 2) + "\n",
+        );
 
         if (!existsSync("styles/module.css")) {
           throw new Error(
@@ -49,6 +52,13 @@ export default defineConfig({
           );
         }
         copyFileSync("styles/module.css", "dist/module.css");
+
+        // The release zip is dist/: it must carry this module's licence and the
+        // notices of what the bundle includes (qrcode-generator is MIT, and its
+        // copyright line does not survive minification).
+        for (const legal of ["LICENSE", "THIRD-PARTY-NOTICES.md"]) {
+          copyFileSync(legal, `dist/${legal}`);
+        }
 
         // Copy every declared locale by globbing the dir, so adding a language
         // needs no edit here — module.json's `languages` array stays the source.

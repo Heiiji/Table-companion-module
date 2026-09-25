@@ -6,5 +6,3 @@ CHANGELOG.md
 # Frozen, byte-compared against the agent's copy: never reformat.
 test/vectors
 test/fixtures
-# Not yet formatted; drop this line in the change that formats it.
-vite.config.ts
