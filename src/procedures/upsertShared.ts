@@ -12,7 +12,7 @@ import {
   type Dict,
 } from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
-import { canonicalize } from "../rpc/responseSigning.js";
+import { canonicalize } from "../util/canonicalJson.js";
 
 /**
  * Shared plumbing for the durable actor-provisioning procedures
