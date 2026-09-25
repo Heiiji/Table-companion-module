@@ -15,13 +15,29 @@ import {
   startDisplayListener,
   type DisplayView,
 } from "../src/procedures/display.js";
+import { closeProjector, openProjector } from "../src/ui/projector.js";
+
+// The popout itself needs a live Foundry; spying on it lets the listener tests
+// see whether a frame was applied or ignored.
+vi.mock("../src/ui/projector.js", () => ({
+  openProjector: vi.fn(async () => false),
+  closeProjector: vi.fn(async () => {}),
+}));
 
 // game is stubbed so `localize` (reads game.i18n) and the socket helpers resolve.
-// No `foundry` global ⇒ the projector popout (DialogV2) is a no-op, exactly the
-// best-effort fallback the renderer is built for — these tests cover the logic,
-// not the canvas (which needs a live Foundry, per the backend plan's QA note).
+// The projector popout is mocked (it cannot open without a live Foundry) — these
+// tests cover the logic, not the canvas.
+const USERS: Record<string, { id: string; isGM: boolean }> = {
+  gm1: { id: "gm1", isGM: true },
+  player1: { id: "player1", isGM: false },
+};
 beforeEach(() => {
-  vi.stubGlobal("game", { socket: { emit: vi.fn(), on: vi.fn() } });
+  vi.mocked(openProjector).mockClear();
+  vi.mocked(closeProjector).mockClear();
+  vi.stubGlobal("game", {
+    socket: { emit: vi.fn(), on: vi.fn() },
+    users: { get: (id: string) => USERS[id] },
+  });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -204,6 +220,32 @@ describe("startDisplayListener", () => {
     expect(() => handler({ tcaDisplay: "clear" })).not.toThrow();
     expect(() => handler(buildShowBroadcast(view))).not.toThrow();
     expect(() => handler({ sig: "x", body: "{}" })).not.toThrow();
+  });
+
+  function listener(): (raw: unknown, senderId?: unknown) => void {
+    startDisplayListener();
+    return onMock().mock.calls[0][1] as (raw: unknown, senderId?: unknown) => void;
+  }
+
+  it("applies a frame sent by a Gamemaster", async () => {
+    const handler = listener();
+    handler(buildShowBroadcast(view), "gm1");
+    handler({ tcaDisplay: "clear" }, "gm1");
+    await Promise.resolve();
+    expect(openProjector).toHaveBeenCalledOnce();
+    expect(closeProjector).toHaveBeenCalledOnce();
+  });
+
+  // Any client can emit on the module channel; Foundry attests who did.
+  it("ignores a frame sent by a player, or with no attested sender", async () => {
+    const handler = listener();
+    handler(buildShowBroadcast(view), "player1");
+    handler({ tcaDisplay: "clear" }, "player1");
+    handler(buildShowBroadcast(view), undefined);
+    handler(buildShowBroadcast(view), "nobody");
+    await Promise.resolve();
+    expect(openProjector).not.toHaveBeenCalled();
+    expect(closeProjector).not.toHaveBeenCalled();
   });
 });
 

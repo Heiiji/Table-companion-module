@@ -20,10 +20,14 @@ export interface PeerInfo {
   /** Lowest / highest envelope version the sender can speak. */
   minEnvelope: number;
   maxEnvelope: number;
-  /** Base64 raw Ed25519 public key — present on the agent's hello/hello.ack so
-   * the module can pin it (trust-on-first-use) and verify the agent's
-   * signatures. Absent for the module (it does not sign). */
+  /** Base64 raw Ed25519 public key. The agent's, on its hello/hello.ack, so the
+   * module can pin it at pairing and verify its signatures; the module's
+   * response-signing key, on a signing responder's hello/hello.ack. */
   pubKey?: string;
+  /** The Foundry user id the agent is logged in as, inside its signed body. The
+   * module accepts an agent envelope only when Foundry's relay attests the same
+   * sender, so a copy re-sent by anyone else is dropped. */
+  userId?: string;
 }
 
 /** The single message shape exchanged on the `module.table-companion` channel.
@@ -56,9 +60,10 @@ export interface Envelope {
   /** M8 (additive): Unix ms the response signature was produced (the `signedAt`
    * bound into the signed string; freshness-checked ±90s by the agent). */
   signedAt?: number;
-  /** M8 (additive): the Foundry world id (`game.world.id`), present on the
-   * module's hello / hello.ack so the agent can pin it and rebuild the canonical
-   * signing string. Absent from the agent (it does not know it independently). */
+  /** The Foundry world id (`game.world.id`). On the module's signing hello /
+   * hello.ack, so the agent can pin it and rebuild the response-signing string;
+   * on every agent envelope, inside the signed body, so an envelope signed for
+   * one world is dropped in any other. */
   worldId?: string;
 }
 
@@ -106,7 +111,8 @@ function isPeerInfo(x: unknown): x is PeerInfo {
     typeof p.version === "string" &&
     typeof p.minEnvelope === "number" &&
     typeof p.maxEnvelope === "number" &&
-    (p.pubKey === undefined || typeof p.pubKey === "string")
+    (p.pubKey === undefined || typeof p.pubKey === "string") &&
+    (p.userId === undefined || typeof p.userId === "string")
   );
 }
 

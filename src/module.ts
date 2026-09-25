@@ -2,6 +2,8 @@ import { buildApi } from "./api.js";
 import {
   MODULE_ID,
   SETTING_AGENT_KEY,
+  SETTING_AGENT_USER,
+  SETTING_COMPANION_ANCHOR,
   SETTING_MODULE_KEYPAIR,
 } from "./constants.js";
 import { registerBuiltinProcedures } from "./procedures/index.js";
@@ -93,6 +95,16 @@ Hooks.once("init", () => {
     type: String,
     default: "",
   });
+  // The Foundry user the paired agent sends as, and the service user this
+  // module created. Both hidden and GM-managed; see src/setup/identity.ts.
+  for (const key of [SETTING_AGENT_USER, SETTING_COMPANION_ANCHOR]) {
+    settingsStore()?.register(MODULE_ID, key, {
+      scope: "world",
+      config: false,
+      type: String,
+      default: "",
+    });
+  }
 
   // This browser's response-signing keypair as a private JWK: the storage used
   // by builds before 0.11.0, now only a migration source and the fallback when

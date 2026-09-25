@@ -23,7 +23,9 @@
       "button": {
         "create": "Create Companion user",
         "resetPassword": "Reset password",
-        "resetPairing": "Reset pairing"
+        "resetPairing": "Reset pairing",
+        "trust": "Trust",
+        "ignore": "Ignore"
       },
       "status": {
         "userExists": "Companion user",
@@ -34,13 +36,18 @@
         "pairing": "Agent identity",
         "paired": "Paired",
         "notPaired": "Not paired",
-        "linkedHint": "Linked — the app is connected to this world."
+        "linkedHint": "Linked — the app is connected to this world.",
+        "pendingPairing": "Pairing request",
+        "pendingValue": "from {name} · {fingerprint}",
+        "pairedAs": "Paired · {fingerprint} · {name}"
       },
       "notify": {
         "exists": "The {name} user already exists — nothing changed.",
         "pairingReset": "Agent pairing reset — the next agent connection will re-pair.",
         "noUser": "Create the Companion user first, then you can reset its password.",
-        "keyStoreFallback": "Table Companion: this browser could not store its signing key securely, so it is kept in browser settings instead. Pairing still works."
+        "keyStoreFallback": "Table Companion: this browser could not store its signing key securely, so it is kept in browser settings instead. Pairing still works.",
+        "paired": "Table Companion: paired with the app service (key {fingerprint}).",
+        "pairingRequest": "Table Companion: the Foundry user \"{name}\" is asking to pair as the app service (key {fingerprint}). Trust or ignore it in Table Companion setup."
       },
       "password": {
         "title": "Companion password",
@@ -56,7 +63,8 @@
         "gmOnly": "Only a Gamemaster can run Table Companion setup.",
         "createFailed": "Could not create the Companion user.",
         "resetFailed": "Could not reset the Companion password."
-      }
+      },
+      "pendingHint": "Only trust this if {name} is the user you linked in the Table Companion app. A player could otherwise pose as the app."
     }
   }
 }

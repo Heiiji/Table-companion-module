@@ -23,7 +23,9 @@
       "button": {
         "create": "Créer l'utilisateur Companion",
         "resetPassword": "Réinitialiser le mot de passe",
-        "resetPairing": "Réinitialiser l'appairage"
+        "resetPairing": "Réinitialiser l'appairage",
+        "trust": "Faire confiance",
+        "ignore": "Ignorer"
       },
       "status": {
         "userExists": "Utilisateur Companion",
@@ -34,13 +36,18 @@
         "pairing": "Identité de l'agent",
         "paired": "Appairé",
         "notPaired": "Non appairé",
-        "linkedHint": "Relié — l'application est connectée à ce monde."
+        "linkedHint": "Relié — l'application est connectée à ce monde.",
+        "pendingPairing": "Demande d'appairage",
+        "pendingValue": "de {name} · {fingerprint}",
+        "pairedAs": "Appairé · {fingerprint} · {name}"
       },
       "notify": {
         "exists": "L'utilisateur {name} existe déjà — rien n'a changé.",
         "pairingReset": "Appairage de l'agent réinitialisé — la prochaine connexion de l'agent réappairera.",
         "noUser": "Créez d'abord l'utilisateur Companion, vous pourrez ensuite réinitialiser son mot de passe.",
-        "keyStoreFallback": "Table Companion : ce navigateur n'a pas pu stocker sa clé de signature de façon sécurisée ; elle est conservée dans les réglages du navigateur. L'appairage fonctionne toujours."
+        "keyStoreFallback": "Table Companion : ce navigateur n'a pas pu stocker sa clé de signature de façon sécurisée ; elle est conservée dans les réglages du navigateur. L'appairage fonctionne toujours.",
+        "paired": "Table Companion : appairé avec le service de l'application (clé {fingerprint}).",
+        "pairingRequest": "Table Companion : l'utilisateur Foundry « {name} » demande à s'appairer comme service de l'application (clé {fingerprint}). Acceptez ou ignorez la demande dans la configuration de Table Companion."
       },
       "password": {
         "title": "Mot de passe Companion",
@@ -56,7 +63,8 @@
         "gmOnly": "Seul un Maître de Jeu peut lancer la configuration de Table Companion.",
         "createFailed": "Impossible de créer l'utilisateur Companion.",
         "resetFailed": "Impossible de réinitialiser le mot de passe Companion."
-      }
+      },
+      "pendingHint": "N'acceptez que si {name} est bien l'utilisateur lié dans l'application Table Companion : sinon, un joueur pourrait se faire passer pour l'application."
     }
   }
 }

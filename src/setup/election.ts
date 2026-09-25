@@ -1,4 +1,5 @@
 import { COMPANION_USER_NAME } from "./companion-user.js";
+import { pairedAgentUserId } from "./identity.js";
 
 /** GM election.
  *
@@ -14,6 +15,7 @@ export function isResponder(): boolean {
   // Defense-in-depth: the Companion service user is created non-GM, but if a GM
   // ever elevated it, it must still never elect itself as the responder.
   if (me.name === COMPANION_USER_NAME) return false;
+  if (me.id && me.id === pairedAgentUserId()) return false;
 
   const active = game.users?.activeGM;
   if (active) return active.id === me.id;

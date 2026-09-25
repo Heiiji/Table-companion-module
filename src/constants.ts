@@ -40,6 +40,16 @@ export const MAX_ENVELOPE_BYTES = 64 * 1024;
  * managed by the module/setup UI, not shown in Foundry's settings form. */
 export const SETTING_AGENT_KEY = "agentPublicKey";
 
+/** World-setting key holding the Foundry user id the agent sends as, pinned with
+ * its key when the GM pairs. Afterwards the channel accepts agent traffic only
+ * from this user. Written by the GM client; see src/setup/identity.ts. */
+export const SETTING_AGENT_USER = "agentUserId";
+
+/** World-setting key holding the id of the service user this module created
+ * ("Create Companion user"). A pairing request from exactly this user needs no
+ * extra confirmation; any other user needs the GM's explicit "Trust". */
+export const SETTING_COMPANION_ANCHOR = "companionUserId";
+
 /** CLIENT-scoped setting key holding THIS browser's module response-signing
  * Ed25519 keypair (exported JWK, contains the private `d`). scope:"client" is
  * deliberate and load-bearing: Foundry world settings are broadcast to every

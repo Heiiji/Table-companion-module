@@ -10,8 +10,14 @@ import {
 } from "../constants.js";
 import { MODULE_ID } from "../constants.js";
 import { isResponder } from "../setup/election.js";
+import {
+  companionAnchorId,
+  pairedAgentUserId,
+  setPairedAgentUserId,
+  userById,
+} from "../setup/identity.js";
 import { worldId as foundryWorldId } from "../procedures/foundry.js";
-import { log } from "../util/log.js";
+import { localize, log } from "../util/log.js";
 import { Envelope, makeEnvelope, parseEnvelope, PeerInfo } from "./envelope.js";
 import { ProcedureRegistry, RpcContext } from "./registry.js";
 import { RpcError } from "./errors.js";
@@ -59,6 +65,18 @@ export interface Pairing {
   paired: boolean;
   /** Short human-comparable fingerprint of the pinned key, or "" if unpaired. */
   fingerprint: string;
+  /** Name of the Foundry user the paired agent sends as, or "". */
+  agentUserName: string;
+  /** A pairing request waiting for the GM's Trust / Ignore, or null. */
+  pending: PendingPairing | null;
+}
+
+/** An agent that asked to pair from a user other than the one this module
+ * created. It is held, not trusted, until the GM decides. */
+export interface PendingPairing {
+  userId: string;
+  userName: string;
+  fingerprint: string;
 }
 
 /**
@@ -80,23 +98,29 @@ export class Channel {
   // Entries expire once the envelope could no longer pass the freshness window,
   // and the map is size-capped as a memory bound.
   private readonly seenIds = new Map<string, number>();
-  // TOFU gate: a new agent key is auto-pinned ONLY while the GM has the setup /
-  // pairing dialog open (an explicit "I am pairing now" window). Outside it, a
+  // Pairing gate: a new agent key is considered ONLY while the GM has the setup
+  // dialog open (an explicit "I am pairing now" window). Outside it, a
   // validly-signed envelope from an unknown key is dropped rather than pinned, so
   // a rogue agent cannot silently claim an unpaired world.
   private pairingWindowOpen = false;
+  // A pairing request from a user other than the module-created service user,
+  // held until the GM clicks Trust or Ignore in the setup dialog.
+  private pending: (PendingPairing & { pubKey: string }) | null = null;
+  // Whether this client was the elected responder at the last check, so a
+  // responder change can re-announce the capabilities (see start()).
+  private wasResponder = false;
 
   // Rate-limited drop diagnostics: last log time per distinct cause.
   private readonly dropWarnAt = new Map<string, number>();
 
-  // M8: this responder's Ed25519 response-signing key, or null when the build
+  // This responder's Ed25519 response-signing key, or null when the build
   // couldn't create one (older runtime) or this client is not signing. Set async
   // after `ready` via setResponseSigner(); only the responder ever signs.
   private responseSigner: ModuleResponseSigner | null = null;
 
-  // M8: rotates this browser's response-signing key on "Reset pairing" (wired by
-  // module.ts, which owns the client-scoped keypair setting). null in the test
-  // harness, where reset only needs to clear the pinned agent key.
+  // Rotates this browser's response-signing key on "Reset pairing" (wired by
+  // module.ts, which owns the key storage). null in the test harness, where
+  // reset only needs to clear the pinned agent key and user.
   private responseKeyResetter: (() => Promise<void>) | null = null;
 
   constructor(
@@ -158,28 +182,61 @@ export class Channel {
   /** Begin listening. Safe to call once, after the `ready` hook (socket is up
    * from `init`, but we want game state for election + procedures). */
   start(): void {
-    game.socket?.on(CHANNEL, (raw: unknown) => this.onMessage(raw));
+    // Foundry's server relays a `module.*` event as (data, senderUserId), the
+    // sender taken from the session on the server — the one fact about a
+    // message that a client cannot forge.
+    game.socket?.on(CHANNEL, (raw: unknown, senderId?: unknown) =>
+      this.onMessage(raw, senderId),
+    );
     log.info(`listening on socket channel "${CHANNEL}"`);
     // Announce ourselves so an agent that connected *before* this client opened
-    // detects us without waiting for its next hello. The handshake is symmetric:
-    // whoever hears a hello replies with hello.ack.
+    // detects us without waiting for its next hello. Only the elected responder
+    // announces: the agent replaces its capability list with the last hello it
+    // hears, and every other client advertises less.
+    this.wasResponder = isResponder();
     this.sendHello();
+    // When the responder changes (a GM joins or leaves), the new one announces
+    // itself so the agent's capability list follows it.
+    const hooks = (globalThis as { Hooks?: { on(h: string, fn: () => void): unknown } })
+      .Hooks;
+    const recheck = () => {
+      const now = isResponder();
+      if (now && !this.wasResponder) this.sendHello();
+      this.wasResponder = now;
+    };
+    hooks?.on("userConnected", recheck);
+    hooks?.on("userDisconnected", recheck);
   }
 
-  /** Broadcast our presence + capabilities. */
+  /** Announce our presence + capabilities to the agent. Only the elected
+   * responder speaks for the world. */
   sendHello(): void {
+    if (!isResponder()) return;
     this.emit(
       makeEnvelope("hello", {
         capabilities: this.advertisedCapabilities(),
         peer: this.selfPeer(),
         worldId: this.canSign() ? foundryWorldId() : undefined,
       }),
+      this.agentRecipients(),
     );
   }
 
   /** Proactively push an event to the agent (module → agent). */
   emitEvent(proc: string, payload: unknown): void {
-    this.emit(makeEnvelope("event", { proc, payload, peer: this.selfPeer() }));
+    this.emit(
+      makeEnvelope("event", { proc, payload, peer: this.selfPeer() }),
+      this.agentRecipients(),
+    );
+  }
+
+  /** Who module → agent traffic goes to: only the paired agent's user once
+   * known, so players' browsers never receive it. Before pairing there is no
+   * one to target, and the only such traffic (a hello) carries nothing private,
+   * so it is broadcast. */
+  private agentRecipients(): string[] | undefined {
+    const id = pairedAgentUserId();
+    return id ? [id] : undefined;
   }
 
   getStatus(): LinkStatus {
@@ -205,15 +262,52 @@ export class Channel {
   /** Current pairing state, for the setup UI. */
   async getPairing(): Promise<Pairing> {
     const key = this.pinnedKey();
-    return { paired: !!key, fingerprint: key ? await fingerprint(key) : "" };
+    const pending = this.pending
+      ? {
+          userId: this.pending.userId,
+          userName: this.pending.userName,
+          fingerprint: this.pending.fingerprint,
+        }
+      : null;
+    return {
+      paired: !!key,
+      fingerprint: key ? await fingerprint(key) : "",
+      agentUserName: key ? (userById(pairedAgentUserId())?.name ?? "") : "",
+      pending,
+    };
   }
 
-  /** Forget the pinned agent key so the next agent contact re-pairs (GM only —
-   * writing the world setting requires GM rights). Also rotates THIS browser's
-   * response-signing key (M8), so the agent must re-pin our identity too — a full
-   * two-sided reset. */
+  /** The GM trusts the held pairing request: pin its key and user, then
+   * announce ourselves so the agent completes the handshake. */
+  async trustPendingPairing(): Promise<void> {
+    const req = this.pending;
+    if (!req) return;
+    this.pending = null;
+    await this.pin(req.pubKey, req.userId);
+    this.sendHello();
+  }
+
+  /** The GM declines the held pairing request. */
+  ignorePendingPairing(): void {
+    this.pending = null;
+  }
+
+  private async pin(pubKey: string, userId: string): Promise<void> {
+    await this.setPinnedKey(pubKey);
+    await setPairedAgentUserId(userId);
+    const fp = await fingerprint(pubKey);
+    log.info(`paired agent signing key (${fp}) for user ${userId}`);
+    notify("info", localize("setup.notify.paired", { fingerprint: fp }));
+  }
+
+  /** Forget the pinned agent key and user so the next agent contact re-pairs
+   * (GM only — writing the world settings requires GM rights). Also rotates THIS
+   * browser's response-signing key, so the agent must re-pin our identity too —
+   * a full two-sided reset. */
   async resetPairing(): Promise<void> {
+    this.pending = null;
     await this.setPinnedKey("");
+    await setPairedAgentUserId("");
     if (this.responseKeyResetter) {
       try {
         await this.responseKeyResetter();
@@ -225,8 +319,8 @@ export class Channel {
   }
 
   /** Open the explicit pairing window: while it is open, a first validly-signed
-   * agent key may be auto-pinned (TOFU). The setup UI calls this when its dialog
-   * renders and closePairingWindow() when it tears down. */
+   * agent key may be pinned (see verifiedAgentEnvelope). The setup UI calls this
+   * when its dialog renders and closePairingWindow() when it tears down. */
   openPairingWindow(): void {
     this.pairingWindowOpen = true;
   }
@@ -247,8 +341,11 @@ export class Channel {
     return () => this.eventListeners.delete(listener);
   }
 
-  private emit(env: Envelope): void {
-    game.socket?.emit(CHANNEL, env);
+  /** Send an envelope. With `recipients`, Foundry's server delivers it only to
+   * those users' sessions; without, to every other connected session. */
+  private emit(env: Envelope, recipients?: string[]): void {
+    if (recipients?.length) game.socket?.emit(CHANNEL, env, { recipients });
+    else game.socket?.emit(CHANNEL, env);
   }
 
   private selfPeer(): PeerInfo {
@@ -265,12 +362,13 @@ export class Channel {
     return peer;
   }
 
-  private async onMessage(raw: unknown): Promise<void> {
-    // Every inbound type we handle is agent-originated, and Foundry's relay
-    // cannot prove the sender. We therefore act only on a cryptographically
-    // verified agent envelope; unsigned traffic and spoofed `peer.role:"agent"`
-    // messages from a malicious player are dropped here.
-    const env = await this.verifiedAgentEnvelope(raw);
+  private async onMessage(raw: unknown, senderId: unknown): Promise<void> {
+    // Every inbound type we handle is agent-originated. We act only on an
+    // envelope that is signed by the paired agent AND arrives from the Foundry
+    // user it was signed for; unsigned traffic, spoofed `peer.role:"agent"`
+    // messages and copies re-sent by another user are dropped here.
+    const sender = typeof senderId === "string" ? senderId : "";
+    const env = await this.verifiedAgentEnvelope(raw, sender);
     if (!env) return;
 
     switch (env.type) {
@@ -284,6 +382,7 @@ export class Channel {
               peer: this.selfPeer(),
               worldId: this.canSign() ? foundryWorldId() : undefined,
             }),
+            [sender],
           );
         }
         break;
@@ -294,11 +393,13 @@ export class Channel {
         break;
 
       case "ping":
-        if (isResponder()) this.emit(makeEnvelope("pong", { id: env.id }));
+        if (isResponder()) {
+          this.emit(makeEnvelope("pong", { id: env.id }), [sender]);
+        }
         break;
 
       case "rpc.request":
-        if (isResponder()) await this.handleRequest(env);
+        if (isResponder()) await this.handleRequest(env, sender);
         break;
 
       case "event":
@@ -322,11 +423,14 @@ export class Channel {
     }
   }
 
-  /** Verify that `raw` is a signed envelope from the paired agent, returning the
-   * parsed envelope on success or null (drop) otherwise. Pins the agent's key on
-   * first contact (trust-on-first-use); only a GM/responder establishes the
-   * pairing, so non-GM clients act on agent events only after a GM has paired. */
-  private async verifiedAgentEnvelope(raw: unknown): Promise<Envelope | null> {
+  /** Verify that `raw` is a signed envelope from the paired agent, sent by the
+   * Foundry user it was signed for and for this world, returning the parsed
+   * envelope on success or null (drop) otherwise. Pairing happens here too: only
+   * the elected responder with the setup dialog open ever pins a new key. */
+  private async verifiedAgentEnvelope(
+    raw: unknown,
+    sender: string,
+  ): Promise<Envelope | null> {
     const signed = parseSignedMessage(raw);
     if (!signed) {
       // Not a signed message (or over the size cap): the channel is signed-only,
@@ -348,10 +452,24 @@ export class Channel {
     }
     if (env.peer?.role !== "agent") return null; // only the agent signs
 
-    // A4: only the elected responder ever acts on rpc.request/ping, so every
-    // other client drops them here — before the per-message signature verify —
+    // The agent signs the user it is logged in as; Foundry's server attests who
+    // actually sent this copy. A captured envelope re-sent by a player — from
+    // this world or another — names a different user and stops here. (The body
+    // is not verified yet; a forged userId still fails the signature below.)
+    if (!sender || env.peer.userId !== sender) {
+      this.warnDrop("sender is not the user the agent signed for");
+      return null;
+    }
+    // One agent key signs for every world it serves, so the world is signed in.
+    if (env.worldId !== foundryWorldId()) {
+      this.warnDrop("signed for a different world");
+      return null;
+    }
+
+    // Only the elected responder ever acts on rpc.request/ping, so every other
+    // client drops them here — before the per-message signature verify —
     // rather than verifying work it will never use. hello/hello.ack/event still
-    // verify on all clients (they drive status + events everywhere).
+    // verify on every client that receives them (they drive the status panel).
     if ((env.type === "rpc.request" || env.type === "ping") && !isResponder()) {
       return null;
     }
@@ -370,12 +488,21 @@ export class Channel {
         this.warnDrop("invalid signature");
         return null;
       }
-      return this.notReplayed(env) ? env : null;
+      const pinnedUser = pairedAgentUserId();
+      if (pinnedUser && pinnedUser !== sender) {
+        this.warnDrop("not sent by the paired agent user");
+        return null;
+      }
+      if (!this.notReplayed(env)) return null;
+      // Worlds paired before the agent user was recorded: the first envelope that
+      // verifies against the pinned key names it. Only a GM client can write it.
+      if (!pinnedUser && isResponder()) await setPairedAgentUserId(sender);
+      return env;
     }
 
-    // Not yet paired. TOFU is gated to the explicit pairing window: a GM must have
-    // the setup dialog open to adopt a key. Outside it, a validly-signed envelope
-    // from an unknown agent is dropped — never silently pinned.
+    // Not yet paired. Pairing is gated to the explicit pairing window: a GM must
+    // have the setup dialog open. Outside it, a validly-signed envelope from an
+    // unknown agent is dropped — never silently pinned.
     if (!isResponder() || !env.peer.pubKey) return null;
     if (!this.pairingWindowOpen) {
       this.warnDrop("unknown agent key while the pairing window is closed");
@@ -385,13 +512,37 @@ export class Channel {
       this.warnDrop("invalid signature on an unpaired envelope");
       return null;
     }
-    await this.setPinnedKey(env.peer.pubKey);
+    // The agent logs in as a service user, never as a GM.
+    const user = userById(sender);
+    if (!user || user.isGM) {
+      this.warnDrop("pairing request from a missing or Gamemaster user");
+      return null;
+    }
+    if (sender === companionAnchorId()) {
+      // The service user this module created: the GM already chose it.
+      await this.pin(env.peer.pubKey, sender);
+      return this.notReplayed(env) ? env : null;
+    }
+    // Any other user is held until the GM decides in the setup dialog.
     const fp = await fingerprint(env.peer.pubKey);
-    log.info(`paired agent signing key (${fp})`);
-    // Surface the new pairing so a GM can cross-check the fingerprint against what
-    // the app reports and spot an unexpected key.
-    notify("warn", `Table Companion: paired a new agent signing key (${fp})`);
-    return this.notReplayed(env) ? env : null;
+    const isNew =
+      this.pending?.userId !== sender || this.pending?.pubKey !== env.peer.pubKey;
+    this.pending = {
+      pubKey: env.peer.pubKey,
+      userId: sender,
+      userName: user.name ?? sender,
+      fingerprint: fp,
+    };
+    if (isNew) {
+      notify(
+        "warn",
+        localize("setup.notify.pairingRequest", {
+          name: user.name ?? sender,
+          fingerprint: fp,
+        }),
+      );
+    }
+    return null;
   }
 
   /** Anti-replay (2/2): true unless this envelope's `id` was already accepted.
@@ -420,14 +571,14 @@ export class Channel {
     return true;
   }
 
-  private async handleRequest(env: Envelope): Promise<void> {
+  private async handleRequest(env: Envelope, sender: string): Promise<void> {
     const proc = env.proc ?? "";
     const handler = env.proc ? this.registry.get(env.proc) : undefined;
     // A procedure withheld from the advertised set (a consequential mutation on a
     // responder that cannot sign its reply) is refused exactly as if it did not
     // exist: hiding it from hello is not enough when a request names it directly.
     if (!handler || (SIGNED_ONLY_PROCEDURES.has(proc) && !this.canSign())) {
-      await this.sendError(env.id, proc, {
+      await this.sendError(sender, env.id, proc, {
         code: "unknown_procedure",
         message: `no procedure "${proc}"`,
       });
@@ -454,7 +605,7 @@ export class Channel {
           );
         }),
       ]);
-      await this.sendResponse(env.id, proc, result);
+      await this.sendResponse(sender, env.id, proc, result);
     } catch (err) {
       log.error(`procedure "${env.proc}" failed`, err);
       // A handler may throw a structured RpcError (permission_denied,
@@ -463,6 +614,7 @@ export class Channel {
       // stack details), so it stays in this browser's log and the wire carries a
       // generic message.
       await this.sendError(
+        sender,
         env.id,
         proc,
         err instanceof RpcError
@@ -474,28 +626,31 @@ export class Channel {
     }
   }
 
-  /** Emit an rpc.response, signed when this client is a signing responder. */
+  /** Emit an rpc.response to the agent that asked, signed when this client is a
+   * signing responder. */
   private async sendResponse(
+    to: string,
     requestId: string | undefined,
     proc: string,
     payload: unknown,
   ): Promise<void> {
     const env = makeEnvelope("rpc.response", { id: requestId, payload });
     await this.attachSignature(env, requestId, proc, payload);
-    this.emit(env);
+    this.emit(env, [to]);
   }
 
   /** Emit an rpc.error, signed when this client is a signing responder. The
    * signed body is the `error` object, so a signed error cannot be swapped for a
    * signed response (the body hash differs). */
   private async sendError(
+    to: string,
     requestId: string | undefined,
     proc: string,
     error: { code: string; message: string },
   ): Promise<void> {
     const env = makeEnvelope("rpc.error", { id: requestId, error });
     await this.attachSignature(env, requestId, proc, error);
-    this.emit(env);
+    this.emit(env, [to]);
   }
 
   /** Attach `sig` + `signedAt` to a reply when this client signs. A signing

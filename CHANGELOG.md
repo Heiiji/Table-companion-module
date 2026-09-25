@@ -7,6 +7,24 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Security
+- **Only the app's service account can pair, and a player can no longer win the pairing race.**
+  Foundry's server tells the module which user sent each socket message, and the backend now signs
+  the user it is logged in as into every message. The module accepts backend traffic only when the
+  two match, and after pairing only from the paired user. While the setup dialog is open, a
+  pairing request from the Companion user this module created is accepted as before; one from any
+  other user is held until the GM clicks **Trust** or **Ignore**, and a Gamemaster account can
+  never pair. Before, any logged-in player could send a self-signed "backend" hello while setup
+  was open and have their key pinned.
+- **A message signed for one world is refused in any other.** The backend serves many worlds with
+  one key and now signs the world id into every message; the module drops a message whose world
+  does not match. Requires the Table Companion backend released with this version.
+- **Players' browsers no longer receive the backend's requests or the module's replies.** The
+  module answers only the backend's user, and the backend now addresses only the Gamemasters, so
+  hidden NPC stats, character data and compendium results no longer reach every player's socket.
+  The display popout is still shown to everyone, but only a Gamemaster's browser can now drive it.
+- **Compendium reads are limited to what the service user may see.** `compendium.index` and
+  `compendium.get` now skip packs the Companion user cannot observe and serve only Actor and Item
+  packs; a hidden pack answers exactly like a missing one.
 - **A procedure withheld from the capability list is also refused when called directly.** The
   Knight actor/NPC provisioning procedures were hidden from a GM browser that cannot sign its
   replies, but a request naming them still ran; it now gets `unknown_procedure`.
@@ -27,6 +45,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The display popout only loads `https:` or Foundry-relative portrait images.** Every
   connected browser loads the portrait, so `javascript:`, `data:`, plain `http:` and
   protocol-relative URLs are dropped and the card renders without an image.
+
+### Changed
+- **Only the elected Gamemaster announces the module to the backend.** Every connected browser used
+  to, and the backend kept the capability list from the last one it heard, so a player or second
+  GM joining could hide the Knight provisioning procedures until the next announcement. The new
+  responder announces itself when the GM changes.
+- **On player browsers, `api.getStatus()` no longer reports the backend link** (its last hello
+  stays `null`) and `api.onAgentEvent` never fires, since backend traffic is now addressed to
+  Gamemasters only.
 
 ### Removed
 - **The `sheet.derived`, `roll.action` and `effect.apply` / `effect.remove` procedures.** No

@@ -53,9 +53,38 @@ async function statusHtml(channel: Channel): Promise<string> {
     ? ` (v${status.agentPeer.version})`
     : "";
 
-  const pairingValue = pairing.paired
-    ? `${localize("setup.status.paired")} · ${pairing.fingerprint}`
-    : localize("setup.status.notPaired");
+  const pairingValue = !pairing.paired
+    ? localize("setup.status.notPaired")
+    : pairing.agentUserName
+      ? localize("setup.status.pairedAs", {
+          fingerprint: pairing.fingerprint,
+          name: pairing.agentUserName,
+        })
+      : `${localize("setup.status.paired")} · ${pairing.fingerprint}`;
+
+  // A pairing request from a user other than the one this module created waits
+  // here for the GM. The buttons live inside the status panel, which is repainted
+  // every few seconds, so their clicks are handled by delegation (wirePendingActions).
+  const pending = pairing.pending
+    ? `<div class="tca-pending" role="alert">` +
+      row(
+        localize("setup.status.pendingPairing"),
+        localize("setup.status.pendingValue", {
+          name: pairing.pending.userName,
+          fingerprint: pairing.pending.fingerprint,
+        }),
+        false,
+      ) +
+      `<p class="tca-hint">${escapeHtml(
+        localize("setup.pendingHint", { name: pairing.pending.userName }),
+      )}</p>` +
+      `<div class="tca-actions">` +
+      `<button type="button" data-tca-pending="trust">` +
+      `<i class="fa-solid fa-check" aria-hidden="true"></i> ${escapeHtml(localize("setup.button.trust"))}</button>` +
+      `<button type="button" data-tca-pending="ignore">` +
+      `<i class="fa-solid fa-xmark" aria-hidden="true"></i> ${escapeHtml(localize("setup.button.ignore"))}</button>` +
+      `</div></div>`
+    : "";
 
   return (
     `<div class="tca-status">` +
@@ -78,6 +107,7 @@ async function statusHtml(channel: Channel): Promise<string> {
     ) +
     row(localize("setup.status.pairing"), pairingValue, pairing.paired) +
     `</div>` +
+    pending +
     (linkLive
       ? `<p class="tca-hint tca-linked">` +
         `<i class="fa-solid fa-circle-check" aria-hidden="true"></i> ` +
@@ -184,6 +214,26 @@ function wireSetupActions(channel: Channel, dialog: DialogInstance): void {
     ui.notifications?.info(localize("setup.notify.pairingReset"));
     await refreshStatus(channel, dialog);
   });
+  wirePendingActions(channel, dialog);
+}
+
+/** Trust / Ignore for a held pairing request. The buttons are re-rendered with
+ * the status panel, so one delegated listener on the panel's host handles them. */
+function wirePendingActions(channel: Channel, dialog: DialogInstance): void {
+  dialog.element
+    .querySelector(".tca-status-host")
+    ?.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement | null;
+      const action = target
+        ?.closest("[data-tca-pending]")
+        ?.getAttribute("data-tca-pending");
+      if (!action) return;
+      void (async () => {
+        if (action === "trust") await channel.trustPendingPairing();
+        else channel.ignorePendingPairing();
+        await refreshStatus(channel, dialog);
+      })();
+    });
 }
 
 /** Open (or focus) the GM-only setup & status dialog. */
@@ -211,7 +261,8 @@ export async function openSetupApp(channel: Channel): Promise<void> {
     setupDialog = dialog;
     await dialog.render({ force: true });
     // The setup dialog is the explicit pairing window: while it is open, a first
-    // agent contact may auto-pin its key (TOFU). Closed again in startLiveRefresh.
+    // agent contact may pair (automatically for the service user this module
+    // created, otherwise after Trust). Closed again in startLiveRefresh.
     channel.openPairingWindow();
     wireSetupActions(channel, dialog);
     startLiveRefresh(channel, dialog);

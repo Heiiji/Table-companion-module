@@ -1,9 +1,15 @@
 import { MODULE_ID } from "../constants.js";
 import { generatePassword } from "../util/password.js";
 import { localize, log } from "../util/log.js";
+import {
+  companionAnchorId,
+  pairedAgentUserId,
+  setCompanionAnchorId,
+} from "./identity.js";
 
-/** The service-user name the agent logs in as. Mirrored in the agent README and
- * docs/foundry-protocol.md ("Companion"). */
+/** The default service-user name the agent logs in as ("Companion"). The app
+ * may be linked under another name; identity decisions use user ids, never
+ * this name alone (see identity.ts). */
 export const COMPANION_USER_NAME = "Companion";
 
 /** Flag key stamped on the user we create, so we can find it again even if a GM
@@ -26,12 +32,19 @@ export interface CompanionResult {
   existed: boolean;
 }
 
-/** Find an existing Companion user. Prefers the module flag we stamp on
- * creation (survives a rename); falls back to the name for users created before
- * the flag existed. */
+/** Find the Companion service user. Trusted sources first: the user the paired
+ * agent actually sends as, then the user this module created (both GM-written
+ * world settings). The flag and the name are fallbacks for worlds set up before
+ * those existed — neither proves identity, since a player can set a flag on
+ * their own User. */
 export function findCompanionUser(): User | undefined {
   const users = game.users;
   if (!users) return undefined;
+  for (const id of [pairedAgentUserId(), companionAnchorId()]) {
+    if (!id) continue;
+    const byId = users.find((u) => u.id === id);
+    if (byId) return byId;
+  }
   return (
     users.find(
       (u) =>
@@ -77,6 +90,9 @@ export async function ensureCompanionUser(): Promise<CompanionResult> {
     throw new Error(localize("setup.error.createFailed"));
   }
   log.info(`created service user "${COMPANION_USER_NAME}" (${created.id})`);
+  // Remember exactly which user we created: a pairing request from this user
+  // is trusted without an extra click (see channel.ts).
+  await setCompanionAnchorId(created.id);
   return { userId: created.id, password, existed: false };
 }
 

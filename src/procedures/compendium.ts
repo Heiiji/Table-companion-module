@@ -1,9 +1,10 @@
 import type { Procedure } from "../rpc/registry.js";
 import { RpcError, assertPayloadWithinCap } from "../rpc/errors.js";
+import { pairedAgentUser, type UserLike } from "../setup/identity.js";
 
 /**
- * Phase 3 live library passthrough: expose content that the active Foundry session is authorized
- * to access as a transient, local world section. Foundry access does not establish Table Companion
+ * Live library passthrough: expose content that the paired service user is allowed to see as a
+ * transient, local world section. Foundry access does not establish Table Companion
  * redistribution rights, content-pack admission, or permission to retain the data. The module does
  * not cache responses; callers must not persist them, use them to seed bundled/backend catalogs,
  * or include document content/selections in telemetry. Strictly additive: absent ⇒ no live world
@@ -57,6 +58,24 @@ interface PackLike {
   metadata: { id?: string; label?: string; type?: string; system?: string };
   getIndex(): Promise<Iterable<Record<string, unknown>>>;
   getDocument(id: string): Promise<{ toObject(): unknown } | null | undefined>;
+  testUserPermission?(user: unknown, permission: string): boolean;
+}
+
+/** The document types this passthrough serves: the app reads creatures and items only. Journals,
+ * scenes, roll tables, adventures and macros never leave the GM's session this way. */
+const SERVED_DOCUMENT_TYPES = new Set(["Actor", "Item"]);
+
+/**
+ * Whether a pack may be read for the app. The procedure runs in the GM's browser with GM
+ * authority, so Foundry's own visibility (`pack.visible`) would answer for the GM; the question
+ * is whether the paired service user may observe it. Fails closed: no paired user, or a pack
+ * without a permission API, is not readable.
+ */
+function readable(pack: PackLike, agent: UserLike | undefined): boolean {
+  if (!agent) return false;
+  if (!SERVED_DOCUMENT_TYPES.has(pack.metadata?.type ?? "")) return false;
+  if (typeof pack.testUserPermission !== "function") return false;
+  return pack.testUserPermission(agent, "OBSERVER");
 }
 interface PacksLike {
   [Symbol.iterator](): Iterator<PackLike>;
@@ -81,8 +100,10 @@ export const compendiumIndex: Procedure = async (payload) => {
   // the app can render "showing N of M" instead of a silently capped bare list.
   const matched: CompendiumSummary[] = [];
   let scanCapped = false;
+  const agent = pairedAgentUser();
   outer: for (const pack of packs()) {
     if (pack.metadata?.type !== documentName) continue;
+    if (!readable(pack, agent)) continue;
     // Only filter by system when the pack declares one (world/module packs often don't).
     if (p.system && pack.metadata.system && pack.metadata.system !== p.system)
       continue;
@@ -142,7 +163,11 @@ export const compendiumGet: Procedure = async (payload) => {
   const packId = id.slice(0, sep);
   const docId = id.slice(sep + 1);
   const pack = packs().get(packId);
-  if (!pack) throw new RpcError("not_found", "compendium entry not found");
+  // An unknown pack and one the service user may not see answer identically, so a request
+  // cannot probe which hidden packs exist.
+  if (!pack || !readable(pack, pairedAgentUser())) {
+    throw new RpcError("not_found", "compendium entry not found");
+  }
   const doc = await pack.getDocument(docId);
   if (!doc) throw new RpcError("not_found", "compendium entry not found");
   // Transient raw Foundry document for the requesting licensed/local session. It is normalized by

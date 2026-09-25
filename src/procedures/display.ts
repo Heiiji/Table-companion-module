@@ -2,13 +2,13 @@ import { CHANNEL } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import { closeProjector, openProjector } from "../ui/projector.js";
+import { userById } from "../setup/identity.js";
 import { escapeHtml } from "../util/html.js";
 import { localize } from "../util/log.js";
 
 /**
- * Shared-screen / projector display (PNJ-refactor locked decision #3, "Pousser sur
- * l'écran partagé"). Two additive procedures the agent relays over the signed RPC
- * channel:
+ * Shared-screen / projector display ("Pousser sur l'écran partagé" in the app).
+ * Two additive procedures the agent relays over the signed RPC channel:
  *
  *   display.show({ name, img?, fields:[{label,value}], theme:"projector" }) -> { ok }
  *   display.clear() -> { ok }
@@ -140,7 +140,7 @@ export function parseDisplayBroadcast(
  * GM-authored string is escapeHtml'd, so even a raw caller cannot inject markup.
  * Renders only the supplied fields (no document lookup → no leakage). The status is
  * a TEXT label ("En jeu"), never color-only, so a color-blind player across the
- * room can read it (spec §8.7). */
+ * room can read it. */
 export function projectorContentHtml(view: DisplayView): string {
   const portrait = view.img
     ? `<img class="tca-projector-portrait" src="${escapeHtml(view.img)}" alt="${escapeHtml(view.name)}" />`
@@ -164,10 +164,11 @@ export function projectorContentHtml(view: DisplayView): string {
   );
 }
 
-/** game.socket, narrowed to the two methods we use. */
+/** game.socket, narrowed to the two methods we use. Foundry's server passes the
+ * sender's user id as the listener's second argument. */
 interface SocketLike {
   emit(event: string, ...args: unknown[]): void;
-  on(event: string, fn: (raw: unknown) => void): void;
+  on(event: string, fn: (raw: unknown, senderId?: unknown) => void): void;
 }
 function socket(): SocketLike | undefined {
   return (game as unknown as { socket?: SocketLike }).socket;
@@ -217,19 +218,16 @@ export async function clearDisplay(): Promise<DisplayReceipt> {
  * locally (NO re-broadcast — avoids loops). Registered on every client at `ready`,
  * alongside the agent channel; both ignore the other's traffic by shape.
  *
- * Trust model: Foundry's `module.*` relay carries no trustworthy sender, and only
- * the agent holds a signing key (the GM browser does not), so a broadcast cannot be
- * cryptographically attributed. This is accepted: the only client that emits a
- * show/clear is the elected responder running display.show; the content is
- * GM-authored, already-revealed material; and a popout is a transient overlay a GM
- * can dismiss — the same posture as Foundry core's "Show to Players". The
- * AUTHENTICATED gate is upstream: the agent (Ed25519-signed) decides who may
- * initiate a push from the app.
+ * Trust model: the only client that emits a show/clear is the elected responder
+ * running display.show, which the signed agent channel authorised. Foundry's
+ * server attests who sent each copy, so a frame is applied only when that sender
+ * is a Gamemaster — a player cannot put text on everyone's screen or close it.
  */
 export function startDisplayListener(): void {
-  socket()?.on(CHANNEL, (raw) => {
+  socket()?.on(CHANNEL, (raw, senderId) => {
     const msg = parseDisplayBroadcast(raw);
     if (!msg) return;
+    if (typeof senderId !== "string" || !userById(senderId)?.isGM) return;
     if (msg.kind === "show") void renderLocal(msg.view);
     else void closeProjector();
   });

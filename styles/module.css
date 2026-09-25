@@ -26,6 +26,13 @@
   color: var(--color-text-dark-secondary, #7a7971);
 }
 
+.tca-pending {
+  margin: 0.5rem 0;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-level-warning, #aa5502);
+  border-radius: 4px;
+}
+
 .tca-password-box {
   margin: 0.5rem 0;
   padding: 0.5rem;
