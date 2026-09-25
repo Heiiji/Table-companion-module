@@ -1,5 +1,5 @@
 /**
- * Module -> agent response authentication (M8).
+ * Module -> agent response signing.
  *
  * The agent already signs every agent -> module envelope (see signing.ts); this
  * closes the reverse direction. Foundry's `module.*` socket relay carries no
@@ -14,12 +14,13 @@
  * cannot sign the whole serialized envelope (that would contain `sig` itself).
  * Instead both sides independently build the exact same byte string:
  *
- *   v1|<requestId>|<worldId>|<procedure>|<signedAt>|<sha256hex(canonicalBody)>
+ *   <scheme>|<envelopeType>|<requestId>|<worldId>|<procedure>|<signedAt>|<sha256hex(canonicalBody)>
  *
- * and Ed25519-sign / verify its UTF-8 bytes. The agent rebuilds it from the
- * request it issued (requestId/procedure), the pinned world id, and the
- * decoded response body. Field values never contain the `|` separator
- * (requestId is hex, worldId is a Foundry id, procedure is a dotted token).
+ * (scheme `v2`, see RESPONSE_SIG_SCHEME) and Ed25519-sign / verify its UTF-8
+ * bytes. The agent rebuilds it from the request it issued (requestId /
+ * procedure), the reply's envelope type, the pinned world id, and the decoded
+ * response body. Field values never contain the `|` separator (requestId is
+ * hex, worldId is a Foundry id, procedure and type are dotted tokens).
  *
  * The body hash uses the canonical JSON serialization in
  * util/canonicalJson.ts, byte-identical with the agent's.

@@ -53,11 +53,11 @@ export interface Envelope {
   error?: { code: string; message: string };
   /** Unix ms timestamp. */
   ts: number;
-  /** M8 (additive): base64 Ed25519 signature over the canonical response-signing
+  /** Response signing (additive): base64 Ed25519 signature over the canonical response-signing
    * string, present on a module's signed rpc.response / rpc.error. See
    * responseSigning.ts. Absent on unsigned peers/messages. */
   sig?: string;
-  /** M8 (additive): Unix ms the response signature was produced (the `signedAt`
+  /** Response signing (additive): Unix ms the response signature was produced (the `signedAt`
    * bound into the signed string; freshness-checked ±90s by the agent). */
   signedAt?: number;
   /** The Foundry world id (`game.world.id`). On the module's signing hello /

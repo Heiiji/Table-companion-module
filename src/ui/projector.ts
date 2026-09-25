@@ -2,8 +2,8 @@ import { dialogV2Class } from "../foundry/runtime.js";
 import { localize, log } from "../util/log.js";
 
 /**
- * The shared-screen / projector popout (PNJ-refactor locked decision #3). A thin
- * Foundry layer over DialogV2 — it only instantiates and renders a pre-built,
+ * The shared-screen / projector popout: one per client, replaced by each new
+ * show. A thin Foundry layer over DialogV2 — it only instantiates and renders a pre-built,
  * already-escaped HTML string (built by projectorContentHtml in
  * procedures/display.ts, the sole escaper). No Actor/canvas/scene coupling.
  *

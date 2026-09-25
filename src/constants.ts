@@ -61,8 +61,8 @@ export const SETTING_COMPANION_ANCHOR = "companionUserId";
 export const SETTING_MODULE_KEYPAIR = "moduleResponseKeypair";
 
 /** Capability token the module advertises when this build can sign its
- * rpc.response / rpc.error envelopes (M8 transport authentication). When a world
- * advertises it, the agent REQUIRES a valid signature on every module reply and
+ * rpc.response / rpc.error envelopes (transport authentication of its replies).
+ * When a world advertises it, the agent REQUIRES a valid signature on every module reply and
  * drops unverified ones; without it, read-only relays stay best-effort
  * unauthenticated (today's behaviour). Parity-locked with the agent's
  * capModuleResponseSignatureV1. NOT a procedure name — it has no handler. */

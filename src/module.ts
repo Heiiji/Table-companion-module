@@ -156,7 +156,7 @@ Hooks.once("ready", () => {
   // renders locally and rebroadcasts; peers render here). Inert until a display is
   // pushed — no-op on standalone tables and tables that never use the feature.
   startDisplayListener();
-  // M8: only GM clients hold a response-signing key (only the elected responder
+  // Response signing: only GM clients hold a key (only the elected responder
   // ever signs). Players never sign, so they never generate one.
   if (channel && game.user?.isGM) void initResponseSigner(channel);
 });

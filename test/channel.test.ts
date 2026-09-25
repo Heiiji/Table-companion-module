@@ -225,7 +225,7 @@ describe("Channel.onMessage", () => {
     expect(emitSpy).not.toHaveBeenCalled();
   });
 
-  it("drops an oversized body before parsing it (A1)", async () => {
+  it("drops an oversized body before parsing it", async () => {
     stubGame({ pinned: agentPubB64 });
     startChannel();
     await deliver({ sig: "x", body: "x".repeat(MAX_ENVELOPE_BYTES + 1) });
@@ -248,7 +248,7 @@ describe("Channel.onMessage", () => {
     expect(emitted("hello.ack")).toHaveLength(1);
   });
 
-  it("drops a stale envelope outside the freshness window (A2)", async () => {
+  it("drops a stale envelope outside the freshness window", async () => {
     stubGame({ pinned: agentPubB64 });
     startChannel();
     const env = agentEnv("hello", { ts: Date.now() - REPLAY_WINDOW_MS - 5000 });
@@ -256,7 +256,7 @@ describe("Channel.onMessage", () => {
     expect(emitSpy).not.toHaveBeenCalled();
   });
 
-  it("answers an rpc.request once but drops a verbatim replay (A2)", async () => {
+  it("answers an rpc.request once but drops a verbatim replay", async () => {
     stubGame({ pinned: agentPubB64 });
     startChannel();
     const wrapped = await sign(
@@ -338,7 +338,7 @@ describe("Channel.onMessage", () => {
     expect((await channel.getPairing()).pending).toBeNull();
   });
 
-  // The pairing race the audit found: a player's own self-signed "agent" hello,
+  // A pairing race: a player's own self-signed "agent" hello,
   // sent while the GM has setup open. It is held for the GM, never pinned.
   it("never auto-pins a player's self-signed hello", async () => {
     stubGame({ pinned: "", anchor: AGENT_USER, responder: true });
@@ -508,7 +508,7 @@ describe("Channel.onMessage", () => {
     }
   });
 
-  it("times out a hung handler with rpc.error procedure_timeout (C7/C8)", async () => {
+  it("times out a hung handler with rpc.error procedure_timeout", async () => {
     stubGame({ pinned: agentPubB64 });
     startChannel(20); // 20ms per-request deadline
     await deliver(
@@ -573,7 +573,7 @@ describe("Channel.onMessage", () => {
     expect(emitted("hello")).toHaveLength(1);
   });
 
-  it("ignores rpc.request / ping when not the responder (A4)", async () => {
+  it("ignores rpc.request / ping when not the responder", async () => {
     stubGame({ pinned: agentPubB64, responder: false });
     startChannel();
     await deliver(await sign(agentEnv("ping", { id: "p2" })));
@@ -584,9 +584,9 @@ describe("Channel.onMessage", () => {
   });
 });
 
-// --- M8: module -> agent response signing ----------------------------------
+// --- module -> agent response signing ---------------------------------------
 
-describe("Channel response signing (M8)", () => {
+describe("Channel response signing", () => {
   async function withSigner(): Promise<{
     channel: Channel;
     signer: ModuleResponseSigner;

@@ -37,10 +37,10 @@ import {
  * Knight `pnj` actor type — a different data model from the PC `knight` type:
  * NPC aspects are direct values plus aspects exceptionnels, there are no
  * caractéristiques, and defense/reaction/initiative are GM-authored bases.
- * Contract: docs/game-systems/knight/foundry-interop.md § "NPC provisioning",
- * fixtures test/fixtures/knight-pnj-3.58.33-foundry{13,14}.json (pnj data model
+ * Every written path is pinned by the pnj actor fixtures in
+ * test/fixtures/knight-pnj-3.58.33-foundry{13,14}.json. The pnj data model is
  * verified byte-identical 3.58.33 → 3.58.35, so this shares the PC lane's exact
- * runtime gate and widens with it).
+ * runtime gate and widens with it.
  *
  * Unlike the PC lane there is no draft/approved state, no creation provenance,
  * no equipment, no foundryUserId and no unbound-actor adoption: lookup is
@@ -257,7 +257,7 @@ function authoredNpcPatch(
   }
   if (defenses?.initiative !== undefined) {
     // The pnj fixed-initiative slot is the user bonus; diceBase stays authored
-    // in Foundry (KNT-R-007's 3d6 default).
+    // in Foundry (the Knight rules roll an NPC's initiative on 3d6 by default).
     patch["system.initiative.bonus.user"] = defenses.initiative;
   }
   return patch;

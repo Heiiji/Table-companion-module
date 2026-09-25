@@ -15,7 +15,7 @@ export function anyActiveGM(): boolean {
 
 /**
  * Watches for GMs joining/leaving the Foundry world and pushes an active-GM
- * presence event to the agent (capability "presence", H5). Debounced so a flurry
+ * presence event to the agent (capability "presence"). Debounced so a flurry
  * of connect/disconnect hooks collapses into one emit, and only emits on change.
  */
 export function startPresenceWatcher(channel: Channel): void {
