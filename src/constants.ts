@@ -85,15 +85,6 @@ export const CAP_RESPONSE_SIG = "moduleResponseSignatureV1";
  * (reply dropped, 409, app falls back to its local engine). */
 export const RESPONSE_SIG_SCHEME = "v2";
 
-/** roll.execute guard: reject formulas longer than this many characters, a cheap
- * first bound on complexity before we even construct a Roll. */
-export const MAX_ROLL_FORMULA_LEN = 500;
-
-/** roll.execute guard: reject a formula whose total dice count exceeds this, so a
- * request like "999999d6" (from a buggy/compromised agent, or a replay) can't
- * freeze the responder GM's browser inside `Roll#evaluate`. */
-export const MAX_ROLL_DICE = 1000;
-
 /** Per-request deadline for an rpc.request handler. A procedure that hangs (a
  * wedged system API, an await that never settles) would otherwise silently stall
  * the channel; on expiry we answer a structured `procedure_timeout` rpc.error and

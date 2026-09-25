@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { rollExecute } from "../src/procedures/rollExecute.js";
-import { MAX_ROLL_DICE, MAX_ROLL_FORMULA_LEN } from "../src/constants.js";
+import {
+  MAX_ROLL_DICE,
+  MAX_ROLL_FORMULA_LEN,
+  rollExecute,
+} from "../src/procedures/rollExecute.js";
 
 afterEach(() => vi.unstubAllGlobals());
 

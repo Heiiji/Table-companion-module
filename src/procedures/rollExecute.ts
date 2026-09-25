@@ -1,6 +1,14 @@
-import { MAX_ROLL_DICE, MAX_ROLL_FORMULA_LEN } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
+
+/** roll.execute guard: reject formulas longer than this many characters, a cheap
+ * first bound on complexity before we even construct a Roll. */
+export const MAX_ROLL_FORMULA_LEN = 500;
+
+/** roll.execute guard: reject a formula whose total dice count exceeds this, so a
+ * request like "999999d6" (from a buggy/compromised agent, or a replay) can't
+ * freeze the responder GM's browser inside `Roll#evaluate`. */
+export const MAX_ROLL_DICE = 1000;
 
 /**
  * Run a formula through Foundry core's dice evaluator and return its faces, total, and formula.
