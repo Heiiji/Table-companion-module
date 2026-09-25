@@ -7,6 +7,8 @@
  * per-actor ownership), `payload_too_large` (a response would exceed the envelope
  * cap), `procedure_timeout` (a handler exceeded the per-request deadline),
  * `invalid_args` (the request payload failed procedure-specific validation),
+ * `not_found` (the requested compendium entry does not exist or is not shared
+ * with the service user — deliberately indistinguishable),
  * `unsupported_runtime` (the connected Foundry/system version does not support the
  * procedure), `binding_collision` (more than one Actor carries the same Table
  * Companion binding), `deleted_link` (the previously linked Actor no longer
@@ -14,8 +16,9 @@
  * different Actor than expected), `actor_not_found` (assignedActorId does not
  * identify an existing Actor), `stale_revision` (the Actor already carries a newer
  * approved revision), and `revision_conflict` (the same approved revision was
- * resubmitted with different content). Handlers that throw a plain `Error` still
- * map to the generic `procedure_failed`.
+ * resubmitted with different content). Handlers that throw a plain `Error` map
+ * to the generic `procedure_failed` with a generic message; the detail stays in
+ * the GM browser's log.
  */
 import { MAX_ENVELOPE_BYTES } from "../constants.js";
 

@@ -75,9 +75,11 @@ export class Channel {
     isResponder: isResponder(),
   };
   private readonly eventListeners = new Set<EventListener>();
-  // Anti-replay: ids of recently-accepted agent envelopes, so a verbatim replay
-  // of a signed rpc.request can't re-trigger its handler. Bounded FIFO.
-  private readonly seenIds = new Set<string>();
+  // Anti-replay: ids of recently-accepted agent envelopes (id -> accept time),
+  // so a verbatim replay of a signed rpc.request can't re-trigger its handler.
+  // Entries expire once the envelope could no longer pass the freshness window,
+  // and the map is size-capped as a memory bound.
+  private readonly seenIds = new Map<string, number>();
   // TOFU gate: a new agent key is auto-pinned ONLY while the GM has the setup /
   // pairing dialog open (an explicit "I am pairing now" window). Outside it, a
   // validly-signed envelope from an unknown key is dropped rather than pinned, so
@@ -365,7 +367,7 @@ export class Channel {
     const pinned = this.pinnedKey();
     if (pinned) {
       if (!(await verifySignature(pinned, signed))) {
-        log.warn("dropped agent envelope with an invalid signature");
+        this.warnDrop("invalid signature");
         return null;
       }
       return this.notReplayed(env) ? env : null;
@@ -376,11 +378,11 @@ export class Channel {
     // from an unknown agent is dropped — never silently pinned.
     if (!isResponder() || !env.peer.pubKey) return null;
     if (!this.pairingWindowOpen) {
-      log.warn("dropped an unknown agent key: the pairing window is closed");
+      this.warnDrop("unknown agent key while the pairing window is closed");
       return null;
     }
     if (!(await verifySignature(env.peer.pubKey, signed))) {
-      log.warn("dropped unpaired agent envelope with an invalid signature");
+      this.warnDrop("invalid signature on an unpaired envelope");
       return null;
     }
     await this.setPinnedKey(env.peer.pubKey);
@@ -393,19 +395,26 @@ export class Channel {
   }
 
   /** Anti-replay (2/2): true unless this envelope's `id` was already accepted.
-   * Envelopes without an id (e.g. a broadcast hello) are always allowed —
-   * freshness alone guards those. New ids are recorded in a bounded FIFO set so
-   * a verbatim replay of a signed rpc.request can't re-run its handler. */
+   * Called only after the signature verified, so unauthenticated traffic can
+   * never fill the cache. Envelopes without an id (e.g. a broadcast hello) are
+   * always allowed — freshness alone guards those. An id is remembered for twice
+   * the freshness window (after that the envelope is stale anyway), so a
+   * flood of other traffic cannot evict an id and re-open its replay. */
   private notReplayed(env: Envelope): boolean {
     const id = env.id;
     if (!id) return true;
+    const now = Date.now();
+    for (const [seen, at] of this.seenIds) {
+      if (now - at <= 2 * REPLAY_WINDOW_MS) break; // insertion order = age order
+      this.seenIds.delete(seen);
+    }
     if (this.seenIds.has(id)) {
-      log.warn(`dropped replayed agent envelope (id ${id})`);
+      this.warnDrop("replayed envelope id");
       return false;
     }
-    this.seenIds.add(id);
+    this.seenIds.set(id, now);
     if (this.seenIds.size > SEEN_ID_CACHE_MAX) {
-      const oldest = this.seenIds.values().next().value;
+      const oldest = this.seenIds.keys().next().value;
       if (oldest !== undefined) this.seenIds.delete(oldest);
     }
     return true;
@@ -414,7 +423,10 @@ export class Channel {
   private async handleRequest(env: Envelope): Promise<void> {
     const proc = env.proc ?? "";
     const handler = env.proc ? this.registry.get(env.proc) : undefined;
-    if (!handler) {
+    // A procedure withheld from the advertised set (a consequential mutation on a
+    // responder that cannot sign its reply) is refused exactly as if it did not
+    // exist: hiding it from hello is not enough when a request names it directly.
+    if (!handler || (SIGNED_ONLY_PROCEDURES.has(proc) && !this.canSign())) {
       await this.sendError(env.id, proc, {
         code: "unknown_procedure",
         message: `no procedure "${proc}"`,
@@ -445,12 +457,18 @@ export class Channel {
       await this.sendResponse(env.id, proc, result);
     } catch (err) {
       log.error(`procedure "${env.proc}" failed`, err);
-      await this.sendError(env.id, proc, {
-        // A handler may throw a structured RpcError (permission_denied,
-        // payload_too_large, …); anything else is a generic failure.
-        code: err instanceof RpcError ? err.code : "procedure_failed",
-        message: err instanceof Error ? err.message : String(err),
-      });
+      // A handler may throw a structured RpcError (permission_denied,
+      // invalid_args, …) whose message is written for the caller. Anything else
+      // is an unexpected failure: its text can name internals (document ids,
+      // stack details), so it stays in this browser's log and the wire carries a
+      // generic message.
+      await this.sendError(
+        env.id,
+        proc,
+        err instanceof RpcError
+          ? { code: err.code, message: err.message }
+          : { code: "procedure_failed", message: "module procedure failed" },
+      );
     } finally {
       if (timer) clearTimeout(timer);
     }

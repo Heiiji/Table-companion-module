@@ -1,5 +1,5 @@
 import type { Procedure } from "../rpc/registry.js";
-import { assertPayloadWithinCap } from "../rpc/errors.js";
+import { RpcError, assertPayloadWithinCap } from "../rpc/errors.js";
 
 /**
  * Phase 3 live library passthrough: expose content that the active Foundry session is authorized
@@ -134,14 +134,17 @@ export const compendiumGet: Procedure = async (payload) => {
   const id = String((payload as { id?: unknown } | null)?.id ?? "").trim();
   const sep = id.indexOf(ID_SEPARATOR);
   if (sep <= 0) {
-    throw new Error(`compendium.get requires '<pack>${ID_SEPARATOR}<docId>'`);
+    throw new RpcError(
+      "invalid_args",
+      `compendium.get requires '<pack>${ID_SEPARATOR}<docId>'`,
+    );
   }
   const packId = id.slice(0, sep);
   const docId = id.slice(sep + 1);
   const pack = packs().get(packId);
-  if (!pack) throw new Error(`unknown compendium pack ${packId}`);
+  if (!pack) throw new RpcError("not_found", "compendium entry not found");
   const doc = await pack.getDocument(docId);
-  if (!doc) throw new Error(`unknown document ${docId}`);
+  if (!doc) throw new RpcError("not_found", "compendium entry not found");
   // Transient raw Foundry document for the requesting licensed/local session. It is normalized by
   // the app for this live view only; it is not admitted content and must not feed storage, catalogs,
   // or telemetry. The module stays system-agnostic and retains no copy.

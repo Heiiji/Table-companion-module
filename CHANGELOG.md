@@ -6,6 +6,23 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+- **A procedure withheld from the capability list is also refused when called directly.** The
+  Knight actor/NPC provisioning procedures were hidden from a GM browser that cannot sign its
+  replies, but a request naming them still ran; it now gets `unknown_procedure`.
+- **Envelopes must carry a real timestamp.** A message without a numeric `ts` was stamped "now"
+  and passed the freshness check; it is now dropped.
+- **Replay protection no longer forgets under load.** Recently seen request ids are kept by age
+  (twice the freshness window) instead of the last 256, so a flood of traffic cannot push an id
+  out and re-open its replay.
+- **Unexpected errors no longer send their text over the socket.** A procedure failure that is
+  not a deliberate, structured error now reports "module procedure failed"; the detail stays in
+  the GM browser's console. Validation failures in `roll.execute`, `display.show` and
+  `compendium.get` are now structured `invalid_args` / `not_found` errors.
+- **The display popout only loads `https:` or Foundry-relative portrait images.** Every
+  connected browser loads the portrait, so `javascript:`, `data:`, plain `http:` and
+  protocol-relative URLs are dropped and the card renders without an image.
+
 ### Removed
 - **The `sheet.derived`, `roll.action` and `effect.apply` / `effect.remove` procedures.** No
   version of the Table Companion backend or apps ever called them: the apps compute derived

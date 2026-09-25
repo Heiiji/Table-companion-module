@@ -1,4 +1,5 @@
 import { MAX_ROLL_DICE, MAX_ROLL_FORMULA_LEN } from "../constants.js";
+import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 
 /**
@@ -20,10 +21,13 @@ export const rollExecute: Procedure = async (payload) => {
       ? (payload as { formula: string }).formula
       : "";
   if (!formula.trim()) {
-    throw new Error("roll.execute requires a non-empty 'formula' string");
+    throw new RpcError(
+      "invalid_args",
+      "roll.execute requires a non-empty 'formula' string",
+    );
   }
   if (formula.length > MAX_ROLL_FORMULA_LEN) {
-    throw new Error("roll.execute formula is too long");
+    throw new RpcError("invalid_args", "roll.execute formula is too long");
   }
 
   // Construct (parses the formula; no RNG yet) so we can bound the dice budget
@@ -31,7 +35,10 @@ export const rollExecute: Procedure = async (payload) => {
   // responder GM's browser inside evaluate().
   const roll = new Roll(formula);
   if (totalDice(roll) > MAX_ROLL_DICE) {
-    throw new Error("roll.execute formula exceeds the dice budget");
+    throw new RpcError(
+      "invalid_args",
+      "roll.execute formula exceeds the dice budget",
+    );
   }
 
   await roll.evaluate();

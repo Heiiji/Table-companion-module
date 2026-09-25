@@ -1,4 +1,5 @@
 import { CHANNEL } from "../constants.js";
+import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import { closeProjector, openProjector } from "../ui/projector.js";
 import { escapeHtml } from "../util/html.js";
@@ -52,23 +53,23 @@ export function normalizeDisplayPayload(payload: unknown): DisplayView {
   const p = (payload ?? {}) as Record<string, unknown>;
 
   const name = typeof p.name === "string" ? p.name.trim() : "";
-  if (!name) throw new Error("display.show requires a non-empty 'name'");
-  if (name.length > MAX_NAME) throw new Error("display.show name is too long");
+  if (!name) throw new RpcError("invalid_args", "display.show requires a non-empty 'name'");
+  if (name.length > MAX_NAME) throw new RpcError("invalid_args", "display.show name is too long");
 
   const rawFields = Array.isArray(p.fields) ? p.fields : [];
   if (rawFields.length > MAX_FIELDS) {
-    throw new Error("display.show has too many fields");
+    throw new RpcError("invalid_args", "display.show has too many fields");
   }
   const fields: DisplayField[] = [];
   for (const f of rawFields) {
     const fr = (f ?? {}) as Record<string, unknown>;
     const label = typeof fr.label === "string" ? fr.label.trim() : "";
     const value = typeof fr.value === "string" ? fr.value : "";
-    if (!label) throw new Error("display.show field needs a non-empty 'label'");
+    if (!label) throw new RpcError("invalid_args", "display.show field needs a non-empty 'label'");
     if (label.length > MAX_LABEL)
-      throw new Error("display.show field label is too long");
+      throw new RpcError("invalid_args", "display.show field label is too long");
     if (value.length > MAX_VALUE)
-      throw new Error("display.show field value is too long");
+      throw new RpcError("invalid_args", "display.show field value is too long");
     fields.push({ label, value });
   }
 
@@ -78,8 +79,22 @@ export function normalizeDisplayPayload(payload: unknown): DisplayView {
   // projector style, so it is the single rendered theme. img is omitted (not set
   // to undefined) when absent, keeping the view to exactly its modeled keys.
   const out: DisplayView = { name, fields, theme: "projector" };
-  if (imgRaw && imgRaw.length <= MAX_IMG) out.img = imgRaw;
+  if (imgRaw && imgRaw.length <= MAX_IMG && isAllowedImageSource(imgRaw)) {
+    out.img = imgRaw;
+  }
   return out;
+}
+
+/** Every connected browser loads the portrait, so its source is restricted to
+ * what a table legitimately shows: an `https:` URL or a path relative to the
+ * Foundry server (its own uploaded assets). Anything else — `javascript:`,
+ * `data:`, plain `http:`, a protocol-relative `//host` — is dropped, so a push
+ * cannot make every participant's browser fetch an arbitrary address. */
+export function isAllowedImageSource(src: string): boolean {
+  if (src.startsWith("//") || src.startsWith("\\")) return false;
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(src);
+  if (!scheme) return true; // relative to the Foundry server
+  return scheme[1].toLowerCase() === "https";
 }
 
 /** Discriminator tag marking a player-facing projector broadcast on the shared

@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { Channel } from "../src/rpc/channel.js";
 import { ProcedureRegistry } from "../src/rpc/registry.js";
+import { RpcError } from "../src/rpc/errors.js";
 import {
   ModuleResponseSigner,
   responseSigningString,
@@ -142,6 +143,13 @@ function startChannel(timeoutMs?: number, withActorUpsert = false): Channel {
     READ,
   );
   registry.register("hang", () => new Promise(() => {}), READ); // never settles
+  registry.register(
+    "refuse",
+    () => {
+      throw new RpcError("invalid_args", "bad formula");
+    },
+    READ,
+  );
   if (withActorUpsert) {
     registry.register("actor.upsert.v1", () => ({}), { kind: "mutation" });
     registry.register("npc.upsert.v1", () => ({}), { kind: "mutation" });
@@ -278,7 +286,7 @@ describe("Channel.onMessage", () => {
     expect((err.error as Fields).code).toBe("unknown_procedure");
   });
 
-  it("maps a throwing handler to rpc.error procedure_failed", async () => {
+  it("maps a throwing handler to procedure_failed with a generic message", async () => {
     stubGame({ pinned: agentPubB64 });
     startChannel();
     await deliver(
@@ -287,7 +295,58 @@ describe("Channel.onMessage", () => {
     const [err] = emitted("rpc.error");
     expect(err.id).toBe("b1");
     expect((err.error as Fields).code).toBe("procedure_failed");
-    expect((err.error as Fields).message).toBe("kaboom");
+    // An unexpected exception's text can name internals; it stays in the log.
+    expect((err.error as Fields).message).toBe("module procedure failed");
+  });
+
+  it("passes a structured RpcError's code and message through", async () => {
+    stubGame({ pinned: agentPubB64 });
+    startChannel();
+    await deliver(
+      await sign(agentEnv("rpc.request", { id: "v1", proc: "refuse" })),
+    );
+    const [err] = emitted("rpc.error");
+    expect(err.error).toEqual({ code: "invalid_args", message: "bad formula" });
+  });
+
+  it("refuses a signed-only procedure when this responder cannot sign", async () => {
+    stubGame({ pinned: agentPubB64, responder: true });
+    startChannel(undefined, true); // upserts registered, but no signer installed
+    await deliver(
+      await sign(
+        agentEnv("rpc.request", { id: "a1", proc: "actor.upsert.v1", payload: {} }),
+      ),
+    );
+    const [err] = emitted("rpc.error");
+    expect(err.id).toBe("a1");
+    expect((err.error as Fields).code).toBe("unknown_procedure");
+    expect(emitted("rpc.response")).toHaveLength(0);
+  });
+
+  it("forgets a request id only once it is too old to replay", async () => {
+    vi.useFakeTimers();
+    try {
+      stubGame({ pinned: agentPubB64 });
+      startChannel();
+      await deliver(
+        await sign(agentEnv("rpc.request", { id: "t1", proc: "echo" })),
+      );
+      // Same id, fresh ts, inside the window: still a replay.
+      vi.advanceTimersByTime(REPLAY_WINDOW_MS);
+      await deliver(
+        await sign(agentEnv("rpc.request", { id: "t1", proc: "echo" })),
+      );
+      expect(emitted("rpc.response")).toHaveLength(1);
+      // Past twice the window the old entry has aged out; a fresh signed
+      // request may legitimately reuse the id.
+      vi.advanceTimersByTime(REPLAY_WINDOW_MS + 1);
+      await deliver(
+        await sign(agentEnv("rpc.request", { id: "t1", proc: "echo" })),
+      );
+      expect(emitted("rpc.response")).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("times out a hung handler with rpc.error procedure_timeout (C7/C8)", async () => {

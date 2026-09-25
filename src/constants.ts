@@ -23,10 +23,10 @@ export const LINK_STALE_MS = 90_000;
  * single notion of "recent." Requires the agent to stamp a fresh `ts`. */
 export const REPLAY_WINDOW_MS = LINK_STALE_MS;
 
-/** Anti-replay: how many recently-accepted envelope `id`s the responder keeps to
- * drop duplicate (replayed) rpc.requests. Bounded FIFO — the oldest id is
- * evicted past this size, so the set can't grow without limit. */
-export const SEEN_ID_CACHE_MAX = 256;
+/** Anti-replay: memory bound on the recently-accepted envelope `id`s the channel
+ * keeps to drop duplicate (replayed) requests. Ids expire by age (twice the
+ * freshness window); this cap only stops the map growing without limit. */
+export const SEEN_ID_CACHE_MAX = 4096;
 
 /** Upper bound on a single inbound message's serialized size. This is a control
  * channel carrying small JSON messages; anything larger is malformed or hostile

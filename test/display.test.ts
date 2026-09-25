@@ -7,6 +7,7 @@ import {
   clearDisplay,
   displayClear,
   displayShow,
+  isAllowedImageSource,
   normalizeDisplayPayload,
   parseDisplayBroadcast,
   present,
@@ -79,6 +80,39 @@ describe("normalizeDisplayPayload", () => {
     ).toThrow();
     const tooMany = Array.from({ length: 51 }, () => ({ label: "L", value: "v" }));
     expect(() => normalizeDisplayPayload({ name: "x", fields: tooMany })).toThrow();
+  });
+});
+
+describe("display image allowlist", () => {
+  it.each([
+    "worlds/w/goblin.webp",
+    "/modules/x/portrait.png",
+    "https://cdn.example.com/p.webp",
+    "HTTPS://cdn.example.com/p.webp",
+  ])("keeps %s", (img) => {
+    expect(isAllowedImageSource(img)).toBe(true);
+    expect(normalizeDisplayPayload({ name: "X", img }).img).toBe(img);
+  });
+
+  it.each([
+    "javascript:alert(1)",
+    "data:image/svg+xml;base64,PHN2Zz4=",
+    "http://192.168.1.1/admin",
+    "//attacker.example/pixel.gif",
+    "\\\\host\\share\\p.png",
+    "file:///etc/passwd",
+    "blob:https://x/1",
+  ])("drops %s (the view still renders)", (img) => {
+    expect(isAllowedImageSource(img)).toBe(false);
+    const v = normalizeDisplayPayload({ name: "X", img });
+    expect(v.name).toBe("X");
+    expect(v.img).toBeUndefined();
+  });
+
+  it("reports malformed payloads as invalid_args", () => {
+    expect(() => normalizeDisplayPayload({})).toThrow(
+      expect.objectContaining({ code: "invalid_args" }),
+    );
   });
 });
 

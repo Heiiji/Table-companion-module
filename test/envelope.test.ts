@@ -17,13 +17,23 @@ describe("parseEnvelope", () => {
     expect(parseEnvelope({ type: "hello", v: "1" })).toBeNull();
   });
 
-  it("parses a minimal valid envelope and defaults ts", () => {
-    const before = Date.now();
-    const env = parseEnvelope({ type: "ping", v: 1 });
+  it("parses a minimal valid envelope", () => {
+    const env = parseEnvelope({ type: "ping", v: 1, ts: 1000 });
     expect(env).not.toBeNull();
     expect(env!.type).toBe("ping");
     expect(env!.v).toBe(1);
-    expect(env!.ts).toBeGreaterThanOrEqual(before);
+    expect(env!.ts).toBe(1000);
+  });
+
+  // The freshness window is the replay defence: an envelope without a real
+  // timestamp must never be stamped "now" and treated as fresh.
+  it("rejects a missing or non-finite ts", () => {
+    expect(parseEnvelope({ type: "ping", v: 1 })).toBeNull();
+    expect(parseEnvelope({ type: "ping", v: 1, ts: "123" })).toBeNull();
+    expect(parseEnvelope({ type: "ping", v: 1, ts: Number.NaN })).toBeNull();
+    expect(
+      parseEnvelope({ type: "ping", v: 1, ts: Number.POSITIVE_INFINITY }),
+    ).toBeNull();
   });
 
   it("preserves a provided ts", () => {
@@ -34,13 +44,14 @@ describe("parseEnvelope", () => {
     const env = parseEnvelope({
       type: "hello",
       v: 1,
+      ts: 1,
       capabilities: ["ping", 5, null, "presence", {}],
     });
     expect(env!.capabilities).toEqual(["ping", "presence"]);
   });
 
   it("drops a malformed peer but keeps a valid one", () => {
-    expect(parseEnvelope({ type: "hello", v: 1, peer: { role: "x" } })!.peer)
+    expect(parseEnvelope({ type: "hello", v: 1, ts: 1, peer: { role: "x" } })!.peer)
       .toBeUndefined();
     const good = {
       role: "agent",
@@ -48,21 +59,21 @@ describe("parseEnvelope", () => {
       minEnvelope: 1,
       maxEnvelope: 1,
     };
-    expect(parseEnvelope({ type: "hello", v: 1, peer: good })!.peer).toEqual(good);
+    expect(parseEnvelope({ type: "hello", v: 1, ts: 1, peer: good })!.peer).toEqual(good);
   });
 
   it("drops a malformed error but keeps a valid one", () => {
     expect(
-      parseEnvelope({ type: "rpc.error", v: 1, error: { code: 1 } })!.error,
+      parseEnvelope({ type: "rpc.error", v: 1, ts: 1, error: { code: 1 } })!.error,
     ).toBeUndefined();
     const err = { code: "boom", message: "it broke" };
-    expect(parseEnvelope({ type: "rpc.error", v: 1, error: err })!.error).toEqual(
+    expect(parseEnvelope({ type: "rpc.error", v: 1, ts: 1, error: err })!.error).toEqual(
       err,
     );
   });
 
   it("ignores non-string id/proc (forward-compat tolerance)", () => {
-    const env = parseEnvelope({ type: "rpc.request", v: 1, id: 5, proc: {} });
+    const env = parseEnvelope({ type: "rpc.request", v: 1, ts: 1, id: 5, proc: {} });
     expect(env!.id).toBeUndefined();
     expect(env!.proc).toBeUndefined();
   });

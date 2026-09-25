@@ -64,12 +64,15 @@ export interface Envelope {
 
 /** Narrow an unknown socket payload to a well-formed Envelope, or return null.
  * Deliberately permissive about extra fields (forward-compat) and strict about
- * the two we branch on (`type`, `v`). */
+ * the fields we branch on (`type`, `v`, `ts`). `ts` is required: the freshness
+ * window is the replay defence, so an envelope without a real timestamp must
+ * not be treated as fresh. */
 export function parseEnvelope(raw: unknown): Envelope | null {
   if (typeof raw !== "object" || raw === null) return null;
   const e = raw as Record<string, unknown>;
   if (typeof e.type !== "string") return null;
   if (typeof e.v !== "number") return null;
+  if (typeof e.ts !== "number" || !Number.isFinite(e.ts)) return null;
   return {
     v: e.v,
     type: e.type as EnvelopeType,
@@ -81,7 +84,7 @@ export function parseEnvelope(raw: unknown): Envelope | null {
     peer: isPeerInfo(e.peer) ? e.peer : undefined,
     payload: e.payload,
     error: isErr(e.error) ? e.error : undefined,
-    ts: typeof e.ts === "number" ? e.ts : Date.now(),
+    ts: e.ts,
     sig: typeof e.sig === "string" ? e.sig : undefined,
     signedAt: typeof e.signedAt === "number" ? e.signedAt : undefined,
     worldId: typeof e.worldId === "string" ? e.worldId : undefined,

@@ -54,6 +54,13 @@ describe("roll.execute DoS caps", () => {
     expect(res).toEqual({ formula: "2d6", total: 8, dice: [{ faces: 6, results: [3, 5] }] });
   });
 
+  it("reports validation failures as invalid_args", async () => {
+    vi.stubGlobal("Roll", class {});
+    await expect(rollExecute({ formula: "" }, {} as never)).rejects.toMatchObject({
+      code: "invalid_args",
+    });
+  });
+
   it("requires a non-empty formula", async () => {
     vi.stubGlobal("Roll", class {});
     await expect(rollExecute({ formula: "  " }, {} as never)).rejects.toThrow(/formula/);
