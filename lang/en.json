@@ -39,7 +39,8 @@
       "notify": {
         "exists": "The {name} user already exists — nothing changed.",
         "pairingReset": "Agent pairing reset — the next agent connection will re-pair.",
-        "noUser": "Create the Companion user first, then you can reset its password."
+        "noUser": "Create the Companion user first, then you can reset its password.",
+        "keyStoreFallback": "Table Companion: this browser could not store its signing key securely, so it is kept in browser settings instead. Pairing still works."
       },
       "password": {
         "title": "Companion password",

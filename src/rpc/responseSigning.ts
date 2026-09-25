@@ -41,6 +41,7 @@
  */
 
 import { RESPONSE_SIG_SCHEME } from "../constants.js";
+import type { KeyStore, StoredKeyPair } from "../util/keyStore.js";
 
 /** RFC 8785 minimal string escaping; all other code points literal UTF-8. */
 function canonicalString(s: string): string {
@@ -149,8 +150,9 @@ export interface ResponseSignature {
 
 /**
  * Holds the responder GM's Ed25519 keypair and signs response envelopes. Created
- * once per client from a client-scoped setting (persisted so the agent's pin
- * survives reloads). Only the elected responder ever has one.
+ * once per GM client and persisted so the agent's pin survives reloads — as a
+ * non-extractable key in IndexedDB where the browser allows it (see
+ * loadOrCreateSigner). Only the elected responder ever signs with it.
  */
 export class ModuleResponseSigner {
   private constructor(
@@ -186,13 +188,28 @@ export class ModuleResponseSigner {
     return { sig: bytesToB64(sig), signedAt };
   }
 
-  /** Import a signer from a previously exported private JWK. */
-  static async fromJwk(jwk: JsonWebKey): Promise<ModuleResponseSigner> {
+  /** The key material to persist in a {@link KeyStore}. */
+  toStored(): StoredKeyPair {
+    return { privateKey: this.privateKey, publicKeyB64: this.publicKeyB64 };
+  }
+
+  /** Wrap a key loaded from a {@link KeyStore}. */
+  static fromStored(pair: StoredKeyPair): ModuleResponseSigner {
+    return new ModuleResponseSigner(pair.privateKey, pair.publicKeyB64);
+  }
+
+  /** Import a signer from a previously exported private JWK. `extractable`
+   * false is the migration path into a {@link KeyStore}: the imported key can
+   * sign but can never be exported again. */
+  static async fromJwk(
+    jwk: JsonWebKey,
+    extractable = true,
+  ): Promise<ModuleResponseSigner> {
     const privateKey = await crypto.subtle.importKey(
       "jwk",
       jwk,
       { name: "Ed25519" },
-      true,
+      extractable,
       ["sign"],
     );
     // The public key is the JWK's `x` (base64url raw), re-encoded as base64 std.
@@ -200,8 +217,19 @@ export class ModuleResponseSigner {
     return new ModuleResponseSigner(privateKey, bytesToB64(raw));
   }
 
+  /** Generate a fresh keypair whose private key can never be exported. */
+  static async generateNonExtractable(): Promise<ModuleResponseSigner> {
+    const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, false, [
+      "sign",
+      "verify",
+    ])) as CryptoKeyPair;
+    // A public key is always exportable, whatever the pair's extractable flag.
+    const raw = await crypto.subtle.exportKey("raw", pair.publicKey);
+    return new ModuleResponseSigner(pair.privateKey, bytesToB64(raw));
+  }
+
   /** Generate a fresh keypair. Returns the signer and the exported private JWK
-   * to persist (client-scoped). */
+   * to persist — the fallback for a browser without a usable {@link KeyStore}. */
   static async generate(): Promise<{
     signer: ModuleResponseSigner;
     jwk: JsonWebKey;
@@ -226,25 +254,88 @@ function base64UrlToBytes(b64url: string): Uint8Array {
   return out;
 }
 
+/** Where the signer's key is persisted. `keyStore` is the preferred home (a
+ * non-extractable key in IndexedDB); the JWK accessors are the client-setting
+ * path used by older builds, kept for migration and as the fallback. */
+export interface SignerStorage {
+  getJwk(): JsonWebKey | null;
+  setJwk(jwk: JsonWebKey | null): Promise<void>;
+  keyStore: KeyStore | null;
+  /** Called when the key could not be kept in `keyStore` and the JWK path is
+   * used instead, so the GM can be told. */
+  onFallback?(reason: unknown): void;
+}
+
+/** Save a signer into the key store and prove it reads back as the same key.
+ * Throws when the store refuses (e.g. a browser that cannot clone a CryptoKey). */
+async function saveAndConfirm(
+  store: KeyStore,
+  signer: ModuleResponseSigner,
+): Promise<void> {
+  await store.save(signer.toStored());
+  const back = await store.load();
+  if (!back || back.publicKeyB64 !== signer.publicKeyB64) {
+    throw new Error("the stored key did not read back unchanged");
+  }
+}
+
+/** The client-setting path: the JWK in localStorage, as before IndexedDB. */
+async function loadOrCreateFromJwk(
+  storage: SignerStorage,
+): Promise<ModuleResponseSigner> {
+  const existing = storage.getJwk();
+  if (existing && existing.d) return ModuleResponseSigner.fromJwk(existing);
+  const { signer, jwk } = await ModuleResponseSigner.generate();
+  await storage.setJwk(jwk);
+  return signer;
+}
+
 /**
- * Load the responder's signer from the client-scoped setting, generating and
- * persisting a fresh keypair on first use. Returns null if WebCrypto Ed25519 is
- * unavailable (older runtime) — the caller then advertises no signing capability
- * and responses stay unsigned (read-only relays keep working).
+ * Load the responder's signer, generating and persisting a fresh keypair on
+ * first use.
+ *
+ * Preferred home: a non-extractable key in `storage.keyStore`. A JWK left in the
+ * client setting by an older build is imported non-extractable, saved, and only
+ * cleared once the store reads it back unchanged — the same public key, so the
+ * agent's pin still holds and no re-pair is needed. If the store is missing or
+ * refuses the key, the JWK path keeps working and `onFallback` fires: a failure
+ * here must never leave the responder silently unable to sign.
+ *
+ * Returns null only if WebCrypto Ed25519 is unavailable (older runtime) — the
+ * caller then advertises no signing capability and responses stay unsigned.
  */
 export async function loadOrCreateSigner(
-  getJwk: () => JsonWebKey | null,
-  setJwk: (jwk: JsonWebKey) => Promise<void>,
+  storage: SignerStorage,
 ): Promise<ModuleResponseSigner | null> {
-  try {
-    const existing = getJwk();
-    if (existing && existing.d) {
-      return await ModuleResponseSigner.fromJwk(existing);
+  const store = storage.keyStore;
+  if (store) {
+    try {
+      const stored = await store.load();
+      if (stored) return ModuleResponseSigner.fromStored(stored);
+
+      const legacy = storage.getJwk();
+      const signer =
+        legacy && legacy.d
+          ? await ModuleResponseSigner.fromJwk(legacy, false)
+          : await ModuleResponseSigner.generateNonExtractable();
+      await saveAndConfirm(store, signer);
+      if (legacy) await storage.setJwk(null);
+      return signer;
+    } catch (err) {
+      storage.onFallback?.(err);
     }
-    const { signer, jwk } = await ModuleResponseSigner.generate();
-    await setJwk(jwk);
-    return signer;
+  }
+  try {
+    return await loadOrCreateFromJwk(storage);
   } catch {
     return null;
   }
+}
+
+/** Forget the persisted signing key everywhere it may live, so the next
+ * loadOrCreateSigner mints a fresh one ("Reset pairing"). Clearing only the
+ * store would let the migration path bring an old JWK back. */
+export async function clearStoredSigner(storage: SignerStorage): Promise<void> {
+  await storage.keyStore?.clear();
+  await storage.setJwk(null);
 }

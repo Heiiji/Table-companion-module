@@ -19,6 +19,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   not a deliberate, structured error now reports "module procedure failed"; the detail stays in
   the GM browser's console. Validation failures in `roll.execute`, `display.show` and
   `compendium.get` are now structured `invalid_args` / `not_found` errors.
+- **The GM browser's reply-signing key can no longer be copied out.** It is now kept as a
+  non-exportable key in the browser's IndexedDB instead of as a private key in browser settings,
+  where any macro or add-on could read it. An existing key is migrated in place (same identity,
+  no re-pairing); if the browser cannot store it, the old storage keeps working and the GM sees
+  a one-time notice.
 - **The display popout only loads `https:` or Foundry-relative portrait images.** Every
   connected browser loads the portrait, so `javascript:`, `data:`, plain `http:` and
   protocol-relative URLs are dropped and the card renders without an image.

@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import type { KeyStore, StoredKeyPair } from "../src/util/keyStore.js";
 import {
   canonicalize,
+  clearStoredSigner,
   loadOrCreateSigner,
   ModuleResponseSigner,
   responseSigningString,
@@ -270,21 +272,126 @@ describe("ModuleResponseSigner", () => {
   });
 });
 
+/** An in-memory KeyStore holding live CryptoKeys, standing in for IndexedDB
+ * (which vitest's node environment lacks). `failSave` models a browser that
+ * cannot clone a CryptoKey into storage. */
+function memoryKeyStore(opts: { failSave?: boolean } = {}): KeyStore & {
+  current: StoredKeyPair | null;
+} {
+  const store = {
+    current: null as StoredKeyPair | null,
+    async load() {
+      return store.current;
+    },
+    async save(pair: StoredKeyPair) {
+      if (opts.failSave) throw new DOMException("no clone", "DataCloneError");
+      store.current = pair;
+    },
+    async clear() {
+      store.current = null;
+    },
+  };
+  return store;
+}
+
+function jwkStorage(initial: JsonWebKey | null = null) {
+  const state = { jwk: initial };
+  return {
+    state,
+    getJwk: () => state.jwk,
+    setJwk: async (jwk: JsonWebKey | null) => {
+      state.jwk = jwk;
+    },
+  };
+}
+
 describe("loadOrCreateSigner", () => {
-  it("generates + persists on first use, then loads the same key", async () => {
-    let stored: JsonWebKey | null = null;
-    const get = () => stored;
-    const set = async (jwk: JsonWebKey) => {
-      stored = jwk;
-    };
+  it("mints a non-extractable key in the key store and reloads the same one", async () => {
+    const keyStore = memoryKeyStore();
+    const jwk = jwkStorage();
+    const storage = { ...jwk, keyStore };
 
-    const first = await loadOrCreateSigner(get, set);
+    const first = await loadOrCreateSigner(storage);
     expect(first).not.toBeNull();
-    expect(stored).not.toBeNull();
+    expect(keyStore.current).not.toBeNull();
+    expect(keyStore.current!.privateKey.extractable).toBe(false);
+    // Nothing exportable is left in browser settings.
+    expect(jwk.state.jwk).toBeNull();
 
-    const second = await loadOrCreateSigner(get, set);
-    expect(second).not.toBeNull();
-    // Same persisted keypair -> same public key across loads (agent's pin holds).
+    const second = await loadOrCreateSigner(storage);
     expect(second!.publicKeyB64).toBe(first!.publicKeyB64);
+  });
+
+  it("migrates a legacy JWK without changing the public key, then clears it", async () => {
+    const { jwk: legacyJwk, signer: legacy } = await ModuleResponseSigner.generate();
+    const keyStore = memoryKeyStore();
+    const jwk = jwkStorage(legacyJwk);
+
+    const migrated = await loadOrCreateSigner({ ...jwk, keyStore });
+
+    // Same identity, so the agent's pin still holds — no re-pair.
+    expect(migrated!.publicKeyB64).toBe(legacy.publicKeyB64);
+    expect(keyStore.current!.privateKey.extractable).toBe(false);
+    expect(jwk.state.jwk).toBeNull();
+    // The migrated key still signs verifiably.
+    const body = { total: 4 };
+    const { sig, signedAt } = await migrated!.sign("rpc.response", "r", "w", "p", body);
+    const msg = await responseSigningString("rpc.response", "r", "w", "p", signedAt, body);
+    expect(await verifySig(legacy.publicKeyB64, sig, msg)).toBe(true);
+  });
+
+  it("keeps the legacy JWK when the key store cannot hold the key", async () => {
+    const { jwk: legacyJwk, signer: legacy } = await ModuleResponseSigner.generate();
+    const jwk = jwkStorage(legacyJwk);
+    const onFallback = vi.fn();
+
+    const signer = await loadOrCreateSigner({
+      ...jwk,
+      keyStore: memoryKeyStore({ failSave: true }),
+      onFallback,
+    });
+
+    // Still signing, with the same identity, and the GM is told.
+    expect(signer!.publicKeyB64).toBe(legacy.publicKeyB64);
+    expect(jwk.state.jwk).toEqual(legacyJwk);
+    expect(onFallback).toHaveBeenCalledOnce();
+  });
+
+  it("falls back to the JWK path when there is no key store at all", async () => {
+    const jwk = jwkStorage();
+    const first = await loadOrCreateSigner({ ...jwk, keyStore: null });
+    expect(first).not.toBeNull();
+    expect(jwk.state.jwk).not.toBeNull();
+    const second = await loadOrCreateSigner({ ...jwk, keyStore: null });
+    expect(second!.publicKeyB64).toBe(first!.publicKeyB64);
+  });
+
+  it("forgets the key everywhere on reset, so a fresh one is minted", async () => {
+    const { jwk: legacyJwk } = await ModuleResponseSigner.generate();
+    const keyStore = memoryKeyStore();
+    const jwk = jwkStorage(legacyJwk);
+    const storage = { ...jwk, keyStore };
+    const before = await loadOrCreateSigner(storage);
+
+    await clearStoredSigner(storage);
+    expect(keyStore.current).toBeNull();
+    expect(jwk.state.jwk).toBeNull();
+
+    const after = await loadOrCreateSigner(storage);
+    expect(after!.publicKeyB64).not.toBe(before!.publicKeyB64);
+  });
+
+  // The case the reset exists for: a browser that kept its key as a JWK (the
+  // store refused it). Clearing only the store would let the JWK bring the old
+  // identity straight back.
+  it("rotates a key that lives only as a JWK", async () => {
+    const { jwk: legacyJwk, signer: legacy } = await ModuleResponseSigner.generate();
+    const jwk = jwkStorage(legacyJwk);
+    const storage = { ...jwk, keyStore: memoryKeyStore({ failSave: true }) };
+
+    await clearStoredSigner(storage);
+    const after = await loadOrCreateSigner(storage);
+
+    expect(after!.publicKeyB64).not.toBe(legacy.publicKeyB64);
   });
 });

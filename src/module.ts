@@ -8,9 +8,14 @@ import { registerBuiltinProcedures } from "./procedures/index.js";
 import { startDisplayListener } from "./procedures/display.js";
 import { Channel } from "./rpc/channel.js";
 import { ProcedureRegistry } from "./rpc/registry.js";
-import { loadOrCreateSigner } from "./rpc/responseSigning.js";
+import {
+  clearStoredSigner,
+  loadOrCreateSigner,
+  type SignerStorage,
+} from "./rpc/responseSigning.js";
 import { startPresenceWatcher } from "./setup/presence.js";
 import { openSetupApp } from "./ui/SetupApp.js";
+import { indexedDbKeyStore } from "./util/keyStore.js";
 import { localize, log } from "./util/log.js";
 
 let channel: Channel | undefined;
@@ -38,18 +43,37 @@ async function setKeypairJwk(jwk: JsonWebKey | null): Promise<void> {
   await settingsStore()?.set(MODULE_ID, SETTING_MODULE_KEYPAIR, jwk);
 }
 
+/** Where this GM browser keeps its response-signing key: a non-extractable key
+ * in IndexedDB, with the older client-setting JWK as migration source and
+ * fallback. A fallback is surfaced once so the GM knows the key is exportable. */
+function signerStorage(): SignerStorage {
+  let warned = false;
+  return {
+    getJwk: getKeypairJwk,
+    setJwk: setKeypairJwk,
+    keyStore: indexedDbKeyStore(),
+    onFallback: (reason) => {
+      log.warn("response-signing key kept in browser settings instead", reason);
+      if (warned) return;
+      warned = true;
+      ui.notifications?.warn(localize("setup.notify.keyStoreFallback"));
+    },
+  };
+}
+
 /** Load (or create) this GM browser's response-signing key and install it on the
  * channel, plus the reset hook so "Reset pairing" rotates it. Only GM clients
  * hold a key; only the elected responder ever signs with it. */
 async function initResponseSigner(ch: Channel): Promise<void> {
-  const signer = await loadOrCreateSigner(getKeypairJwk, setKeypairJwk);
+  const storage = signerStorage();
+  const signer = await loadOrCreateSigner(storage);
   ch.setResponseSigner(signer);
   ch.setResponseKeyResetter(async () => {
     // Rotate: discard the pinned identity the agent knows and mint a fresh one so
     // a re-pair starts clean. The agent must also clear its pin (it will see the
     // new key as a mismatch until then).
-    await setKeypairJwk(null);
-    const rotated = await loadOrCreateSigner(getKeypairJwk, setKeypairJwk);
+    await clearStoredSigner(storage);
+    const rotated = await loadOrCreateSigner(storage);
     ch.setResponseSigner(rotated);
     log.info("rotated module response-signing key");
   });
@@ -70,9 +94,11 @@ Hooks.once("init", () => {
     default: "",
   });
 
-  // M8: this browser's own response-signing keypair (private JWK). CLIENT scope
-  // is load-bearing — a world-scoped private key would broadcast to every player
-  // and let them forge module responses. See responseSigning.ts.
+  // This browser's response-signing keypair as a private JWK: the storage used
+  // by builds before 0.11.0, now only a migration source and the fallback when
+  // IndexedDB cannot hold the key. CLIENT scope is load-bearing — a world-scoped
+  // private key would broadcast to every player and let them forge module
+  // responses. See responseSigning.ts.
   settingsStore()?.register(MODULE_ID, SETTING_MODULE_KEYPAIR, {
     scope: "client",
     config: false,

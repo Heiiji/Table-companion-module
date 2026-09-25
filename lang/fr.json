@@ -39,7 +39,8 @@
       "notify": {
         "exists": "L'utilisateur {name} existe déjà — rien n'a changé.",
         "pairingReset": "Appairage de l'agent réinitialisé — la prochaine connexion de l'agent réappairera.",
-        "noUser": "Créez d'abord l'utilisateur Companion, vous pourrez ensuite réinitialiser son mot de passe."
+        "noUser": "Créez d'abord l'utilisateur Companion, vous pourrez ensuite réinitialiser son mot de passe.",
+        "keyStoreFallback": "Table Companion : ce navigateur n'a pas pu stocker sa clé de signature de façon sécurisée ; elle est conservée dans les réglages du navigateur. L'appairage fonctionne toujours."
       },
       "password": {
         "title": "Mot de passe Companion",
