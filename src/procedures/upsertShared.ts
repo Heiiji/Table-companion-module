@@ -241,6 +241,20 @@ export function actorID(actor: ActorLike): string {
   return actor.id ?? actor._id ?? "";
 }
 
+/** An Actor's embedded Items, whichever collection shape the runtime exposes. */
+export function actorItems(actor: ActorLike): ActorItemLike[] {
+  const items = actor.items;
+  if (!items) return [];
+  if ("contents" in items && Array.isArray(items.contents))
+    return items.contents;
+  if (Symbol.iterator in items) return [...(items as Iterable<ActorItemLike>)];
+  return [];
+}
+
+export function itemID(item: ActorItemLike): string {
+  return item.id ?? item._id ?? "";
+}
+
 export function flagValue(
   actor: ActorLike | ActorItemLike,
   key: string,
