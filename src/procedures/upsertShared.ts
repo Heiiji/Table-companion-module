@@ -123,7 +123,13 @@ export const bindingId = /^[A-Za-z0-9._-]{1,128}$/;
 export const foundryId = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** The five Knight aspects, in the order both actor types store them. */
-export const ASPECT_KEYS = ["chair", "bete", "machine", "dame", "masque"] as const;
+export const ASPECT_KEYS = [
+  "chair",
+  "bete",
+  "machine",
+  "dame",
+  "masque",
+] as const;
 export type AspectKey = (typeof ASPECT_KEYS)[number];
 export type AspectScoresV1 = Record<AspectKey, number>;
 

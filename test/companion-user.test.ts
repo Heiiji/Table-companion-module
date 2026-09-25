@@ -14,7 +14,9 @@ interface FakeUser {
   getFlag(scope: string, key: string): unknown;
 }
 
-function stubFoundry(existing: FakeUser[] = []): { createSpy: ReturnType<typeof vi.fn> } {
+function stubFoundry(existing: FakeUser[] = []): {
+  createSpy: ReturnType<typeof vi.fn>;
+} {
   const createSpy = vi.fn(async (data: { name: string }) => ({
     id: "u-created",
     name: data.name,

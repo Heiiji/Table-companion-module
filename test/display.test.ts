@@ -42,12 +42,18 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 function emitMock(): ReturnType<typeof vi.fn> {
-  return (globalThis as unknown as { game: { socket: { emit: ReturnType<typeof vi.fn> } } })
-    .game.socket.emit;
+  return (
+    globalThis as unknown as {
+      game: { socket: { emit: ReturnType<typeof vi.fn> } };
+    }
+  ).game.socket.emit;
 }
 function onMock(): ReturnType<typeof vi.fn> {
-  return (globalThis as unknown as { game: { socket: { on: ReturnType<typeof vi.fn> } } })
-    .game.socket.on;
+  return (
+    globalThis as unknown as {
+      game: { socket: { on: ReturnType<typeof vi.fn> } };
+    }
+  ).game.socket.on;
 }
 
 const view: DisplayView = {
@@ -89,13 +95,24 @@ describe("normalizeDisplayPayload", () => {
     expect(() => normalizeDisplayPayload({ name: "  " })).toThrow();
     expect(() => normalizeDisplayPayload({ name: "x".repeat(201) })).toThrow();
     expect(() =>
-      normalizeDisplayPayload({ name: "x", fields: [{ label: "", value: "v" }] }),
+      normalizeDisplayPayload({
+        name: "x",
+        fields: [{ label: "", value: "v" }],
+      }),
     ).toThrow();
     expect(() =>
-      normalizeDisplayPayload({ name: "x", fields: [{ label: "L", value: "v".repeat(2001) }] }),
+      normalizeDisplayPayload({
+        name: "x",
+        fields: [{ label: "L", value: "v".repeat(2001) }],
+      }),
     ).toThrow();
-    const tooMany = Array.from({ length: 51 }, () => ({ label: "L", value: "v" }));
-    expect(() => normalizeDisplayPayload({ name: "x", fields: tooMany })).toThrow();
+    const tooMany = Array.from({ length: 51 }, () => ({
+      label: "L",
+      value: "v",
+    }));
+    expect(() =>
+      normalizeDisplayPayload({ name: "x", fields: tooMany }),
+    ).toThrow();
   });
 });
 
@@ -150,7 +167,11 @@ describe("projectorContentHtml", () => {
   it("includes the portrait only when an img is supplied", () => {
     expect(projectorContentHtml(view)).toContain("tca-projector-portrait");
     expect(
-      projectorContentHtml({ name: "No portrait", fields: [], theme: "projector" }),
+      projectorContentHtml({
+        name: "No portrait",
+        fields: [],
+        theme: "projector",
+      }),
     ).not.toContain("tca-projector-portrait");
   });
 });
@@ -171,7 +192,9 @@ describe("display broadcast", () => {
     expect(parseDisplayBroadcast({ v: 1, type: "hello" })).toBeNull(); // bare envelope
     expect(parseDisplayBroadcast(null)).toBeNull();
     expect(parseDisplayBroadcast("nope")).toBeNull();
-    expect(parseDisplayBroadcast({ tcaDisplay: "show", view: { name: "" } })).toBeNull();
+    expect(
+      parseDisplayBroadcast({ tcaDisplay: "show", view: { name: "" } }),
+    ).toBeNull();
   });
 });
 
@@ -224,7 +247,10 @@ describe("startDisplayListener", () => {
 
   function listener(): (raw: unknown, senderId?: unknown) => void {
     startDisplayListener();
-    return onMock().mock.calls[0][1] as (raw: unknown, senderId?: unknown) => void;
+    return onMock().mock.calls[0][1] as (
+      raw: unknown,
+      senderId?: unknown,
+    ) => void;
   }
 
   it("applies a frame sent by a Gamemaster", async () => {

@@ -125,7 +125,12 @@ function stubGame(
   const responder = opts.responder ?? true;
   const me = { id: "gm1", isGM: true, active: true, name: "GM" };
   const other = { id: "gm0", isGM: true, active: true, name: "GM0" };
-  const agent = { id: AGENT_USER, isGM: false, active: true, name: "Companion" };
+  const agent = {
+    id: AGENT_USER,
+    isGM: false,
+    active: true,
+    name: "Companion",
+  };
   const player = { id: PLAYER, isGM: false, active: true, name: "Alice" };
   const all = [me, other, agent, player];
   emitSpy = vi.fn();
@@ -193,7 +198,10 @@ function startChannel(timeoutMs?: number, withActorUpsert = false): Channel {
 
 /** Deliver a raw socket payload as Foundry's relay would — with the sender's
  * user id — and await the channel's async handling. */
-async function deliver(raw: unknown, sender: string = AGENT_USER): Promise<void> {
+async function deliver(
+  raw: unknown,
+  sender: string = AGENT_USER,
+): Promise<void> {
   await socketHandler!(raw, sender);
 }
 
@@ -305,7 +313,10 @@ describe("Channel.onMessage", () => {
     expect(warnSpy).toHaveBeenCalledTimes(1);
     const pairing = await channel.getPairing();
     expect(pairing.paired).toBe(false);
-    expect(pairing.pending).toMatchObject({ userId: AGENT_USER, userName: "Companion" });
+    expect(pairing.pending).toMatchObject({
+      userId: AGENT_USER,
+      userName: "Companion",
+    });
 
     await channel.trustPendingPairing();
     expect(store[`${MODULE_ID}:${SETTING_AGENT_KEY}`]).toBe(agentPubB64);
@@ -384,11 +395,17 @@ describe("Channel.onMessage", () => {
     startChannel();
     await deliver(
       await sign(
-        agentEnv("rpc.request", { id: "w1", proc: "echo", worldId: "other-world" }),
+        agentEnv("rpc.request", {
+          id: "w1",
+          proc: "echo",
+          worldId: "other-world",
+        }),
       ),
     );
     await deliver(
-      await sign(agentEnv("rpc.request", { id: "w2", proc: "echo", worldId: undefined })),
+      await sign(
+        agentEnv("rpc.request", { id: "w2", proc: "echo", worldId: undefined }),
+      ),
     );
     expect(emitSpy).not.toHaveBeenCalled();
   });
@@ -473,7 +490,11 @@ describe("Channel.onMessage", () => {
     startChannel(undefined, true); // upserts registered, but no signer installed
     await deliver(
       await sign(
-        agentEnv("rpc.request", { id: "a1", proc: "actor.upsert.v1", payload: {} }),
+        agentEnv("rpc.request", {
+          id: "a1",
+          proc: "actor.upsert.v1",
+          payload: {},
+        }),
       ),
     );
     const [err] = emitted("rpc.error");
@@ -533,9 +554,13 @@ describe("Channel.onMessage", () => {
     stubGame({ pinned: agentPubB64, responder: true });
     startChannel();
     await deliver(
-      await sign(agentEnv("rpc.request", { id: "d1", proc: "echo", payload: 1 })),
+      await sign(
+        agentEnv("rpc.request", { id: "d1", proc: "echo", payload: 1 }),
+      ),
     );
-    await deliver(await sign(agentEnv("rpc.request", { id: "d2", proc: "boom" })));
+    await deliver(
+      await sign(agentEnv("rpc.request", { id: "d2", proc: "boom" })),
+    );
     expect(recipientsOf(emitted("rpc.response")[0])).toEqual([AGENT_USER]);
     expect(recipientsOf(emitted("rpc.error")[0])).toEqual([AGENT_USER]);
   });
@@ -563,7 +588,10 @@ describe("Channel.onMessage", () => {
       on: (h: string, fn: () => void) => (hooks[h] ??= []).push(fn),
     });
     stubGame({ pinned: agentPubB64, responder: false });
-    const g = game as unknown as { users: { activeGM: unknown }; user: unknown };
+    const g = game as unknown as {
+      users: { activeGM: unknown };
+      user: unknown;
+    };
     const channel = new Channel(new ProcedureRegistry(), "0.0.0-test");
     channel.start();
     expect(emitted("hello")).toHaveLength(0);

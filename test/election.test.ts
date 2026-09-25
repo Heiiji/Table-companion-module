@@ -23,7 +23,11 @@ function setGame(opts: {
 
 afterEach(() => vi.unstubAllGlobals());
 
-const gm = (id: string, active = true): FakeUser => ({ id, isGM: true, active });
+const gm = (id: string, active = true): FakeUser => ({
+  id,
+  isGM: true,
+  active,
+});
 const player = (id: string): FakeUser => ({ id, isGM: false, active: true });
 
 describe("isResponder", () => {

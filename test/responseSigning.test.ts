@@ -35,7 +35,10 @@ interface Vectors {
 }
 
 const vectors: Vectors = JSON.parse(
-  readFileSync(new URL("./vectors/response_signing_vectors.json", import.meta.url), "utf8"),
+  readFileSync(
+    new URL("./vectors/response_signing_vectors.json", import.meta.url),
+    "utf8",
+  ),
 );
 
 function b64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
@@ -53,7 +56,11 @@ function toB64(bytes: ArrayBuffer | Uint8Array): string {
 
 /** Verify a base64 Ed25519 signature over `message` against a base64 raw public
  * key. Shared by every test below that reproduces the agent's verify step. */
-async function verifySig(pubB64: string, sigB64: string, message: string): Promise<boolean> {
+async function verifySig(
+  pubB64: string,
+  sigB64: string,
+  message: string,
+): Promise<boolean> {
   const pub = await crypto.subtle.importKey(
     "raw",
     b64ToBytes(pubB64),
@@ -86,9 +93,13 @@ beforeAll(async () => {
     key_ops: ["sign"],
     ext: true,
   };
-  vectorPriv = await crypto.subtle.importKey("jwk", jwk, { name: "Ed25519" }, true, [
-    "sign",
-  ]);
+  vectorPriv = await crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: "Ed25519" },
+    true,
+    ["sign"],
+  );
   vectorPubB64 = vectors.signingKey.publicKeyB64;
 });
 
@@ -214,7 +225,11 @@ describe("signature vectors", () => {
 describe("ModuleResponseSigner", () => {
   it("round-trips: sign then verify against its own public key", async () => {
     const { signer } = await ModuleResponseSigner.generate();
-    const body = { formula: "2d6+3", total: 10, dice: [{ faces: 6, results: [4, 3] }] };
+    const body = {
+      formula: "2d6+3",
+      total: 10,
+      dice: [{ faces: 6, results: [4, 3] }],
+    };
     const { sig, signedAt } = await signer.sign(
       "rpc.response",
       "req-1",
@@ -241,7 +256,13 @@ describe("ModuleResponseSigner", () => {
   it("tamper: a signature over one body does not verify against a changed body", async () => {
     const { signer } = await ModuleResponseSigner.generate();
     const body = { total: 10 };
-    const { sig, signedAt } = await signer.sign("rpc.response", "req-2", "w", "roll.execute", body);
+    const { sig, signedAt } = await signer.sign(
+      "rpc.response",
+      "req-2",
+      "w",
+      "roll.execute",
+      body,
+    );
     const tamperedMsg = await responseSigningString(
       "rpc.response",
       "req-2",
@@ -258,7 +279,13 @@ describe("ModuleResponseSigner", () => {
     const a = (await ModuleResponseSigner.generate()).signer;
     const b = (await ModuleResponseSigner.generate()).signer;
     const body = { total: 7 };
-    const { sig, signedAt } = await a.sign("rpc.response", "req-3", "w", "roll.execute", body);
+    const { sig, signedAt } = await a.sign(
+      "rpc.response",
+      "req-3",
+      "w",
+      "roll.execute",
+      body,
+    );
     const msg = await responseSigningString(
       "rpc.response",
       "req-3",
@@ -323,7 +350,8 @@ describe("loadOrCreateSigner", () => {
   });
 
   it("migrates a legacy JWK without changing the public key, then clears it", async () => {
-    const { jwk: legacyJwk, signer: legacy } = await ModuleResponseSigner.generate();
+    const { jwk: legacyJwk, signer: legacy } =
+      await ModuleResponseSigner.generate();
     const keyStore = memoryKeyStore();
     const jwk = jwkStorage(legacyJwk);
 
@@ -335,13 +363,27 @@ describe("loadOrCreateSigner", () => {
     expect(jwk.state.jwk).toBeNull();
     // The migrated key still signs verifiably.
     const body = { total: 4 };
-    const { sig, signedAt } = await migrated!.sign("rpc.response", "r", "w", "p", body);
-    const msg = await responseSigningString("rpc.response", "r", "w", "p", signedAt, body);
+    const { sig, signedAt } = await migrated!.sign(
+      "rpc.response",
+      "r",
+      "w",
+      "p",
+      body,
+    );
+    const msg = await responseSigningString(
+      "rpc.response",
+      "r",
+      "w",
+      "p",
+      signedAt,
+      body,
+    );
     expect(await verifySig(legacy.publicKeyB64, sig, msg)).toBe(true);
   });
 
   it("keeps the legacy JWK when the key store cannot hold the key", async () => {
-    const { jwk: legacyJwk, signer: legacy } = await ModuleResponseSigner.generate();
+    const { jwk: legacyJwk, signer: legacy } =
+      await ModuleResponseSigner.generate();
     const jwk = jwkStorage(legacyJwk);
     const onFallback = vi.fn();
 
@@ -385,7 +427,8 @@ describe("loadOrCreateSigner", () => {
   // store refused it). Clearing only the store would let the JWK bring the old
   // identity straight back.
   it("rotates a key that lives only as a JWK", async () => {
-    const { jwk: legacyJwk, signer: legacy } = await ModuleResponseSigner.generate();
+    const { jwk: legacyJwk, signer: legacy } =
+      await ModuleResponseSigner.generate();
     const jwk = jwkStorage(legacyJwk);
     const storage = { ...jwk, keyStore: memoryKeyStore({ failSave: true }) };
 

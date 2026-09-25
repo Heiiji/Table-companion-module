@@ -119,8 +119,7 @@ function fakeActor(id = ACTOR_ID, name = "Existing", type = "pnj"): FakeActor {
               delete actor.ownership[ownershipKey.slice(2)];
             else actor.ownership[ownershipKey] = level;
           }
-        } else
-          setPath(actor as unknown as Record<string, unknown>, key, value);
+        } else setPath(actor as unknown as Record<string, unknown>, key, value);
       }
     },
   };
@@ -232,7 +231,9 @@ describe("npc.upsert.v1", () => {
           key,
         ).toBe(true);
       }
-      for (const key of written.filter((k) => k.startsWith("prototypeToken."))) {
+      for (const key of written.filter((k) =>
+        k.startsWith("prototypeToken."),
+      )) {
         expect(
           hasFixturePath(fixture.actor.prototypeToken, key.slice(15)),
           key,
@@ -269,14 +270,14 @@ describe("npc.upsert.v1", () => {
       reaction: { base: 6 },
       initiative: { bonus: { user: 4 } },
     });
-    expect(
-      (actor.flags[MODULE_ID] as Record<string, unknown>).binding,
-    ).toEqual({
-      schemaVersion: 1,
-      worldId: "world-1",
-      tableId: "table-1",
-      characterId: "npc-1",
-    });
+    expect((actor.flags[MODULE_ID] as Record<string, unknown>).binding).toEqual(
+      {
+        schemaVersion: 1,
+        worldId: "world-1",
+        tableId: "table-1",
+        characterId: "npc-1",
+      },
+    );
   });
 
   it("maps visible to ownership LIMITED and disposition NEUTRAL", async () => {
@@ -349,7 +350,10 @@ describe("npc.upsert.v1", () => {
   it("re-applies on a higher content revision and converges the sync flag", async () => {
     const actors: FakeActor[] = [];
     stubFoundry(actors);
-    await npcUpsertV1(request() as unknown as Record<string, unknown>, {} as never);
+    await npcUpsertV1(
+      request() as unknown as Record<string, unknown>,
+      {} as never,
+    );
 
     const next = request({
       contentRevision: 1_755_555_556_000,
@@ -373,7 +377,10 @@ describe("npc.upsert.v1", () => {
   it("rejects a stale revision and a same-revision different-content resend", async () => {
     const actors: FakeActor[] = [];
     stubFoundry(actors);
-    await npcUpsertV1(request() as unknown as Record<string, unknown>, {} as never);
+    await npcUpsertV1(
+      request() as unknown as Record<string, unknown>,
+      {} as never,
+    );
 
     await expectRpcError(
       npcUpsertV1(

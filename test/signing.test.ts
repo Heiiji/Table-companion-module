@@ -31,9 +31,7 @@ beforeAll(async () => {
     "sign",
     "verify",
   ])) as CryptoKeyPair;
-  publicKeyB64 = toB64(
-    await crypto.subtle.exportKey("raw", keyPair.publicKey),
-  );
+  publicKeyB64 = toB64(await crypto.subtle.exportKey("raw", keyPair.publicKey));
 });
 
 describe("parseSignedMessage", () => {

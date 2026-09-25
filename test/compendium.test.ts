@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { compendiumIndex, compendiumGet } from "../src/procedures/compendium.js";
+import {
+  compendiumIndex,
+  compendiumGet,
+} from "../src/procedures/compendium.js";
 import { RpcError } from "../src/rpc/errors.js";
 import {
   MAX_ENVELOPE_BYTES,
@@ -34,7 +37,9 @@ function hidden(pack: FakePack): FakePack {
 /** Stub `game` with these packs and the paired service user. `paired: false`
  * models a world whose agent has not paired yet. */
 function stubWorld(list: FakePack[], opts: { paired?: boolean } = {}): void {
-  const packs = [...list] as FakePack[] & { get: (c: string) => FakePack | undefined };
+  const packs = [...list] as FakePack[] & {
+    get: (c: string) => FakePack | undefined;
+  };
   packs.get = (c) => list.find((p) => p.collection === c);
   const paired = opts.paired ?? true;
   vi.stubGlobal("game", {
@@ -42,7 +47,9 @@ function stubWorld(list: FakePack[], opts: { paired?: boolean } = {}): void {
     users: { get: (id: string) => (id === AGENT.id ? AGENT : undefined) },
     settings: {
       get: (ns: string, key: string) =>
-        paired && ns === MODULE_ID && key === SETTING_AGENT_USER ? AGENT.id : "",
+        paired && ns === MODULE_ID && key === SETTING_AGENT_USER
+          ? AGENT.id
+          : "",
     },
   });
 }
@@ -50,17 +57,40 @@ function stubWorld(list: FakePack[], opts: { paired?: boolean } = {}): void {
 function setGame(): void {
   const bestiary: FakePack = {
     collection: "pf2e.pathfinder-bestiary",
-    metadata: { id: "pathfinder-bestiary", label: "PF2e Bestiary", type: "Actor", system: "pf2e" },
+    metadata: {
+      id: "pathfinder-bestiary",
+      label: "PF2e Bestiary",
+      type: "Actor",
+      system: "pf2e",
+    },
     getIndex: async () => [
-      { _id: "abc", name: "Goblin Warrior", img: "icons/goblin.png", type: "npc" },
+      {
+        _id: "abc",
+        name: "Goblin Warrior",
+        img: "icons/goblin.png",
+        type: "npc",
+      },
       { _id: "def", name: "Hobgoblin Soldier", type: "npc" },
     ],
     getDocument: async (id: string) =>
-      id === "abc" ? { toObject: () => ({ _id: "abc", name: "Goblin Warrior", type: "npc" }) } : null,
+      id === "abc"
+        ? {
+            toObject: () => ({
+              _id: "abc",
+              name: "Goblin Warrior",
+              type: "npc",
+            }),
+          }
+        : null,
   };
   const spells: FakePack = {
     collection: "pf2e.spells-srd",
-    metadata: { id: "spells-srd", label: "Spells", type: "Item", system: "pf2e" },
+    metadata: {
+      id: "spells-srd",
+      label: "Spells",
+      type: "Item",
+      system: "pf2e",
+    },
     getIndex: async () => [{ _id: "s1", name: "Fireball" }],
     getDocument: async () => null,
   };
@@ -72,19 +102,27 @@ afterEach(() => vi.unstubAllGlobals());
 describe("compendium.index", () => {
   it("lists creatures from Actor packs with pack-qualified ids", async () => {
     setGame();
-    const result = (await compendiumIndex({ contentType: "creature" }, {} as never)) as {
+    const result = (await compendiumIndex(
+      { contentType: "creature" },
+      {} as never,
+    )) as {
       entries: Array<{ id: string; name: string; pack: string }>;
     };
     expect(result.entries).toHaveLength(2);
     expect(result.entries[0].id).toBe("pf2e.pathfinder-bestiary|abc");
     expect(result.entries.map((e) => e.name)).toContain("Hobgoblin Soldier");
     // The Item pack (spells) is excluded for the creature content type.
-    expect(result.entries.every((e) => e.pack === "pf2e.pathfinder-bestiary")).toBe(true);
+    expect(
+      result.entries.every((e) => e.pack === "pf2e.pathfinder-bestiary"),
+    ).toBe(true);
   });
 
   it("filters by name query (case-insensitive substring)", async () => {
     setGame();
-    const result = (await compendiumIndex({ contentType: "creature", query: "warrior" }, {} as never)) as {
+    const result = (await compendiumIndex(
+      { contentType: "creature", query: "warrior" },
+      {} as never,
+    )) as {
       entries: Array<{ name: string }>;
     };
     expect(result.entries).toHaveLength(1);
@@ -93,7 +131,10 @@ describe("compendium.index", () => {
 
   it("skips packs whose declared system differs", async () => {
     setGame();
-    const result = (await compendiumIndex({ contentType: "creature", system: "dnd5e" }, {} as never)) as {
+    const result = (await compendiumIndex(
+      { contentType: "creature", system: "dnd5e" },
+      {} as never,
+    )) as {
       entries: unknown[];
     };
     expect(result.entries).toHaveLength(0);
@@ -103,7 +144,12 @@ describe("compendium.index", () => {
 function setKnightGame(): void {
   const arsenal: FakePack = {
     collection: "world.knight-arsenal",
-    metadata: { id: "knight-arsenal", label: "Knight Arsenal", type: "Item", system: "knight" },
+    metadata: {
+      id: "knight-arsenal",
+      label: "Knight Arsenal",
+      type: "Item",
+      system: "knight",
+    },
     getIndex: async () => [
       { _id: "m2", name: "Nova", type: "module" },
       { _id: "m1", name: "Accélérateur", type: "module" },
@@ -119,7 +165,10 @@ function setKnightGame(): void {
 describe("compendium.index — Knight item subtype", () => {
   it("filters Item entries to the requested subtype", async () => {
     setKnightGame();
-    const result = (await compendiumIndex({ contentType: "item", subtype: "module" }, {} as never)) as {
+    const result = (await compendiumIndex(
+      { contentType: "item", subtype: "module" },
+      {} as never,
+    )) as {
       entries: Array<{ name: string; type?: string }>;
       total: number;
       truncated: boolean;
@@ -132,15 +181,27 @@ describe("compendium.index — Knight item subtype", () => {
 
   it("sorts entries stably by name then _id", async () => {
     setKnightGame();
-    const result = (await compendiumIndex({ contentType: "item" }, {} as never)) as {
+    const result = (await compendiumIndex(
+      { contentType: "item" },
+      {} as never,
+    )) as {
       entries: Array<{ name: string }>;
     };
-    expect(result.entries.map((e) => e.name)).toEqual(["Accélérateur", "Bond", "Nova", "Railgun", "Warrior"]);
+    expect(result.entries.map((e) => e.name)).toEqual([
+      "Accélérateur",
+      "Bond",
+      "Nova",
+      "Railgun",
+      "Warrior",
+    ]);
   });
 
   it("reports total + truncated when the limit caps results", async () => {
     setKnightGame();
-    const result = (await compendiumIndex({ contentType: "item", limit: 2 }, {} as never)) as {
+    const result = (await compendiumIndex(
+      { contentType: "item", limit: 2 },
+      {} as never,
+    )) as {
       entries: unknown[];
       total: number;
       truncated: boolean;
@@ -154,7 +215,10 @@ describe("compendium.index — Knight item subtype", () => {
 describe("compendium.get", () => {
   it("returns the raw document for a pack-qualified id", async () => {
     setGame();
-    const result = (await compendiumGet({ id: "pf2e.pathfinder-bestiary|abc" }, {} as never)) as {
+    const result = (await compendiumGet(
+      { id: "pf2e.pathfinder-bestiary|abc" },
+      {} as never,
+    )) as {
       id: string;
       document: { _id: string };
     };
@@ -164,7 +228,9 @@ describe("compendium.get", () => {
 
   it("throws on a malformed id", async () => {
     setGame();
-    await expect(compendiumGet({ id: "no-separator" }, {} as never)).rejects.toThrow();
+    await expect(
+      compendiumGet({ id: "no-separator" }, {} as never),
+    ).rejects.toThrow();
   });
 
   it("rejects an oversized document with payload_too_large", async () => {
@@ -191,13 +257,18 @@ describe("compendium permission gate", () => {
   const secret = (): FakePack => ({
     collection: "world.gm-secrets",
     metadata: { id: "gm-secrets", label: "GM secrets", type: "Actor" },
-    getIndex: async () => [{ _id: "boss", name: "The Real Villain", type: "npc" }],
+    getIndex: async () => [
+      { _id: "boss", name: "The Real Villain", type: "npc" },
+    ],
     getDocument: async () => ({ toObject: () => ({ _id: "boss" }) }),
   });
 
   it("leaves packs the service user cannot observe out of the index", async () => {
     stubWorld([hidden(secret())]);
-    const result = (await compendiumIndex({ contentType: "creature" }, {} as never)) as {
+    const result = (await compendiumIndex(
+      { contentType: "creature" },
+      {} as never,
+    )) as {
       entries: unknown[];
     };
     expect(result.entries).toEqual([]);
@@ -213,7 +284,9 @@ describe("compendium permission gate", () => {
     const unknownErr = await settle("world.nope|boss");
     expect(hiddenErr).toBeInstanceOf(RpcError);
     expect((hiddenErr as RpcError).code).toBe("not_found");
-    expect((hiddenErr as RpcError).message).toBe((unknownErr as RpcError).message);
+    expect((hiddenErr as RpcError).message).toBe(
+      (unknownErr as RpcError).message,
+    );
     expect((unknownErr as RpcError).code).toBe("not_found");
   });
 
@@ -225,14 +298,19 @@ describe("compendium permission gate", () => {
       getDocument: async () => ({ toObject: () => ({ _id: "j1" }) }),
     });
     stubWorld([journal]);
-    await expect(compendiumGet({ id: "world.lore|j1" }, {} as never)).rejects.toMatchObject({
+    await expect(
+      compendiumGet({ id: "world.lore|j1" }, {} as never),
+    ).rejects.toMatchObject({
       code: "not_found",
     });
   });
 
   it("reads nothing before the agent has paired", async () => {
     stubWorld([shared(secret())], { paired: false });
-    const result = (await compendiumIndex({ contentType: "creature" }, {} as never)) as {
+    const result = (await compendiumIndex(
+      { contentType: "creature" },
+      {} as never,
+    )) as {
       entries: unknown[];
     };
     expect(result.entries).toEqual([]);

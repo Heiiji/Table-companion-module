@@ -469,8 +469,7 @@ export function validateKnightActorUpsertV1(
     expectedActorId,
     profile,
     ai: p.ai === undefined ? undefined : parseAI(p.ai),
-    aspects:
-      p.aspects === undefined ? undefined : parseAspectScores(p.aspects),
+    aspects: p.aspects === undefined ? undefined : parseAspectScores(p.aspects),
     characteristics:
       p.characteristics === undefined
         ? undefined

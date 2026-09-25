@@ -29,7 +29,12 @@ function fakeChannel(): { channel: Channel; emit: ReturnType<typeof vi.fn> } {
   return { channel: { emitEvent: emit } as unknown as Channel, emit };
 }
 
-const gm = (id: string): FakeUser => ({ id, isGM: true, active: true, name: id });
+const gm = (id: string): FakeUser => ({
+  id,
+  isGM: true,
+  active: true,
+  name: id,
+});
 const companion: FakeUser = {
   id: "comp",
   isGM: false,

@@ -111,11 +111,17 @@ function parseResources(value: unknown): NpcResourcesV1 {
   ]);
   return {
     health:
-      p.health === undefined ? undefined : parsePool(p.health, "resources.health"),
+      p.health === undefined
+        ? undefined
+        : parsePool(p.health, "resources.health"),
     armour:
-      p.armour === undefined ? undefined : parsePool(p.armour, "resources.armour"),
+      p.armour === undefined
+        ? undefined
+        : parsePool(p.armour, "resources.armour"),
     energy:
-      p.energy === undefined ? undefined : parsePool(p.energy, "resources.energy"),
+      p.energy === undefined
+        ? undefined
+        : parsePool(p.energy, "resources.energy"),
     forceField:
       p.forceField === undefined
         ? undefined
@@ -291,7 +297,10 @@ export const npcUpsertV1: Procedure = async (payload) => {
     throw new Error("Foundry returned an invalid Actor id");
 
   const previous = npcSyncOf(actor);
-  if (previous && alreadyApplied(previous, req.contentRevision, digest, "content")) {
+  if (
+    previous &&
+    alreadyApplied(previous, req.contentRevision, digest, "content")
+  ) {
     return {
       schemaVersion: 1,
       resultDocId: id,

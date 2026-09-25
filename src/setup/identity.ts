@@ -3,11 +3,7 @@ import {
   SETTING_AGENT_USER,
   SETTING_COMPANION_ANCHOR,
 } from "../constants.js";
-import {
-  gameSettings,
-  gameUsers,
-  type UserLike,
-} from "../foundry/runtime.js";
+import { gameSettings, gameUsers, type UserLike } from "../foundry/runtime.js";
 import { log } from "../util/log.js";
 
 /**

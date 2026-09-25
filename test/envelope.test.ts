@@ -51,29 +51,39 @@ describe("parseEnvelope", () => {
   });
 
   it("drops a malformed peer but keeps a valid one", () => {
-    expect(parseEnvelope({ type: "hello", v: 1, ts: 1, peer: { role: "x" } })!.peer)
-      .toBeUndefined();
+    expect(
+      parseEnvelope({ type: "hello", v: 1, ts: 1, peer: { role: "x" } })!.peer,
+    ).toBeUndefined();
     const good = {
       role: "agent",
       version: "1.0.0",
       minEnvelope: 1,
       maxEnvelope: 1,
     };
-    expect(parseEnvelope({ type: "hello", v: 1, ts: 1, peer: good })!.peer).toEqual(good);
+    expect(
+      parseEnvelope({ type: "hello", v: 1, ts: 1, peer: good })!.peer,
+    ).toEqual(good);
   });
 
   it("drops a malformed error but keeps a valid one", () => {
     expect(
-      parseEnvelope({ type: "rpc.error", v: 1, ts: 1, error: { code: 1 } })!.error,
+      parseEnvelope({ type: "rpc.error", v: 1, ts: 1, error: { code: 1 } })!
+        .error,
     ).toBeUndefined();
     const err = { code: "boom", message: "it broke" };
-    expect(parseEnvelope({ type: "rpc.error", v: 1, ts: 1, error: err })!.error).toEqual(
-      err,
-    );
+    expect(
+      parseEnvelope({ type: "rpc.error", v: 1, ts: 1, error: err })!.error,
+    ).toEqual(err);
   });
 
   it("ignores non-string id/proc (forward-compat tolerance)", () => {
-    const env = parseEnvelope({ type: "rpc.request", v: 1, ts: 1, id: 5, proc: {} });
+    const env = parseEnvelope({
+      type: "rpc.request",
+      v: 1,
+      ts: 1,
+      id: 5,
+      proc: {},
+    });
     expect(env!.id).toBeUndefined();
     expect(env!.proc).toBeUndefined();
   });

@@ -515,7 +515,8 @@ export class Channel {
     // Any other user is held until the GM decides in the setup dialog.
     const fp = await fingerprint(env.peer.pubKey);
     const isNew =
-      this.pending?.userId !== sender || this.pending?.pubKey !== env.peer.pubKey;
+      this.pending?.userId !== sender ||
+      this.pending?.pubKey !== env.peer.pubKey;
     this.pending = {
       pubKey: env.peer.pubKey,
       userId: sender,

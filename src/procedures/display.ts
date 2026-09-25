@@ -54,8 +54,13 @@ export function normalizeDisplayPayload(payload: unknown): DisplayView {
   const p = (payload ?? {}) as Record<string, unknown>;
 
   const name = typeof p.name === "string" ? p.name.trim() : "";
-  if (!name) throw new RpcError("invalid_args", "display.show requires a non-empty 'name'");
-  if (name.length > MAX_NAME) throw new RpcError("invalid_args", "display.show name is too long");
+  if (!name)
+    throw new RpcError(
+      "invalid_args",
+      "display.show requires a non-empty 'name'",
+    );
+  if (name.length > MAX_NAME)
+    throw new RpcError("invalid_args", "display.show name is too long");
 
   const rawFields = Array.isArray(p.fields) ? p.fields : [];
   if (rawFields.length > MAX_FIELDS) {
@@ -66,11 +71,21 @@ export function normalizeDisplayPayload(payload: unknown): DisplayView {
     const fr = (f ?? {}) as Record<string, unknown>;
     const label = typeof fr.label === "string" ? fr.label.trim() : "";
     const value = typeof fr.value === "string" ? fr.value : "";
-    if (!label) throw new RpcError("invalid_args", "display.show field needs a non-empty 'label'");
+    if (!label)
+      throw new RpcError(
+        "invalid_args",
+        "display.show field needs a non-empty 'label'",
+      );
     if (label.length > MAX_LABEL)
-      throw new RpcError("invalid_args", "display.show field label is too long");
+      throw new RpcError(
+        "invalid_args",
+        "display.show field label is too long",
+      );
     if (value.length > MAX_VALUE)
-      throw new RpcError("invalid_args", "display.show field value is too long");
+      throw new RpcError(
+        "invalid_args",
+        "display.show field value is too long",
+      );
     fields.push({ label, value });
   }
 
@@ -105,8 +120,7 @@ export function isAllowedImageSource(src: string): boolean {
 const DISPLAY_TAG = "tcaDisplay";
 
 export type DisplayBroadcast =
-  | { tcaDisplay: "show"; view: DisplayView }
-  | { tcaDisplay: "clear" };
+  { tcaDisplay: "show"; view: DisplayView } | { tcaDisplay: "clear" };
 
 export function buildShowBroadcast(view: DisplayView): DisplayBroadcast {
   return { [DISPLAY_TAG]: "show", view };
