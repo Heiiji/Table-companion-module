@@ -102,10 +102,15 @@ export interface SettingsLike {
 }
 
 /** `game.socket`, narrowed to the two methods this module uses. Foundry's
- * server passes the sender's user id as a listener's second argument. */
+ * server passes the sender's user id as a listener's second argument. Foundry
+ * ignores a listener's return value, so a listener that returns a promise must
+ * handle its own rejection (the promise is there for callers that await it). */
 export interface SocketLike {
   emit(event: string, ...args: unknown[]): void;
-  on(event: string, fn: (raw: unknown, senderId?: unknown) => void): void;
+  on(
+    event: string,
+    fn: (raw: unknown, senderId?: unknown) => void | Promise<void>,
+  ): void;
 }
 
 export type NotificationsLike = Partial<

@@ -610,6 +610,28 @@ describe("Channel.onMessage", () => {
     );
     expect(emitSpy).not.toHaveBeenCalled();
   });
+
+  // Foundry's relay ignores what a socket listener returns, so a failure while
+  // handling a message must be logged by the channel, never left unhandled.
+  it("logs a failure while handling a message instead of rejecting", async () => {
+    stubGame({ pinned: agentPubB64 });
+    startChannel();
+    (game.settings as unknown as { get: () => unknown }).get = () => {
+      throw new Error("settings unavailable");
+    };
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(
+        deliver(
+          await sign(agentEnv("rpc.request", { id: "f1", proc: "echo" })),
+        ),
+      ).resolves.toBeUndefined();
+      expect(error).toHaveBeenCalled();
+      expect(emitSpy).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
+  });
 });
 
 // --- module -> agent response signing ---------------------------------------

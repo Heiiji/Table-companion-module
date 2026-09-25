@@ -1,0 +1,7 @@
+// The nearest tsconfig.json decides which TypeScript project a file belongs to
+// — for the ESLint project service and for editors alike — and the root one
+// covers only src (what the build compiles). Files under test/ resolve here,
+// which is exactly tsconfig.test.json: src and test, type-checked together.
+{
+  "extends": "../tsconfig.test.json"
+}

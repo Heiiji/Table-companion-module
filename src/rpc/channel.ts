@@ -175,9 +175,12 @@ export class Channel {
   start(): void {
     // Foundry's server relays a `module.*` event as (data, senderUserId), the
     // sender taken from the session on the server — the one fact about a
-    // message that a client cannot forge.
+    // message that a client cannot forge. The relay ignores the listener's
+    // promise, so its failure is logged here rather than left unhandled.
     gameSocket()?.on(CHANNEL, (raw: unknown, senderId?: unknown) =>
-      this.onMessage(raw, senderId),
+      this.onMessage(raw, senderId).catch((err: unknown) =>
+        log.error("could not handle an agent message", err),
+      ),
     );
     log.info(`listening on socket channel "${CHANNEL}"`);
     // Announce ourselves so an agent that connected *before* this client opened

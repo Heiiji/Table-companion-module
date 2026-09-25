@@ -1,20 +1,40 @@
 import tseslint from "@typescript-eslint/eslint-plugin";
-import tsparser from "@typescript-eslint/parser";
+
+// Flat config built from @typescript-eslint/eslint-plugin's own flat presets.
+
+const SOURCES = ["src/**/*.ts", "test/**/*.ts"];
+const CONFIG_FILES = ["eslint.config.js", "vite.config.ts", "vitest.config.ts"];
+
+/** One of the plugin's flat presets, applied to exactly these files. */
+const scoped = (preset, files) =>
+  preset.map((config) => ({ ...config, files }));
 
 export default [
+  { ignores: ["dist/**", "coverage/**", "node_modules/**"] },
+
+  // The build and tool configs: the recommended rules, without type information
+  // (they sit outside the TypeScript projects).
+  ...scoped(tseslint.configs["flat/recommended"], CONFIG_FILES),
+
+  // src and test: the recommended rules plus the type-aware promise rules. The
+  // project service finds tsconfig.json for src and test/tsconfig.json (which
+  // extends tsconfig.test.json) for the tests.
+  ...scoped(tseslint.configs["flat/recommended"], SOURCES),
   {
-    files: ["src/**/*.ts"],
+    files: SOURCES,
     languageOptions: {
-      parser: tsparser,
-      ecmaVersion: "latest",
-      sourceType: "module",
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
-    plugins: { "@typescript-eslint": tseslint },
     rules: {
-      ...tseslint.configs.recommended.rules,
-      // Keep `any` flagged everywhere; the one untyped Foundry boundary
-      // (DialogV2 generics in SetupApp.ts) opts out with a scoped inline
-      // eslint-disable rather than disabling the rule project-wide.
+      // A promise nobody awaits or catches loses its rejection; a promise passed
+      // where a callback's result is ignored does the same.
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
+      // Keep `any` flagged; the one untyped Foundry boundary (module.ts's
+      // ApplicationV2 lookup) opts out with a scoped inline disable.
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
@@ -23,21 +43,10 @@ export default [
     },
   },
   {
-    // Tests legitimately cast through `unknown` to stub Foundry globals, so the
-    // strict src rules (no-explicit-any) don't apply here; we still surface
-    // unused vars as a non-blocking hint.
+    // Tests cast through `unknown` and stub Foundry globals loosely.
     files: ["test/**/*.ts"],
-    languageOptions: {
-      parser: tsparser,
-      ecmaVersion: "latest",
-      sourceType: "module",
-    },
-    plugins: { "@typescript-eslint": tseslint },
     rules: {
-      "@typescript-eslint/no-unused-vars": [
-        "warn",
-        { argsIgnorePattern: "^_" },
-      ],
+      "@typescript-eslint/no-explicit-any": "off",
     },
   },
 ];

@@ -10,7 +10,7 @@
   "scripts": {
     "build": "vite build",
     "watch": "vite build --watch",
-    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" && tsc --noEmit -p tsconfig.test.json",
+    "lint": "eslint --max-warnings 0 src test \"*.config.{js,ts}\" && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "format": "prettier --write src test \"*.config.{js,ts}\"",
