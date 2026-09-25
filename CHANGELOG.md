@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-25
+
 ### Security
 - **Only the app's service account can pair, and a player can no longer win the pairing race.**
   Foundry's server tells the module which user sent each socket message, and the backend now signs
