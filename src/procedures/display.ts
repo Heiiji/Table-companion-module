@@ -1,4 +1,5 @@
 import { CHANNEL } from "../constants.js";
+import { gameSocket } from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import { closeProjector, openProjector } from "../ui/projector.js";
@@ -164,16 +165,6 @@ export function projectorContentHtml(view: DisplayView): string {
   );
 }
 
-/** game.socket, narrowed to the two methods we use. Foundry's server passes the
- * sender's user id as the listener's second argument. */
-interface SocketLike {
-  emit(event: string, ...args: unknown[]): void;
-  on(event: string, fn: (raw: unknown, senderId?: unknown) => void): void;
-}
-function socket(): SocketLike | undefined {
-  return (game as unknown as { socket?: SocketLike }).socket;
-}
-
 /** Render the projector locally on THIS client (no broadcast). Used by the
  * responder via present() and by every other client via the socket listener.
  * Returns whether the popout actually came up. */
@@ -200,7 +191,7 @@ export interface DisplayReceipt {
  * peers render via the listener — exactly one render per client. */
 export async function present(view: DisplayView): Promise<DisplayReceipt> {
   const rendered = await renderLocal(view);
-  const sock = socket();
+  const sock = gameSocket();
   sock?.emit(CHANNEL, buildShowBroadcast(view));
   return { rendered, broadcast: sock !== undefined };
 }
@@ -208,7 +199,7 @@ export async function present(view: DisplayView): Promise<DisplayReceipt> {
 /** Clear the projection locally and on every other client. */
 export async function clearDisplay(): Promise<DisplayReceipt> {
   await closeProjector();
-  const sock = socket();
+  const sock = gameSocket();
   sock?.emit(CHANNEL, buildClearBroadcast());
   return { rendered: false, broadcast: sock !== undefined };
 }
@@ -224,7 +215,7 @@ export async function clearDisplay(): Promise<DisplayReceipt> {
  * is a Gamemaster — a player cannot put text on everyone's screen or close it.
  */
 export function startDisplayListener(): void {
-  socket()?.on(CHANNEL, (raw, senderId) => {
+  gameSocket()?.on(CHANNEL, (raw, senderId) => {
     const msg = parseDisplayBroadcast(raw);
     if (!msg) return;
     if (typeof senderId !== "string" || !userById(senderId)?.isGM) return;

@@ -1,4 +1,5 @@
 import { MODULE_ID } from "../constants.js";
+import { gameModules, gamePacks } from "../foundry/runtime.js";
 import {
   KNIGHT_COMPENDIUM_MODULE_ID,
   KNIGHT_COMPENDIUM_VERSION,
@@ -7,7 +8,6 @@ import {
 } from "../refdata/knightCompendiumCrosswalkV14_0_1.js";
 import {
   actorItems,
-  currentGame,
   flagValue,
   foundryId,
   invalid,
@@ -271,7 +271,7 @@ function managedEquipmentKey(item: ActorItemLike): string | null {
 }
 
 function compendiumAvailabilityWarning(): string | null {
-  const module = currentGame().modules?.get(KNIGHT_COMPENDIUM_MODULE_ID);
+  const module = gameModules()?.get(KNIGHT_COMPENDIUM_MODULE_ID);
   if (!module?.active) return "equipment_compendium_missing";
   if (module.version !== KNIGHT_COMPENDIUM_VERSION)
     return `equipment_compendium_unsupported:${module.version ?? "unknown"}`;
@@ -398,7 +398,7 @@ export async function applyEquipment(
   const compendiumWarning =
     desired.length === 0 ? null : compendiumAvailabilityWarning();
   if (compendiumWarning) warnings.push(compendiumWarning);
-  const packs = currentGame().packs;
+  const packs = gamePacks();
   for (const item of desired) {
     const key = desiredEquipmentKey(item);
     if (retainedKeys.has(key) || compendiumWarning) continue;

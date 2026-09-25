@@ -1,3 +1,4 @@
+import { dialogV2Class } from "../foundry/runtime.js";
 import { localize, log } from "../util/log.js";
 
 /**
@@ -6,19 +7,11 @@ import { localize, log } from "../util/log.js";
  * already-escaped HTML string (built by projectorContentHtml in
  * procedures/display.ts, the sole escaper). No Actor/canvas/scene coupling.
  *
- * The DialogV2 constructor is resolved lazily AND through globalThis, so this
- * module is import- and call-safe even when `foundry` is undefined (a very old
- * Foundry, or a unit test): the resolver yields undefined and openProjector
+ * The DialogV2 constructor is resolved lazily through the runtime gateway, so
+ * this module is import- and call-safe even when `foundry` is undefined (a very
+ * old Foundry, or a unit test): the resolver yields undefined and openProjector
  * no-ops, rather than a bare-identifier ReferenceError.
  */
-const DialogV2 = (): (new (opts: unknown) => unknown) | undefined =>
-  (
-    globalThis as unknown as {
-      foundry?: {
-        applications?: { api?: { DialogV2?: new (opts: unknown) => unknown } };
-      };
-    }
-  ).foundry?.applications?.api?.DialogV2;
 
 interface DialogInstance {
   rendered: boolean;
@@ -42,7 +35,7 @@ export async function openProjector(
   title: string,
   contentHtml: string,
 ): Promise<boolean> {
-  const Ctor = DialogV2();
+  const Ctor = dialogV2Class();
   if (!Ctor) return false;
   await closeProjector();
   try {

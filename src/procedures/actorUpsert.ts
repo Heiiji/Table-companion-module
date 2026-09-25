@@ -1,5 +1,6 @@
 import { MODULE_ID } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
+import { gameUsers } from "../foundry/runtime.js";
 import type { Procedure } from "../rpc/registry.js";
 import {
   actorCollection,
@@ -10,7 +11,6 @@ import {
   bindingOf,
   canonicalDigest,
   createActorDocument,
-  currentGame,
   foundryId,
   invalid,
   parseStoredResult,
@@ -46,7 +46,7 @@ export { validateKnightActorUpsertV1 } from "./actorUpsert.validate.js";
 
 function assertRuntimeAndAuthority(req: KnightActorUpsertV1): void {
   assertKnightUpsertAuthority("actor.upsert.v1");
-  if (req.foundryUserId && !currentGame().users?.get(req.foundryUserId))
+  if (req.foundryUserId && !gameUsers()?.get(req.foundryUserId))
     invalid("foundryUserId is not a User in this world");
 }
 

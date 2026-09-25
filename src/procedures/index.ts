@@ -1,5 +1,4 @@
 import type { ProcedureRegistry } from "../rpc/registry.js";
-import { supportsKnightActorUpsertV1Runtime } from "./foundry.js";
 import { ping } from "./ping.js";
 import { presence } from "./presence.js";
 import { rollExecute } from "./rollExecute.js";
@@ -7,6 +6,7 @@ import { compendiumIndex, compendiumGet } from "./compendium.js";
 import { displayShow, displayClear } from "./display.js";
 import { actorUpsertV1 } from "./actorUpsert.js";
 import { npcUpsertV1 } from "./npcUpsert.js";
+import { supportsKnightActorUpsertV1Runtime } from "./upsertShared.js";
 
 /** Register every built-in procedure. Each registration adds one capability to
  * the module's advertised set — a promise the apps feature-detect on, so

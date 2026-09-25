@@ -1,7 +1,18 @@
 import { MODULE_ID } from "../constants.js";
+import {
+  actorImplementation,
+  foundryGame,
+  foundryGeneration,
+  gameActors,
+  systemId,
+  systemVersion,
+  type ActorItemLike,
+  type ActorLike,
+  type ActorsLike,
+  type Dict,
+} from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
 import { canonicalize } from "../rpc/responseSigning.js";
-import { supportsKnightActorUpsertV1Runtime } from "./foundry.js";
 
 /**
  * Shared plumbing for the durable actor-provisioning procedures
@@ -14,7 +25,12 @@ import { supportsKnightActorUpsertV1Runtime } from "./foundry.js";
  * stays in each procedure's own file.
  */
 
-export type Dict = Record<string, unknown>;
+export type {
+  ActorItemLike,
+  ActorLike,
+  ActorsLike,
+  Dict,
+} from "../foundry/runtime.js";
 
 /** The request/result/flag schema version both provisioning lanes speak. */
 export const SCHEMA_VERSION = 1;
@@ -24,59 +40,6 @@ export const SCHEMA_VERSION = 1;
 export type Outcome = "created" | "adopted" | "updated";
 
 const OUTCOMES: readonly string[] = ["created", "adopted", "updated"];
-
-export interface ActorLike {
-  id?: string;
-  _id?: string;
-  name?: string;
-  type?: string;
-  flags?: Dict;
-  ownership?: Dict;
-  system?: unknown;
-  items?: { contents?: ActorItemLike[] } | Iterable<ActorItemLike>;
-  getFlag?(namespace: string, key: string): unknown;
-  update(changes: Dict): Promise<unknown>;
-  prepareData?(): void;
-  createEmbeddedDocuments?(type: "Item", data: Dict[]): Promise<unknown>;
-  deleteEmbeddedDocuments?(type: "Item", ids: string[]): Promise<unknown>;
-}
-
-export interface ActorItemLike {
-  id?: string;
-  _id?: string;
-  type?: string;
-  system?: unknown;
-  getFlag?(namespace: string, key: string): unknown;
-  flags?: Dict;
-  update?(changes: Dict): Promise<unknown>;
-}
-
-export interface ActorsLike {
-  contents?: ActorLike[];
-  get(id: string): ActorLike | undefined;
-  [Symbol.iterator]?(): Iterator<ActorLike>;
-}
-
-export interface UserCollectionLike {
-  get(id: string): unknown;
-}
-
-export interface PackLike {
-  getDocument(id: string): Promise<{ toObject(): unknown } | null | undefined>;
-}
-
-export interface PacksLike {
-  get(id: string): PackLike | undefined;
-}
-
-export interface ModuleLike {
-  active?: boolean;
-  version?: string;
-}
-
-export interface ModulesLike {
-  get(id: string): ModuleLike | undefined;
-}
 
 export interface BindingV1 {
   schemaVersion: 1;
@@ -179,6 +142,19 @@ export function parseAspectScores(value: unknown): AspectScoresV1 {
   };
 }
 
+/** Exact fixture gate for the only Knight actor mapping admitted by this
+ * release. It decides whether the two provisioning procedures are registered
+ * at all, and each procedure repeats it before touching the world. The pnj
+ * data model is verified byte-identical 3.58.33 → 3.58.35, so one widening of
+ * this gate moves both lanes. */
+export function supportsKnightActorUpsertV1Runtime(): boolean {
+  return (
+    systemId() === "knight" &&
+    systemVersion() === "3.58.33" &&
+    [13, 14].includes(foundryGeneration())
+  );
+}
+
 /**
  * The gate both Knight lanes repeat before touching the world: the responder
  * must be a GM, and the runtime must be the exact Knight/Foundry pair the
@@ -186,8 +162,7 @@ export function parseAspectScores(value: unknown): AspectScoresV1 {
  * `procedure` names the lane in the error message.
  */
 export function assertKnightUpsertAuthority(procedure: string): void {
-  const g = currentGame();
-  if (!g.user?.isGM)
+  if (!foundryGame()?.user?.isGM)
     throw new RpcError(
       "permission_denied",
       `${procedure} requires a GM responder`,
@@ -199,24 +174,8 @@ export function assertKnightUpsertAuthority(procedure: string): void {
     );
   }
 }
-export function currentGame(): {
-  user?: { isGM?: boolean };
-  users?: UserCollectionLike;
-  actors?: ActorsLike;
-  packs?: PacksLike;
-  modules?: ModulesLike;
-  system?: { id?: string };
-  release?: { generation?: number };
-  version?: string;
-} {
-  return (
-    (globalThis as unknown as { game?: ReturnType<typeof currentGame> }).game ??
-    {}
-  );
-}
-
 export function actorCollection(): ActorsLike {
-  const actors = currentGame().actors;
+  const actors = gameActors();
   if (!actors)
     throw new RpcError(
       "unsupported_runtime",
@@ -407,15 +366,7 @@ export function alreadyApplied(
 /** Create an Actor through Foundry's document class, without opening its
  * sheet, and check that Foundry handed back something updatable. */
 export async function createActorDocument(data: Dict): Promise<ActorLike> {
-  const factory = (
-    globalThis as unknown as {
-      Actor?: {
-        implementation?: {
-          create(data: Dict, options?: Dict): Promise<unknown>;
-        };
-      };
-    }
-  ).Actor?.implementation;
+  const factory = actorImplementation();
   if (!factory?.create)
     throw new RpcError(
       "unsupported_runtime",

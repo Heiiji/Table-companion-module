@@ -1,6 +1,12 @@
+import {
+  gamePacks,
+  type CompendiumPackLike,
+  type CompendiumPacksLike,
+  type UserLike,
+} from "../foundry/runtime.js";
 import type { Procedure } from "../rpc/registry.js";
 import { RpcError, assertPayloadWithinCap } from "../rpc/errors.js";
-import { pairedAgentUser, type UserLike } from "../setup/identity.js";
+import { pairedAgentUser } from "../setup/identity.js";
 
 /**
  * Live library passthrough: expose content that the paired service user is allowed to see as a
@@ -51,16 +57,6 @@ interface IndexPayload {
   subtype?: string;
 }
 
-// Minimal structural views of the Foundry globals we touch — kept local so this compiles against
-// any foundry-vtt-types version without leaking `any` across the module.
-interface PackLike {
-  collection: string;
-  metadata: { id?: string; label?: string; type?: string; system?: string };
-  getIndex(): Promise<Iterable<Record<string, unknown>>>;
-  getDocument(id: string): Promise<{ toObject(): unknown } | null | undefined>;
-  testUserPermission?(user: unknown, permission: string): boolean;
-}
-
 /** The document types this passthrough serves: the app reads creatures and items only. Journals,
  * scenes, roll tables, adventures and macros never leave the GM's session this way. */
 const SERVED_DOCUMENT_TYPES = new Set(["Actor", "Item"]);
@@ -71,20 +67,18 @@ const SERVED_DOCUMENT_TYPES = new Set(["Actor", "Item"]);
  * is whether the paired service user may observe it. Fails closed: no paired user, or a pack
  * without a permission API, is not readable.
  */
-function readable(pack: PackLike, agent: UserLike | undefined): boolean {
+function readable(
+  pack: CompendiumPackLike,
+  agent: UserLike | undefined,
+): boolean {
   if (!agent) return false;
   if (!SERVED_DOCUMENT_TYPES.has(pack.metadata?.type ?? "")) return false;
   if (typeof pack.testUserPermission !== "function") return false;
   return pack.testUserPermission(agent, "OBSERVER");
 }
-interface PacksLike {
-  [Symbol.iterator](): Iterator<PackLike>;
-  get(collection: string): PackLike | undefined;
-}
 
-function packs(): PacksLike {
-  const g = globalThis as unknown as { game?: { packs?: PacksLike } };
-  const p = g.game?.packs;
+function packs(): CompendiumPacksLike {
+  const p = gamePacks();
   if (!p) throw new Error("Foundry game.packs is unavailable");
   return p;
 }

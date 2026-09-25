@@ -3,6 +3,11 @@ import {
   SETTING_AGENT_USER,
   SETTING_COMPANION_ANCHOR,
 } from "../constants.js";
+import {
+  gameSettings,
+  gameUsers,
+  type UserLike,
+} from "../foundry/runtime.js";
 import { log } from "../util/log.js";
 
 /**
@@ -21,22 +26,10 @@ import { log } from "../util/log.js";
  * may set flags on their own User, so a flag proves nothing about who created it.
  */
 
-// fvtt-types models settings only for keys it knows; ours are accessed
-// structurally at this one boundary. Registration happens in module.ts at init.
-type SettingsLike = {
-  get(namespace: string, key: string): unknown;
-  set(namespace: string, key: string, value: unknown): Promise<unknown>;
-};
-
-function settings(): SettingsLike | undefined {
-  return (globalThis as { game?: { settings?: unknown } }).game?.settings as
-    | SettingsLike
-    | undefined;
-}
-
+// Registration of these settings happens in module.ts at init.
 function read(key: string): string {
   try {
-    const v = settings()?.get(MODULE_ID, key);
+    const v = gameSettings()?.get(MODULE_ID, key);
     return typeof v === "string" ? v : "";
   } catch {
     return ""; // not registered (tests, or before init)
@@ -45,7 +38,7 @@ function read(key: string): string {
 
 async function write(key: string, value: string): Promise<void> {
   try {
-    await settings()?.set(MODULE_ID, key, value);
+    await gameSettings()?.set(MODULE_ID, key, value);
   } catch (err) {
     log.warn(`could not persist ${key}`, err);
   }
@@ -69,22 +62,10 @@ export function setCompanionAnchorId(id: string): Promise<void> {
   return write(SETTING_COMPANION_ANCHOR, id);
 }
 
-/** Minimal view of a Foundry user for identity decisions. */
-export interface UserLike {
-  id?: string | null;
-  name?: string | null;
-  isGM?: boolean;
-  active?: boolean;
-}
-
 /** Look a user up by id in the live world, tolerant of the test harness. */
 export function userById(id: string): UserLike | undefined {
   if (!id) return undefined;
-  const users = (
-    globalThis as {
-      game?: { users?: { get?(id: string): UserLike | undefined } };
-    }
-  ).game?.users;
+  const users = gameUsers();
   return typeof users?.get === "function" ? users.get(id) : undefined;
 }
 

@@ -16,7 +16,13 @@ import {
   setPairedAgentUserId,
   userById,
 } from "../setup/identity.js";
-import { worldId as foundryWorldId } from "../procedures/foundry.js";
+import {
+  foundryHooks,
+  gameSettings,
+  gameSocket,
+  uiNotifications,
+  worldId as foundryWorldId,
+} from "../foundry/runtime.js";
 import { localize, log } from "../util/log.js";
 import { Envelope, makeEnvelope, parseEnvelope, PeerInfo } from "./envelope.js";
 import { ProcedureRegistry, RpcContext } from "./registry.js";
@@ -32,10 +38,7 @@ const SIGNED_ONLY_PROCEDURES = new Set(["actor.upsert.v1", "npc.upsert.v1"]);
 /** Best-effort access to Foundry's toast notifications, tolerant of the harness
  * where the `ui` global is absent. */
 function notify(kind: "warn" | "info", message: string): void {
-  const g = globalThis as unknown as {
-    ui?: { notifications?: Record<string, ((m: string) => void) | undefined> };
-  };
-  g.ui?.notifications?.[kind]?.(message);
+  uiNotifications()?.[kind]?.(message);
 }
 
 /** Snapshot of the agent <-> module link, surfaced to the status UI and the
@@ -50,14 +53,6 @@ export interface LinkStatus {
 }
 
 type EventListener = (proc: string, payload: unknown) => void;
-
-// fvtt-types models settings only for keys registered through its own typed
-// surface; our world setting is accessed structurally (no `any`) at this one
-// boundary. Registration happens in module.ts at init.
-type SettingsLike = {
-  get(namespace: string, key: string): unknown;
-  set(namespace: string, key: string, value: unknown): Promise<unknown>;
-};
 
 /** Pairing state surfaced to the setup UI. */
 export interface Pairing {
@@ -185,7 +180,7 @@ export class Channel {
     // Foundry's server relays a `module.*` event as (data, senderUserId), the
     // sender taken from the session on the server — the one fact about a
     // message that a client cannot forge.
-    game.socket?.on(CHANNEL, (raw: unknown, senderId?: unknown) =>
+    gameSocket()?.on(CHANNEL, (raw: unknown, senderId?: unknown) =>
       this.onMessage(raw, senderId),
     );
     log.info(`listening on socket channel "${CHANNEL}"`);
@@ -197,8 +192,7 @@ export class Channel {
     this.sendHello();
     // When the responder changes (a GM joins or leaves), the new one announces
     // itself so the agent's capability list follows it.
-    const hooks = (globalThis as { Hooks?: { on(h: string, fn: () => void): unknown } })
-      .Hooks;
+    const hooks = foundryHooks();
     const recheck = () => {
       const now = isResponder();
       if (now && !this.wasResponder) this.sendHello();
@@ -245,15 +239,13 @@ export class Channel {
 
   /** The pinned agent public key (base64), or "" if not yet paired. */
   private pinnedKey(): string {
-    const settings = game.settings as unknown as SettingsLike | undefined;
-    const v = settings?.get(MODULE_ID, SETTING_AGENT_KEY);
+    const v = gameSettings()?.get(MODULE_ID, SETTING_AGENT_KEY);
     return typeof v === "string" ? v : "";
   }
 
   private async setPinnedKey(b64: string): Promise<void> {
-    const settings = game.settings as unknown as SettingsLike | undefined;
     try {
-      await settings?.set(MODULE_ID, SETTING_AGENT_KEY, b64);
+      await gameSettings()?.set(MODULE_ID, SETTING_AGENT_KEY, b64);
     } catch (err) {
       log.warn("could not persist the agent signing key", err);
     }
@@ -344,8 +336,9 @@ export class Channel {
   /** Send an envelope. With `recipients`, Foundry's server delivers it only to
    * those users' sessions; without, to every other connected session. */
   private emit(env: Envelope, recipients?: string[]): void {
-    if (recipients?.length) game.socket?.emit(CHANNEL, env, { recipients });
-    else game.socket?.emit(CHANNEL, env);
+    const socket = gameSocket();
+    if (recipients?.length) socket?.emit(CHANNEL, env, { recipients });
+    else socket?.emit(CHANNEL, env);
   }
 
   private selfPeer(): PeerInfo {
