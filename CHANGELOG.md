@@ -6,6 +6,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Removed
+- **The `sheet.derived`, `roll.action` and `effect.apply` / `effect.remove` procedures.** No
+  version of the Table Companion backend or apps ever called them: the apps compute derived
+  values, system rolls and conditions in their own rules engine. They are no longer registered,
+  so `capabilities()` and the capability list sent to the backend are shorter on D&D 5e and
+  Knight worlds. `roll.execute`, the compendium passthrough, the display popout and the Knight
+  actor/NPC provisioning are unchanged.
+
 ## [0.10.1] - 2026-09-02
 
 ### Changed

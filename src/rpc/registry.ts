@@ -32,33 +32,21 @@ export type ProcedureKind = "read" | "mutation" | "clientState";
 
 /**
  * The contract a procedure claims. Required at registration, so a procedure
- * cannot enter the advertised set without someone stating what it does and
- * where it works.
+ * cannot enter the advertised set without someone stating what it does.
  */
 export interface ProcedureDescriptor {
   kind: ProcedureKind;
-  /** Companion-user permission the handler enforces on its target Actor.
-   * Omitted when the procedure is not actor-scoped. */
-  minPermission?: "OBSERVER" | "OWNER";
-  /**
-   * Foundry system ids this procedure has a verified contract for. Omit only
-   * when the procedure is genuinely system-agnostic (`ping`, a core-API dice
-   * evaluation). A system-specific procedure that omits this is how
-   * `roll.action` came to be advertised on every non-PF2e world while
-   * supporting exactly two.
-   */
-  systems?: readonly string[];
 }
 
 /** Maps procedure name -> handler. The set of registered names IS the module's
- * advertised capability list, so adding a milestone feature (e.g. M4
- * "roll.execute") is one registration call — no envelope or channel change.
+ * advertised capability list, so adding a feature (e.g. "roll.execute") is
+ * one registration call — no envelope or channel change.
  * This is also the extension point exposed publicly via the module API.
  *
  * The advertised set is a PROMISE: the apps feature-detect on it and route away
  * from their local engine when a capability appears. Registering something that
  * cannot succeed here is worse than registering nothing, so every entry carries
- * a {@link ProcedureDescriptor} saying what it does and where it works. */
+ * a {@link ProcedureDescriptor} saying what it does. */
 export class ProcedureRegistry {
   private readonly procs = new Map<string, Procedure>();
   private readonly meta = new Map<string, ProcedureDescriptor>();
@@ -83,18 +71,13 @@ export class ProcedureRegistry {
     return this.procs.has(name);
   }
 
-  /** The descriptor a procedure was registered with, if it is registered. */
-  descriptor(name: string): ProcedureDescriptor | undefined {
-    return this.meta.get(name);
-  }
-
   /** Every registered procedure's descriptor, keyed by name. */
   descriptors(): Record<string, ProcedureDescriptor> {
     return Object.fromEntries(this.meta);
   }
 
   /** Registered names whose declared kind is `mutation`, sorted. The agent
-   * mirrors this classification in Go — see docs/CONTRACTS.md. */
+   * mirrors this classification, so keep the two lists in step. */
   mutations(): string[] {
     return [...this.meta.entries()]
       .filter(([, d]) => d.kind === "mutation")

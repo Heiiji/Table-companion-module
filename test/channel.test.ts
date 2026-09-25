@@ -143,16 +143,8 @@ function startChannel(timeoutMs?: number, withActorUpsert = false): Channel {
   );
   registry.register("hang", () => new Promise(() => {}), READ); // never settles
   if (withActorUpsert) {
-    registry.register("actor.upsert.v1", () => ({}), {
-      kind: "mutation",
-      minPermission: "OWNER",
-      systems: ["knight"],
-    });
-    registry.register("npc.upsert.v1", () => ({}), {
-      kind: "mutation",
-      minPermission: "OWNER",
-      systems: ["knight"],
-    });
+    registry.register("actor.upsert.v1", () => ({}), { kind: "mutation" });
+    registry.register("npc.upsert.v1", () => ({}), { kind: "mutation" });
   }
   const channel = new Channel(registry, "0.0.0-test", timeoutMs);
   channel.start();

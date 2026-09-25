@@ -87,7 +87,7 @@ export const MAX_ROLL_DICE = 1000;
 /** Per-request deadline for an rpc.request handler. A procedure that hangs (a
  * wedged system API, an await that never settles) would otherwise silently stall
  * the channel; on expiry we answer a structured `procedure_timeout` rpc.error and
- * move on. Generous: the heaviest procedures (a full sheet.derived) are still
+ * move on. Generous: the heaviest procedures (a Knight actor upsert) are still
  * sub-second in practice. */
 export const REQUEST_TIMEOUT_MS = 10_000;
 
