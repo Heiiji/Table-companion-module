@@ -1,0 +1,29 @@
+{
+  "_comment": "Agent->module signed envelopes: Ed25519 over the exact UTF-8 bytes of `body`. Frozen; byte-identical copies live in Table-companion-agent internal/connector/testdata/agent_signing_vectors.json and Table-companion-module test/vectors/agent_signing_vectors.json (hub gate tools/verify-module-envelope-parity.sh cmp's them). Regenerate only with UPDATE_AGENT_VECTORS=1 go test ./internal/connector -run TestAgentSigningVectors.",
+  "seedB64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+  "publicKeyB64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+  "vectors": [
+    {
+      "name": "hello",
+      "body": "{\"v\":1,\"type\":\"hello\",\"peer\":{\"role\":\"agent\",\"version\":\"1.0\",\"minEnvelope\":1,\"maxEnvelope\":1,\"pubKey\":\"A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=\",\"userId\":\"vectorAgentUsr01\"},\"ts\":1767225600000,\"worldId\":\"vector-world\"}",
+      "sig": "KdXbMVWgVBhLgEUn4KD6lPe4BU72OtT3eD4drxPGzYokjhrmIZEjBNEOBC+OQCC/40sm7rCdbEEwv7x+bJlZCg==",
+      "expect": {
+        "type": "hello",
+        "worldId": "vector-world",
+        "peerUserId": "vectorAgentUsr01",
+        "peerRole": "agent"
+      }
+    },
+    {
+      "name": "rpc.request",
+      "body": "{\"v\":1,\"type\":\"rpc.request\",\"id\":\"00112233445566778899aabbccddeeff\",\"proc\":\"roll.execute\",\"peer\":{\"role\":\"agent\",\"version\":\"1.0\",\"minEnvelope\":1,\"maxEnvelope\":1,\"userId\":\"vectorAgentUsr01\"},\"payload\":{\"formula\":\"1d20\"},\"ts\":1767225600000,\"worldId\":\"vector-world\"}",
+      "sig": "1by4FaaQmNZGd95XNlxiM8AETs8r1E4GbvA2fvRV0L1uji0oCKE1M/bfMGMlQL9DNGlqpeIDYzg3YCfFww57CA==",
+      "expect": {
+        "type": "rpc.request",
+        "worldId": "vector-world",
+        "peerUserId": "vectorAgentUsr01",
+        "peerRole": "agent"
+      }
+    }
+  ]
+}
