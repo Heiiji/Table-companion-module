@@ -12,6 +12,16 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html"],
       include: ["src/**"],
+      // A floor, not a target: one point under what the suite measured when it
+      // was set (statements 74.39, branches 74.14, functions 75.63, lines
+      // 75.46), so a change that drops coverage fails `npm run test:coverage`.
+      // Raise it when coverage rises.
+      thresholds: {
+        statements: 73,
+        branches: 73,
+        functions: 74,
+        lines: 74,
+      },
     },
   },
 });
