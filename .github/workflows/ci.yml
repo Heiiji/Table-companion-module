@@ -34,6 +34,12 @@ jobs:
         run: |
           node -e "const p=require('./package.json').version,m=require('./module.json').version; if(p!==m){console.error('version mismatch: package.json '+p+' vs module.json '+m);process.exit(1)}"
 
+      - run: npm run format:check
       - run: npm run lint
-      - run: npm run test
+      # The suite under v8 coverage; fails below the floor in vitest.config.ts.
+      - run: npm run test:coverage
       - run: npm run build
+
+      # Known high/critical advisories in what ships (runtime dependencies only).
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
