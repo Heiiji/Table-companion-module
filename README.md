@@ -76,8 +76,8 @@ Gamemaster can open setup from the console with
 
 ## Compatibility
 
-- **Foundry VTT:** v13 – v14 (verified on v14)
-- **Game systems:** system-agnostic baseline; exact Knight v3.58.33 on Foundry 13–14 has an
+- **Foundry VTT:** v13 and later (verified on v14; newer versions are accepted, not refused)
+- **Game systems:** system-agnostic baseline; exact Knight v3.58.33 on Foundry 13 or later has an
   additive, constrained actor-provisioning integration. Exact equipment materialization optionally
   uses Knight Compendium 14.0.1; other/missing versions remain safely partial.
 - **Languages:** English, Français

@@ -432,11 +432,18 @@ describe("npc.upsert.v1", () => {
       "unsupported_runtime",
     );
 
-    stubFoundry([], undefined, 15);
+    stubFoundry([], undefined, 12);
     await expectRpcError(
       npcUpsertV1(request() as unknown as Record<string, unknown>, {} as never),
       "unsupported_runtime",
     );
+  });
+
+  it("accepts a newer Foundry generation than the verified ones", async () => {
+    stubFoundry([], undefined, 15);
+    await expect(
+      npcUpsertV1(request() as unknown as Record<string, unknown>, {} as never),
+    ).resolves.toMatchObject({ schemaVersion: 1 });
   });
 });
 

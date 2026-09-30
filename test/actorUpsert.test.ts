@@ -226,9 +226,16 @@ describe("actor.upsert.v1", () => {
     );
 
     vi.unstubAllGlobals();
-    stubFoundry([], undefined, 15);
+    stubFoundry([], undefined, 12);
     await expect(actorUpsertV1(approved(), {} as never)).rejects.toMatchObject({
       code: "unsupported_runtime",
+    });
+
+    // A newer Foundry generation is not refused for being newer.
+    vi.unstubAllGlobals();
+    stubFoundry([], undefined, 15);
+    await expect(actorUpsertV1(approved(), {} as never)).resolves.toMatchObject({
+      schemaVersion: 1,
     });
 
     vi.unstubAllGlobals();

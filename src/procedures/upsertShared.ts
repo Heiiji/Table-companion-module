@@ -148,16 +148,22 @@ export function parseAspectScores(value: unknown): AspectScoresV1 {
   };
 }
 
-/** Exact fixture gate for the only Knight actor mapping admitted by this
- * release. It decides whether the two provisioning procedures are registered
- * at all, and each procedure repeats it before touching the world. The pnj
- * data model is verified byte-identical 3.58.33 → 3.58.35, so one widening of
- * this gate moves both lanes. */
+/** Oldest Foundry core generation the Knight actor mapping runs on. There is
+ * no upper bound: a newer Foundry generation is accepted, and a release that
+ * proves breaking is handled when it happens. */
+export const MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION = 13;
+
+/** Runtime gate for the only Knight actor mapping admitted by this release:
+ * the exact fixture-pinned Knight system version, on Foundry 13 or any later
+ * generation. It decides whether the two provisioning procedures are
+ * registered at all, and each procedure repeats it before touching the world.
+ * The pnj data model is verified byte-identical 3.58.33 → 3.58.35, so one
+ * widening of the system version moves both lanes. */
 export function supportsKnightActorUpsertV1Runtime(): boolean {
   return (
     systemId() === "knight" &&
     systemVersion() === "3.58.33" &&
-    [13, 14].includes(foundryGeneration())
+    foundryGeneration() >= MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION
   );
 }
 
@@ -176,7 +182,7 @@ export function assertKnightUpsertAuthority(procedure: string): void {
   if (!supportsKnightActorUpsertV1Runtime()) {
     throw new RpcError(
       "unsupported_runtime",
-      `${procedure} requires Knight 3.58.33 on Foundry 13 or 14`,
+      `${procedure} requires Knight 3.58.33 on Foundry 13 or later`,
     );
   }
 }

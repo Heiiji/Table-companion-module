@@ -222,6 +222,19 @@ describe("ProcedureRegistry", () => {
     ).toEqual([...MUTATION_PROCEDURES].sort());
   });
 
+  it("advertises the Knight upserts on every Foundry generation from 13 up", () => {
+    for (const generation of [13, 14, 15, 16, 20]) {
+      vi.stubGlobal("game", {
+        system: { id: "knight", version: "3.58.33" },
+        release: { generation },
+      });
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      expect(registry.capabilities()).toContain("actor.upsert.v1");
+      expect(registry.capabilities()).toContain("npc.upsert.v1");
+    }
+  });
+
   it("does not advertise actor.upsert.v1 outside the exact fixture-pinned Knight runtime", () => {
     for (const game of [
       {
@@ -230,7 +243,7 @@ describe("ProcedureRegistry", () => {
       },
       {
         system: { id: "knight", version: "3.58.33" },
-        release: { generation: 15 },
+        release: { generation: 12 },
       },
     ]) {
       vi.stubGlobal("game", game);
