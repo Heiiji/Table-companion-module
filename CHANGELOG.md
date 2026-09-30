@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-09-30
+
 ### Changed
 - **A newer Foundry version is no longer refused.** Knight actor provisioning used to require
   Foundry 13 or 14 exactly and turned a newer server away as an unsupported runtime. It now runs on
