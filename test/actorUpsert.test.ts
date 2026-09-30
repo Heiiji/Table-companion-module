@@ -234,9 +234,11 @@ describe("actor.upsert.v1", () => {
     // A newer Foundry generation is not refused for being newer.
     vi.unstubAllGlobals();
     stubFoundry([], undefined, 15);
-    await expect(actorUpsertV1(approved(), {} as never)).resolves.toMatchObject({
-      schemaVersion: 1,
-    });
+    await expect(actorUpsertV1(approved(), {} as never)).resolves.toMatchObject(
+      {
+        schemaVersion: 1,
+      },
+    );
 
     vi.unstubAllGlobals();
     stubFoundry([]);
