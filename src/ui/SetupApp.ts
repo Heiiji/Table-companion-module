@@ -176,8 +176,10 @@ function startLiveRefresh(channel: Channel, dialog: DialogInstance): void {
     }
     clearInterval(timer);
     for (const [hook, id] of ids) hooks.off(hook, id);
-    // The pairing window is only open while this dialog is on screen.
-    channel.closePairingWindow();
+    // The pairing window is only open while this dialog is on screen — and a
+    // dialog closed and reopened within one interval must not close the new
+    // dialog's window.
+    if (setupDialog === dialog) channel.closePairingWindow();
   }, 4000);
 }
 
