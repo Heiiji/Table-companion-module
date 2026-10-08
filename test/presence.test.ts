@@ -95,7 +95,7 @@ describe("startPresenceWatcher", () => {
 
     startPresenceWatcher(channel);
     fire("userConnected");
-    fire("userDisconnected");
+    fire("userConnected"); // a leave fires userConnected too
     fire("userConnected");
     vi.advanceTimersByTime(1000);
 
@@ -119,7 +119,7 @@ describe("startPresenceWatcher", () => {
 
     // GM leaves -> activeGm flips to false -> one more emit.
     users.length = 0;
-    fire("userDisconnected");
+    fire("userConnected"); // a leave fires userConnected too
     vi.advanceTimersByTime(1000);
     expect(emit).toHaveBeenCalledTimes(2);
     expect(emit).toHaveBeenLastCalledWith("presence", { activeGm: false });

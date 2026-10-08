@@ -41,6 +41,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Reopening setup quickly no longer closes its pairing window.** Closing the setup dialog and
   opening it again within four seconds let the old dialog's refresh timer close the pairing window
   of the new one, so a backend could not pair while setup was visibly open.
+- **The module no longer listens for a hook Foundry does not have.** It registered
+  `userDisconnected` for presence, responder changes and the setup panel; Foundry reports a user
+  leaving through `userConnected` (with `connected: false`), which the module already handles.
 
 ## [0.11.1] - 2026-09-30
 

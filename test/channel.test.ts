@@ -649,7 +649,7 @@ describe("Channel.onMessage", () => {
     expect(emitted("hello")).toHaveLength(0);
 
     g.users.activeGM = g.user; // the other GM left; this client is now elected
-    for (const fn of hooks.userDisconnected ?? []) fn();
+    for (const fn of hooks.userConnected ?? []) fn(); // the other GM left
     expect(emitted("hello")).toHaveLength(1);
   });
 

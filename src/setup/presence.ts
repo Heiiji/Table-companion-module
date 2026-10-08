@@ -38,12 +38,12 @@ export function startPresenceWatcher(channel: Channel): void {
     timer = setTimeout(publish, 1000);
   };
 
-  // userConnected/userDisconnected fire when a user's active state changes.
+  // Foundry fires userConnected(user, connected) whenever another user joins
+  // OR leaves; there is no userDisconnected hook.
   const hooks = Hooks as unknown as {
     on(hook: string, fn: () => void): number;
   };
   hooks.on("userConnected", schedule);
-  hooks.on("userDisconnected", schedule);
   // Emit the initial state shortly after the channel starts so an already-live
   // agent learns the current GM presence without waiting for a connect event.
   schedule();

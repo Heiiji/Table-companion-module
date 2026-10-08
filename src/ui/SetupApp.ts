@@ -218,8 +218,8 @@ function startLiveRefresh(channel: Channel, dialog: DialogInstance): void {
   };
   const refresh = () => void refreshStatus(channel, dialog);
   const ids: Array<[string, number]> = [
+    // Fires on a join and on a leave (connected: boolean).
     ["userConnected", hooks.on("userConnected", refresh)],
-    ["userDisconnected", hooks.on("userDisconnected", refresh)],
   ];
   const timer = setInterval(() => {
     if (dialog.rendered) {

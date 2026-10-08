@@ -221,8 +221,9 @@ export class Channel {
       if (now && !this.wasResponder) this.sendHello();
       this.wasResponder = now;
     };
+    // Foundry fires userConnected on a join and on a leave; there is no
+    // userDisconnected hook.
     hooks?.on("userConnected", recheck);
-    hooks?.on("userDisconnected", recheck);
   }
 
   /** Announce our presence + capabilities to the agent. Only the elected
