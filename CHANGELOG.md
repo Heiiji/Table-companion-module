@@ -11,6 +11,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   this browser's reply key, but a GM browser without a reply key sent nothing afterwards, so the
   backend had to wait for its next reconnection to pair again. The module now announces itself as
   the last step of a reset.
+- **Two tabs of the same Gamemaster no longer both answer a request.** Both tabs were the elected
+  responder and both received the backend's request, so a Knight provisioning request could create
+  the Actor twice. Only the tab that takes the browser's lock for that request now answers. On a
+  Foundry served over plain `http:` (no Web Locks) the behaviour is unchanged.
 
 ## [0.11.1] - 2026-09-30
 

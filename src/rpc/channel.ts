@@ -567,7 +567,26 @@ export class Channel {
     return true;
   }
 
+  /** Election is by user, so two tabs of the same Gamemaster are both the
+   * responder, and both receive the request (recipients are user ids): without a
+   * guard both ran it — a provisioning request could create the Actor twice.
+   * Only the tab that takes this browser's lock for the request id answers; the
+   * others stay silent. Web Locks need a secure context: on plain-http Foundry
+   * `navigator.locks` is absent and every tab answers, as before. */
   private async handleRequest(env: Envelope, sender: string): Promise<void> {
+    const locks = (globalThis as { navigator?: { locks?: LockManager } })
+      .navigator?.locks;
+    if (!locks || !env.id) return this.dispatchRequest(env, sender);
+    await locks.request(
+      `${MODULE_ID}:${env.id}`,
+      { ifAvailable: true },
+      async (lock) => {
+        if (lock) await this.dispatchRequest(env, sender);
+      },
+    );
+  }
+
+  private async dispatchRequest(env: Envelope, sender: string): Promise<void> {
     const proc = env.proc ?? "";
     const handler = env.proc ? this.registry.get(env.proc) : undefined;
     // A procedure withheld from the advertised set (a consequential mutation on a

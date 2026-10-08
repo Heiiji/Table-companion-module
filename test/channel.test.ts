@@ -179,6 +179,11 @@ function startChannel(timeoutMs?: number, withActorUpsert = false): Channel {
   );
   registry.register("hang", () => new Promise(() => {}), READ); // never settles
   registry.register(
+    "slow",
+    () => new Promise((resolve) => setTimeout(() => resolve({ ok: true }), 20)),
+    READ,
+  );
+  registry.register(
     "refuse",
     () => {
       throw new RpcError("invalid_args", "bad formula");
@@ -222,6 +227,27 @@ afterEach(() => {
   vi.unstubAllGlobals();
   socketHandler = undefined;
 });
+
+/** A Web Locks stand-in shared by every tab of one browser: a named lock is
+ * held while its callback runs, and `ifAvailable` hands a busy name `null`. */
+function fakeLocks() {
+  const held = new Set<string>();
+  return {
+    async request(
+      name: string,
+      _opts: { ifAvailable?: boolean },
+      callback: (lock: { name: string } | null) => Promise<void>,
+    ): Promise<void> {
+      if (held.has(name)) return callback(null);
+      held.add(name);
+      try {
+        await callback({ name });
+      } finally {
+        held.delete(name);
+      }
+    },
+  };
+}
 
 describe("Channel.onMessage", () => {
   it("ignores unsigned / malformed traffic", async () => {
@@ -599,6 +625,20 @@ describe("Channel.onMessage", () => {
     g.users.activeGM = g.user; // the other GM left; this client is now elected
     for (const fn of hooks.userDisconnected ?? []) fn();
     expect(emitted("hello")).toHaveLength(1);
+  });
+
+  it("answers a request from only one tab of the same Gamemaster", async () => {
+    stubGame({ pinned: agentPubB64 });
+    vi.stubGlobal("navigator", { locks: fakeLocks() });
+    startChannel();
+    const firstTab = socketHandler!;
+    startChannel();
+    const secondTab = socketHandler!;
+    const raw = await sign(
+      agentEnv("rpc.request", { id: "two-tabs", proc: "slow" }),
+    );
+    await Promise.all([firstTab(raw, AGENT_USER), secondTab(raw, AGENT_USER)]);
+    expect(emitted("rpc.response")).toHaveLength(1);
   });
 
   it("ignores rpc.request / ping when not the responder", async () => {
