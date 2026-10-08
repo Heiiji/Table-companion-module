@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-08
+
 ### Added
 - **Setup shows when the app's backend refuses this browser's replies.** A « Reply signing » row
   now reads *Key mismatch* when the backend paired with another browser (or another Gamemaster)
