@@ -125,6 +125,26 @@ describe("ProcedureRegistry", () => {
     },
   );
 
+  it("names why the Knight upserts are withheld on another Knight version", () => {
+    vi.stubGlobal("game", {
+      system: { id: "knight", version: "3.58.35" },
+      release: { generation: 14 },
+    });
+    const knight = new ProcedureRegistry();
+    registerBuiltinProcedures(knight);
+    expect(knight.capabilities()).toEqual(BASE_CAPABILITIES);
+    const withheld = knight.unsupported();
+    expect(Object.keys(withheld).sort()).toEqual(MUTATION_PROCEDURES);
+    expect(withheld["actor.upsert.v1"]).toBe(
+      "Knight 3.58.35 on Foundry 14; requires Knight 3.58.33 on Foundry 13 or later",
+    );
+
+    vi.stubGlobal("game", { system: { id: "dnd5e" } });
+    const dnd = new ProcedureRegistry();
+    registerBuiltinProcedures(dnd);
+    expect(dnd.unsupported()).toEqual({});
+  });
+
   it("registers actor.upsert.v1 only for Knight", () => {
     vi.stubGlobal("game", {
       system: { id: "knight", version: "3.58.33" },

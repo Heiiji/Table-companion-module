@@ -153,6 +153,9 @@ export function parseAspectScores(value: unknown): AspectScoresV1 {
  * proves breaking is handled when it happens. */
 export const MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION = 13;
 
+/** The one Knight system version the actor mappings are verified against. */
+export const KNIGHT_UPSERT_SYSTEM_VERSION = "3.58.33";
+
 /** Runtime gate for the only Knight actor mapping admitted by this release:
  * the exact fixture-pinned Knight system version, on Foundry 13 or any later
  * generation. It decides whether the two provisioning procedures are
@@ -162,7 +165,7 @@ export const MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION = 13;
 export function supportsKnightActorUpsertV1Runtime(): boolean {
   return (
     systemId() === "knight" &&
-    systemVersion() === "3.58.33" &&
+    systemVersion() === KNIGHT_UPSERT_SYSTEM_VERSION &&
     foundryGeneration() >= MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION
   );
 }

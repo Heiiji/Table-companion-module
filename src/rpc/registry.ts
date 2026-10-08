@@ -59,6 +59,7 @@ export interface ProcedureDescriptor {
 export class ProcedureRegistry {
   private readonly procs = new Map<string, Procedure>();
   private readonly meta = new Map<string, ProcedureDescriptor>();
+  private readonly withheld = new Map<string, string>();
 
   register(
     name: string,
@@ -97,6 +98,19 @@ export class ProcedureRegistry {
   /** Whether `name` was registered as signed-only (see ProcedureDescriptor). */
   isSignedOnly(name: string): boolean {
     return this.meta.get(name)?.signedOnly === true;
+  }
+
+  /** Record a procedure this module deliberately does NOT register on this
+   * runtime (e.g. a game-system version its mapping was not verified against),
+   * with the reason. The handshake names it, so the backend can tell the GM why
+   * the work is waiting instead of reading the absence as "no module". */
+  markUnsupported(name: string, reason: string): void {
+    this.withheld.set(name, reason);
+  }
+
+  /** The withheld procedures and why — empty when nothing is withheld. */
+  unsupported(): Record<string, string> {
+    return Object.fromEntries(this.withheld);
   }
 
   /** Sorted, stable capability list advertised in hello / hello.ack. */

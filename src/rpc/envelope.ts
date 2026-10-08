@@ -70,6 +70,10 @@ export interface Envelope {
    * another browser's key and drops every reply signed here — or
    * "world_mismatch" — it is linked to a different world. */
   pairing?: string;
+  /** Outbound, on this module's hello / hello.ack (additive; absent when
+   * nothing is withheld): the procedures it does not register on this
+   * game-system version, with the reason. */
+  unsupported?: Record<string, string>;
 }
 
 /** Narrow an unknown socket payload to a well-formed Envelope, or return null.

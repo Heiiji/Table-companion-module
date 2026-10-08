@@ -608,6 +608,32 @@ describe("Channel.onMessage", () => {
     expect(recipientsOf(hello)).toEqual([AGENT_USER]);
   });
 
+  it("advertises withheld procedures with their reason", async () => {
+    stubGame({ pinned: agentPubB64, responder: true });
+    const registry = new ProcedureRegistry();
+    registry.markUnsupported("actor.upsert.v1", "Knight 3.58.35 on Foundry 14");
+    new Channel(registry, "0.0.0-test").start();
+    const [hello] = emitted("hello");
+    expect(hello.unsupported).toEqual({
+      "actor.upsert.v1": "Knight 3.58.35 on Foundry 14",
+    });
+
+    emitSpy.mockClear();
+    await deliver(await sign(agentEnv("hello")));
+    expect(emitted("hello.ack")[0].unsupported).toEqual({
+      "actor.upsert.v1": "Knight 3.58.35 on Foundry 14",
+    });
+  });
+
+  it("omits the withheld map when nothing is withheld", async () => {
+    stubGame({ pinned: agentPubB64, responder: true });
+    new Channel(new ProcedureRegistry(), "0.0.0-test").start();
+    // undefined fields are dropped by the socket's JSON encoding.
+    expect(JSON.parse(JSON.stringify(emitted("hello")[0]))).not.toHaveProperty(
+      "unsupported",
+    );
+  });
+
   it("re-announces when this client becomes the responder", async () => {
     const hooks: Record<string, Array<() => void>> = {};
     vi.stubGlobal("Hooks", {

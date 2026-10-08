@@ -6,7 +6,16 @@ import { compendiumIndex, compendiumGet } from "./compendium.js";
 import { displayShow, displayClear } from "./display.js";
 import { actorUpsertV1 } from "./actorUpsert.js";
 import { npcUpsertV1 } from "./npcUpsert.js";
-import { supportsKnightActorUpsertV1Runtime } from "./upsertShared.js";
+import {
+  KNIGHT_UPSERT_SYSTEM_VERSION,
+  MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION,
+  supportsKnightActorUpsertV1Runtime,
+} from "./upsertShared.js";
+import {
+  foundryGeneration,
+  systemId,
+  systemVersion,
+} from "../foundry/runtime.js";
 
 /** Register every built-in procedure. Each registration adds one capability to
  * the module's advertised set — a promise the apps feature-detect on, so
@@ -47,5 +56,14 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
       kind: "mutation",
       signedOnly: true,
     });
+  } else if (systemId() === "knight") {
+    // Another Knight or Foundry release: the lanes stay unregistered, and the
+    // handshake says why, so the backend parks the GM's characters as « not
+    // supported on this version » rather than « no module ».
+    const reason =
+      `Knight ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; ` +
+      `requires Knight ${KNIGHT_UPSERT_SYSTEM_VERSION} on Foundry ${MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION} or later`;
+    registry.markUnsupported("actor.upsert.v1", reason);
+    registry.markUnsupported("npc.upsert.v1", reason);
   }
 }

@@ -17,6 +17,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   *Reply signing: Unavailable in this browser* — on such a browser the backend cannot trust the
   replies and Knight provisioning stays off.
 
+- **The handshake names procedures withheld because of the game-system version.** On a Knight
+  release other than the one the actor mappings are verified against, the two Knight provisioning
+  procedures stay unregistered as before, and the module now tells the backend why (`unsupported`),
+  so the app can say « Knight version not supported by the module » instead of « no module ».
+
 ### Changed
 - `api.getStatus()` gains `pairingIssue` (the backend's verdict, or `null`) and `lastSkewMs` (this
   browser's clock minus the backend's, or `null`).

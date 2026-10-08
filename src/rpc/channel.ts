@@ -178,6 +178,13 @@ export class Channel {
     return caps.sort();
   }
 
+  /** The procedures withheld on this runtime with their reason, for the
+   * handshake — undefined (the field omitted) when nothing is withheld. */
+  private withheldProcedures(): Record<string, string> | undefined {
+    const withheld = this.registry.unsupported();
+    return Object.keys(withheld).length > 0 ? withheld : undefined;
+  }
+
   /** Log a dropped-envelope reason at most once per cause per DROP_WARN_INTERVAL_MS,
    * so noise/flooding names its cause without spamming the console. */
   private warnDrop(cause: string): void {
@@ -227,6 +234,7 @@ export class Channel {
         capabilities: this.advertisedCapabilities(),
         peer: this.selfPeer(),
         worldId: this.canSign() ? foundryWorldId() : undefined,
+        unsupported: this.withheldProcedures(),
       }),
       this.agentRecipients(),
     );
@@ -394,6 +402,7 @@ export class Channel {
               capabilities: this.advertisedCapabilities(),
               peer: this.selfPeer(),
               worldId: this.canSign() ? foundryWorldId() : undefined,
+              unsupported: this.withheldProcedures(),
             }),
             [sender],
           );
