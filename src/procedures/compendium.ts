@@ -95,15 +95,20 @@ export const compendiumIndex: Procedure = async (payload) => {
   const matched: CompendiumSummary[] = [];
   let scanCapped = false;
   const agent = pairedAgentUser();
-  outer: for (const pack of packs()) {
-    if (pack.metadata?.type !== documentName) continue;
-    if (!readable(pack, agent)) continue;
-    // Only filter by system when the pack declares one (world/module packs often don't).
-    if (p.system && pack.metadata.system && pack.metadata.system !== p.system)
-      continue;
-
-    const index = await pack.getIndex();
-    for (const entry of index) {
+  const readablePacks = [...packs()].filter(
+    (pack) =>
+      pack.metadata?.type === documentName &&
+      readable(pack, agent) &&
+      // Only filter by system when the pack declares one (world/module packs often don't).
+      !(p.system && pack.metadata.system && pack.metadata.system !== p.system),
+  );
+  // A pack's first index is loaded from the server: read them all at once rather than one after
+  // another against the request deadline.
+  const indexes = await Promise.all(
+    readablePacks.map((pack) => pack.getIndex()),
+  );
+  outer: for (const [i, pack] of readablePacks.entries()) {
+    for (const entry of indexes[i]) {
       const name = String(entry.name ?? "");
       if (!name) continue;
       // Optional Item-subtype filter (Knight module/arme/armure); skip anything else.

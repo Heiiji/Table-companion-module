@@ -23,6 +23,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   so the app can say « Knight version not supported by the module » instead of « no module ».
 
 ### Changed
+- **`compendium.index` reads every compendium's index at once.** The first search of a session
+  loaded each pack's index one after another against the request deadline; on a world with many
+  packs it could time out. They now load in parallel.
 - `api.getStatus()` gains `pairingIssue` (the backend's verdict, or `null`) and `lastSkewMs` (this
   browser's clock minus the backend's, or `null`).
 

@@ -117,6 +117,31 @@ describe("compendium.index", () => {
     ).toBe(true);
   });
 
+  it("reads every pack index concurrently", async () => {
+    let calls = 0;
+    const releases: Array<() => void> = [];
+    const slowPack = (collection: string, name: string): FakePack =>
+      shared({
+        collection,
+        metadata: { id: collection, label: collection, type: "Actor" },
+        getIndex: () => {
+          calls += 1;
+          return new Promise((resolve) =>
+            releases.push(() => resolve([{ _id: name, name }])),
+          );
+        },
+        getDocument: async () => null,
+      });
+    stubWorld([slowPack("world.a", "Alpha"), slowPack("world.b", "Beta")]);
+
+    const pending = compendiumIndex({ contentType: "creature" }, {} as never);
+    await Promise.resolve();
+    expect(calls).toBe(2); // the second pack is asked before the first answers
+    for (const release of releases) release();
+    const res = (await pending) as { entries: Array<{ name: string }> };
+    expect(res.entries.map((e) => e.name)).toEqual(["Alpha", "Beta"]);
+  });
+
   it("filters by name query (case-insensitive substring)", async () => {
     setGame();
     const result = (await compendiumIndex(
