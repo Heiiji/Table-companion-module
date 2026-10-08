@@ -641,6 +641,50 @@ describe("Channel.onMessage", () => {
     expect(emitted("rpc.response")).toHaveLength(1);
   });
 
+  it("records the backend's pairing verdict from hello.ack", async () => {
+    stubGame({ pinned: agentPubB64 });
+    const channel = startChannel();
+    await deliver(
+      await sign(agentEnv("hello.ack", { pairing: "response_key_mismatch" })),
+    );
+    expect(channel.getStatus().pairingIssue).toBe("response_key_mismatch");
+    await deliver(await sign(agentEnv("hello.ack"))); // healthy again
+    expect(channel.getStatus().pairingIssue).toBeNull();
+  });
+
+  it("records the clock offset of a stale backend envelope", async () => {
+    stubGame({ pinned: agentPubB64 });
+    const channel = startChannel();
+    await deliver(await sign(agentEnv("hello", { ts: Date.now() - 100_000 })));
+    expect(emitSpy).not.toHaveBeenCalled(); // still dropped
+    expect(channel.getStatus().lastSkewMs).toBeGreaterThanOrEqual(100_000);
+  });
+
+  it("never samples the clock offset from a player's envelope", async () => {
+    stubGame({ pinned: agentPubB64 });
+    const channel = startChannel();
+    const env = agentEnv("hello", { ts: Date.now() - 100_000 });
+    (env.peer as Fields).userId = PLAYER;
+    await deliver(await sign(env), PLAYER);
+    expect(channel.getStatus().lastSkewMs).toBeNull();
+  });
+
+  it("warns the Gamemaster when this responder cannot sign its replies", () => {
+    const warn = vi.fn();
+    stubGame({ pinned: agentPubB64, responder: true });
+    vi.stubGlobal("ui", { notifications: { warn, info: vi.fn() } });
+    const responder = startChannel();
+    responder.setResponseSigner(null);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain("setup.notify.noSigner");
+
+    warn.mockClear();
+    stubGame({ pinned: agentPubB64, responder: false });
+    vi.stubGlobal("ui", { notifications: { warn, info: vi.fn() } });
+    startChannel().setResponseSigner(null);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it("ignores rpc.request / ping when not the responder", async () => {
     stubGame({ pinned: agentPubB64, responder: false });
     startChannel();

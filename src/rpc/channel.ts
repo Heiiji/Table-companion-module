@@ -45,6 +45,13 @@ export interface LinkStatus {
   agentPeer: PeerInfo | null;
   /** Whether this client is the elected responder right now. */
   isResponder: boolean;
+  /** The backend's verdict on this browser's reply key from its last hello /
+   * hello.ack ("response_key_mismatch" | "world_mismatch"), or null when
+   * healthy or never heard. */
+  pairingIssue: string | null;
+  /** This browser's clock minus the backend's, from the last backend envelope
+   * that reached the freshness check (ms), or null if none yet. */
+  lastSkewMs: number | null;
 }
 
 type EventListener = (proc: string, payload: unknown) => void;
@@ -81,6 +88,8 @@ export class Channel {
     lastAgentHelloAt: null,
     agentPeer: null,
     isResponder: isResponder(),
+    pairingIssue: null,
+    lastSkewMs: null,
   };
   private readonly eventListeners = new Set<EventListener>();
   // Anti-replay: ids of recently-accepted agent envelopes (id -> accept time),
@@ -125,6 +134,14 @@ export class Channel {
    * rpc.error. Idempotent; safe to call once the keypair has loaded. */
   setResponseSigner(signer: ModuleResponseSigner | null): void {
     this.responseSigner = signer;
+    if (!signer && isResponder()) {
+      // Every reply from here goes out unsigned, and a backend that pinned a
+      // reply key drops them all while setup still reads Live: say so.
+      log.warn(
+        "this browser has no response-signing key; replies go out unsigned",
+      );
+      notify("warn", localize("setup.notify.noSigner"));
+    }
     if (signer && isResponder()) {
       // Re-announce so an already-connected agent picks up the capability + key
       // without waiting for its next hello.
@@ -324,9 +341,10 @@ export class Channel {
     this.pairingWindowOpen = false;
   }
 
-  private noteAgent(peer: PeerInfo): void {
+  private noteAgent(env: Envelope): void {
     this.status.lastAgentHelloAt = Date.now();
-    this.status.agentPeer = peer;
+    this.status.agentPeer = env.peer ?? null;
+    this.status.pairingIssue = env.pairing ?? null;
   }
 
   /** Subscribe to module-bound `event` envelopes (agent push notifications). */
@@ -368,7 +386,7 @@ export class Channel {
 
     switch (env.type) {
       case "hello":
-        this.noteAgent(env.peer!);
+        this.noteAgent(env);
         if (isResponder()) {
           this.emit(
             makeEnvelope("hello.ack", {
@@ -383,8 +401,9 @@ export class Channel {
         break;
 
       case "hello.ack":
-        // The agent acking the hello we sent on start — pure liveness signal.
-        this.noteAgent(env.peer!);
+        // The agent acking the hello we sent on start — liveness, and its
+        // verdict on our reply key.
+        this.noteAgent(env);
         break;
 
       case "ping":
@@ -467,6 +486,14 @@ export class Channel {
     // verify on every client that receives them (they drive the status panel).
     if ((env.type === "rpc.request" || env.type === "ping") && !isResponder()) {
       return null;
+    }
+
+    // Clock offset, for the setup panel: a drifted clock drops everything below
+    // with only a console line. Sampled from the backend's own user only (the
+    // paired one, else the service user this module created), so a player
+    // cannot paint a bogus offset; the body is not verified yet.
+    if (sender === (pairedAgentUserId() || companionAnchorId())) {
+      this.status.lastSkewMs = Date.now() - env.ts;
     }
 
     // Anti-replay (1/2): drop stale envelopes before spending a signature verify.

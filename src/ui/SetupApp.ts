@@ -1,6 +1,10 @@
 import qrcode from "qrcode-generator";
 import type { Channel } from "../rpc/channel.js";
-import { LINK_STALE_MS } from "../constants.js";
+import {
+  CAP_RESPONSE_SIG,
+  CLOCK_SKEW_WARN_MS,
+  LINK_STALE_MS,
+} from "../constants.js";
 import {
   COMPANION_USER_NAME,
   ensureCompanionUser,
@@ -86,6 +90,8 @@ async function statusHtml(channel: Channel): Promise<string> {
       `</div></div>`
     : "";
 
+  const { signingRows, signingHints } = replySigningHtml(channel, status, row);
+
   return (
     `<div class="tca-status">` +
     row(
@@ -106,7 +112,9 @@ async function statusHtml(channel: Channel): Promise<string> {
       linkLive,
     ) +
     row(localize("setup.status.pairing"), pairingValue, pairing.paired) +
+    signingRows +
     `</div>` +
+    signingHints +
     pending +
     (linkLive
       ? `<p class="tca-hint tca-linked">` +
@@ -114,6 +122,50 @@ async function statusHtml(channel: Channel): Promise<string> {
         `${escapeHtml(localize("setup.status.linkedHint"))}</p>`
       : "")
   );
+}
+
+/** The responder's « Reply signing » and « Clock offset » rows. The handshake
+ * still flows when the backend drops every reply this browser signs, so « Live »
+ * alone hid a total outage: the backend's verdict comes first, then whether this
+ * browser can sign at all, each with what to do. */
+function replySigningHtml(
+  channel: Channel,
+  status: ReturnType<Channel["getStatus"]>,
+  row: (label: string, value: string, ok: boolean) => string,
+): { signingRows: string; signingHints: string } {
+  if (!status.isResponder) return { signingRows: "", signingHints: "" };
+  const signs = channel.advertisedCapabilities().includes(CAP_RESPONSE_SIG);
+  const [value, hint] =
+    status.pairingIssue === "response_key_mismatch"
+      ? ["setup.status.signingKeyMismatch", "setup.hint.keyMismatch"]
+      : status.pairingIssue === "world_mismatch"
+        ? ["setup.status.signingWorldMismatch", "setup.hint.worldMismatch"]
+        : !signs
+          ? ["setup.status.signingUnavailable", "setup.hint.noSigner"]
+          : ["setup.status.signingActive", ""];
+  let signingRows = row(
+    localize("setup.status.replySigning"),
+    localize(value),
+    hint === "",
+  );
+  const hints = hint ? [localize(hint)] : [];
+  const skew = status.lastSkewMs;
+  if (skew !== null && Math.abs(skew) > CLOCK_SKEW_WARN_MS) {
+    signingRows += row(
+      localize("setup.status.clockOffset"),
+      localize("setup.status.clockOffsetValue", {
+        seconds: String(Math.round(Math.abs(skew) / 1000)),
+      }),
+      false,
+    );
+    hints.push(localize("setup.hint.clockOffset"));
+  }
+  return {
+    signingRows,
+    signingHints: hints
+      .map((h) => `<p class="tca-hint">${escapeHtml(h)}</p>`)
+      .join(""),
+  };
 }
 
 function setupContent(statusBlock: string): string {

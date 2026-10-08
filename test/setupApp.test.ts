@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Channel, LinkStatus, Pairing } from "../src/rpc/channel.js";
 import { openSetupApp } from "../src/ui/SetupApp.js";
+import { CAP_RESPONSE_SIG } from "../src/constants.js";
 
 // The setup dialog drives the channel's pairing window and renders the link
 // status. These tests stand in a DialogV2 that records its content, and a
@@ -106,5 +107,34 @@ describe("openSetupApp", () => {
     await FakeDialog.instances[1].close();
     await vi.advanceTimersByTimeAsync(4000);
     expect(fake.open).toBe(false); // the open dialog's own teardown still closes it
+  });
+
+  it("shows the key-mismatch verdict with what to do", async () => {
+    const fake = fakeChannel({ pairingIssue: "response_key_mismatch" }, [
+      CAP_RESPONSE_SIG,
+    ]);
+    await openSetupApp(fake.channel);
+    const { content } = FakeDialog.instances[0];
+    expect(content).toContain("setup.status.replySigning");
+    expect(content).toContain("setup.status.signingKeyMismatch");
+    expect(content).toContain("setup.hint.keyMismatch");
+  });
+
+  it("shows that reply signing is unavailable in this browser", async () => {
+    const fake = fakeChannel({}, []); // responder, nothing signed
+    await openSetupApp(fake.channel);
+    const { content } = FakeDialog.instances[0];
+    expect(content).toContain("setup.status.signingUnavailable");
+    expect(content).toContain("setup.hint.noSigner");
+    expect(content).not.toContain("setup.status.clockOffset");
+  });
+
+  it("shows a clock offset past 45 seconds", async () => {
+    const fake = fakeChannel({ lastSkewMs: -60_000 }, [CAP_RESPONSE_SIG]);
+    await openSetupApp(fake.channel);
+    const { content } = FakeDialog.instances[0];
+    expect(content).toContain("setup.status.signingActive");
+    expect(content).toContain("setup.status.clockOffset");
+    expect(content).toContain("setup.hint.clockOffset");
   });
 });

@@ -6,6 +6,21 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Setup shows when the app's backend refuses this browser's replies.** A « Reply signing » row
+  now reads *Key mismatch* when the backend paired with another browser (or another Gamemaster)
+  first, or *The app is linked to a different world*, each with what to do — the link read « Live »
+  while every reply was dropped. Requires the Table Companion backend released with this version.
+- **Setup shows a clock offset.** When this computer's clock and the backend's differ by more than
+  45 seconds, a « Clock offset » row says so (past 90 seconds every message is dropped).
+- **A Gamemaster browser that cannot sign its replies says so.** It warns once, and setup reads
+  *Reply signing: Unavailable in this browser* — on such a browser the backend cannot trust the
+  replies and Knight provisioning stays off.
+
+### Changed
+- `api.getStatus()` gains `pairingIssue` (the backend's verdict, or `null`) and `lastSkewMs` (this
+  browser's clock minus the backend's, or `null`).
+
 ### Fixed
 - **Reset pairing announces the module again at once.** It forgot the backend's key and rotated
   this browser's reply key, but a GM browser without a reply key sent nothing afterwards, so the

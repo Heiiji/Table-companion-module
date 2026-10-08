@@ -39,7 +39,14 @@
         "linkedHint": "Linked — the app is connected to this world.",
         "pendingPairing": "Pairing request",
         "pendingValue": "from {name} · {fingerprint}",
-        "pairedAs": "Paired · {fingerprint} · {name}"
+        "pairedAs": "Paired · {fingerprint} · {name}",
+        "replySigning": "Reply signing",
+        "signingActive": "Active",
+        "signingUnavailable": "Unavailable in this browser",
+        "signingKeyMismatch": "Key mismatch — the app paired with another browser",
+        "signingWorldMismatch": "The app is linked to a different world",
+        "clockOffset": "Clock offset",
+        "clockOffsetValue": "{seconds} s"
       },
       "notify": {
         "exists": "The {name} user already exists — nothing changed.",
@@ -47,7 +54,8 @@
         "noUser": "Create the Companion user first, then you can reset its password.",
         "keyStoreFallback": "Table Companion: this browser could not store its signing key securely, so it is kept in browser settings instead. Pairing still works.",
         "paired": "Table Companion: paired with the app service (key {fingerprint}).",
-        "pairingRequest": "Table Companion: the Foundry user \"{name}\" is asking to pair as the app service (key {fingerprint}). Trust or ignore it in Table Companion setup."
+        "pairingRequest": "Table Companion: the Foundry user \"{name}\" is asking to pair as the app service (key {fingerprint}). Trust or ignore it in Table Companion setup.",
+        "noSigner": "Table Companion: this browser could not create a signing key, so the app's backend cannot trust this world's replies. Use a current browser over https."
       },
       "password": {
         "title": "Companion password",
@@ -64,7 +72,13 @@
         "createFailed": "Could not create the Companion user.",
         "resetFailed": "Could not reset the Companion password."
       },
-      "pendingHint": "Only trust this if {name} is the user you linked in the Table Companion app. A player could otherwise pose as the app."
+      "pendingHint": "Only trust this if {name} is the user you linked in the Table Companion app. A player could otherwise pose as the app.",
+      "hint": {
+        "keyMismatch": "Open Foundry from the browser the app paired with, or tap Re-pair in the Table Companion app, then click Refresh here.",
+        "worldMismatch": "Relink the app to this world, or switch Foundry back to the world it was linked to.",
+        "noSigner": "This browser could not create a signing key, so the backend drops this world's replies and Knight provisioning is off. Use a current browser over https.",
+        "clockOffset": "This computer's clock and the app service's differ by more than 45 seconds; past 90 seconds every message is dropped. Set the clock to update automatically on both."
+      }
     }
   }
 }

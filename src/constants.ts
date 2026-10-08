@@ -23,6 +23,11 @@ export const LINK_STALE_MS = 90_000;
  * single notion of "recent." Requires the agent to stamp a fresh `ts`. */
 export const REPLAY_WINDOW_MS = LINK_STALE_MS;
 
+/** Half the freshness window: past this clock offset between the backend and
+ * this browser, setup says so (beyond REPLAY_WINDOW_MS every envelope is
+ * dropped). */
+export const CLOCK_SKEW_WARN_MS = 45_000;
+
 /** Anti-replay: memory bound on the recently-accepted envelope `id`s the channel
  * keeps to drop duplicate (replayed) requests. Ids expire by age (twice the
  * freshness window); this cap only stops the map growing without limit. */

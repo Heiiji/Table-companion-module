@@ -65,6 +65,11 @@ export interface Envelope {
    * on every agent envelope, inside the signed body, so an envelope signed for
    * one world is dropped in any other. */
   worldId?: string;
+  /** The backend's handshake verdict on this browser's reply key, on its hello /
+   * hello.ack (additive; absent = healthy): "response_key_mismatch" — it pinned
+   * another browser's key and drops every reply signed here — or
+   * "world_mismatch" — it is linked to a different world. */
+  pairing?: string;
 }
 
 /** Narrow an unknown socket payload to a well-formed Envelope, or return null.
@@ -93,6 +98,7 @@ export function parseEnvelope(raw: unknown): Envelope | null {
     sig: typeof e.sig === "string" ? e.sig : undefined,
     signedAt: typeof e.signedAt === "number" ? e.signedAt : undefined,
     worldId: typeof e.worldId === "string" ? e.worldId : undefined,
+    pairing: typeof e.pairing === "string" ? e.pairing : undefined,
   };
 }
 

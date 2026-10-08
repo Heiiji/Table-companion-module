@@ -39,7 +39,14 @@
         "linkedHint": "Relié — l'application est connectée à ce monde.",
         "pendingPairing": "Demande d'appairage",
         "pendingValue": "de {name} · {fingerprint}",
-        "pairedAs": "Appairé · {fingerprint} · {name}"
+        "pairedAs": "Appairé · {fingerprint} · {name}",
+        "replySigning": "Signature des réponses",
+        "signingActive": "Active",
+        "signingUnavailable": "Indisponible dans ce navigateur",
+        "signingKeyMismatch": "Clé différente — l'application est appairée à un autre navigateur",
+        "signingWorldMismatch": "L'application est liée à un autre monde",
+        "clockOffset": "Décalage d'horloge",
+        "clockOffsetValue": "{seconds} s"
       },
       "notify": {
         "exists": "L'utilisateur {name} existe déjà — rien n'a changé.",
@@ -47,7 +54,8 @@
         "noUser": "Créez d'abord l'utilisateur Companion, vous pourrez ensuite réinitialiser son mot de passe.",
         "keyStoreFallback": "Table Companion : ce navigateur n'a pas pu stocker sa clé de signature de façon sécurisée ; elle est conservée dans les réglages du navigateur. L'appairage fonctionne toujours.",
         "paired": "Table Companion : appairé avec le service de l'application (clé {fingerprint}).",
-        "pairingRequest": "Table Companion : l'utilisateur Foundry « {name} » demande à s'appairer comme service de l'application (clé {fingerprint}). Acceptez ou ignorez la demande dans la configuration de Table Companion."
+        "pairingRequest": "Table Companion : l'utilisateur Foundry « {name} » demande à s'appairer comme service de l'application (clé {fingerprint}). Acceptez ou ignorez la demande dans la configuration de Table Companion.",
+        "noSigner": "Table Companion : ce navigateur n'a pas pu créer de clé de signature, le service de l'application ne peut donc pas se fier aux réponses de ce monde. Utilisez un navigateur récent en https."
       },
       "password": {
         "title": "Mot de passe Companion",
@@ -64,7 +72,13 @@
         "createFailed": "Impossible de créer l'utilisateur Companion.",
         "resetFailed": "Impossible de réinitialiser le mot de passe Companion."
       },
-      "pendingHint": "N'acceptez que si {name} est bien l'utilisateur lié dans l'application Table Companion : sinon, un joueur pourrait se faire passer pour l'application."
+      "pendingHint": "N'acceptez que si {name} est bien l'utilisateur lié dans l'application Table Companion : sinon, un joueur pourrait se faire passer pour l'application.",
+      "hint": {
+        "keyMismatch": "Ouvrez Foundry depuis le navigateur appairé à l'application, ou touchez « Réappairer » dans l'application Table Companion, puis cliquez sur « Actualiser ».",
+        "worldMismatch": "Liez à nouveau l'application à ce monde, ou rouvrez dans Foundry le monde auquel elle était liée.",
+        "noSigner": "Ce navigateur n'a pas pu créer de clé de signature : le service de l'application ignore donc les réponses de ce monde et l'envoi des personnages Knight est désactivé. Utilisez un navigateur récent en https.",
+        "clockOffset": "L'horloge de cet ordinateur et celle du service de l'application diffèrent de plus de 45 secondes ; au-delà de 90 secondes, tous les messages sont ignorés. Réglez l'heure automatique sur les deux."
+      }
     }
   }
 }
