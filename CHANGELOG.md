@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **Reset pairing announces the module again at once.** It forgot the backend's key and rotated
+  this browser's reply key, but a GM browser without a reply key sent nothing afterwards, so the
+  backend had to wait for its next reconnection to pair again. The module now announces itself as
+  the last step of a reset.
+
 ## [0.11.1] - 2026-09-30
 
 ### Changed

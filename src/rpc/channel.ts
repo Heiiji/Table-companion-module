@@ -294,7 +294,9 @@ export class Channel {
   /** Forget the pinned agent key and user so the next agent contact re-pairs
    * (GM only — writing the world settings requires GM rights). Also rotates THIS
    * browser's response-signing key, so the agent must re-pin our identity too —
-   * a full two-sided reset. */
+   * a full two-sided reset. Ends by announcing the module (a broadcast: nobody
+   * is paired now), so a connected agent answers and pairs again at once — even
+   * when this browser has no signing key and the rotation sent nothing. */
   async resetPairing(): Promise<void> {
     this.pending = null;
     await this.setPinnedKey("");
@@ -307,6 +309,7 @@ export class Channel {
       }
     }
     log.info("agent pairing reset");
+    this.sendHello();
   }
 
   /** Open the explicit pairing window: while it is open, a first validly-signed

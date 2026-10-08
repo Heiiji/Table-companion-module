@@ -754,6 +754,16 @@ describe("Channel response signing", () => {
     expect(ok).toBe(true);
   });
 
+  it("announces itself right after Reset pairing, even without a signing key", async () => {
+    stubGame({ pinned: agentPubB64, responder: true });
+    const channel = startChannel(); // no response signer: the rotation sends nothing
+    await channel.resetPairing();
+    const hellos = emitted("hello");
+    expect(hellos).toHaveLength(1);
+    // Nobody is paired any more, so the announcement is a broadcast.
+    expect(recipientsOf(hellos[0])).toBeUndefined();
+  });
+
   it("rotates the signing key on reset pairing", async () => {
     stubGame({ pinned: agentPubB64, responder: true });
     const channel = startChannel();

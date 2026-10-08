@@ -61,8 +61,11 @@ as. After that it only listens to that key, from that user.
   shows a **pairing request** naming that user and a key fingerprint. Click
   **Trust** only if that is the user you linked in the app; otherwise **Ignore**.
   A Gamemaster account can never pair.
-- **Reset pairing** forgets the pairing on both sides; the next connection pairs
-  again.
+- **Reset pairing** forgets the backend's key in this world, rotates this
+  browser's reply key, then announces the module again, so a connected backend
+  pairs again right away (keep setup open while it does). The backend keeps its
+  own record of this browser's previous key until you tap **Re-pair** in the
+  Table Companion app; the setup panel says when that is needed.
 
 Anyone you grant Foundry's *Modify Configuration Settings* permission can change
 world settings, including this pairing. By default only Assistant GMs and
