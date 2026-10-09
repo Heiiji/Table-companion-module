@@ -9,6 +9,12 @@ export const MODULE_ID = "table-companion";
  * address or credentials. Requires `"socket": true` in module.json. */
 export const CHANNEL = `module.${MODULE_ID}`;
 
+/** Discriminator key of a player-facing projector frame on `CHANNEL`
+ * (`{ tcaDisplay: "show" | "clear", … }`). Distinct from the agent's signed
+ * shape (`{ sig, body }`): the channel ignores these frames, the display
+ * listener applies them. */
+export const DISPLAY_TAG = "tcaDisplay";
+
 /** Envelope schema version this build speaks. Bump only on a breaking change to
  * the envelope shape; additive fields/procedures must NOT bump it. */
 export const ENVELOPE_VERSION = 1;

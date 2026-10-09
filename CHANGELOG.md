@@ -6,6 +6,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **Projector pushes no longer fill every browser's console with « dropped agent envelope ».**
+  The frames that show or clear the shared screen travel on the same socket as the backend's
+  messages, and every connected browser logged each one as a refused message. They are now
+  recognised and ignored by the backend channel. Conversely, a signed message whose body is not
+  valid JSON, which was dropped without a word, is now logged like every other refusal.
+
 ## [0.12.0] - 2026-10-08
 
 ### Added

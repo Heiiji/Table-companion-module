@@ -259,6 +259,36 @@ describe("Channel.onMessage", () => {
     expect(emitSpy).not.toHaveBeenCalled();
   });
 
+  // The projector frames share the socket by design; they are not a dropped
+  // agent envelope, and every client used to log them as one.
+  it("does not log a projector broadcast as a dropped envelope", async () => {
+    stubGame({ pinned: agentPubB64 });
+    startChannel();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await deliver({ tcaDisplay: "clear" }, "gm0");
+      await deliver({ tcaDisplay: "show", view: { name: "Goblin" } }, "gm0");
+      expect(warn).not.toHaveBeenCalled();
+      expect(emitSpy).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("logs a signed message whose body is not JSON", async () => {
+    stubGame({ pinned: agentPubB64 });
+    startChannel();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await deliver({ sig: "x", body: "{not json" });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][1])).toContain("unparseable body");
+      expect(emitSpy).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("drops an oversized body before parsing it", async () => {
     stubGame({ pinned: agentPubB64 });
     startChannel();

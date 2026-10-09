@@ -1,4 +1,4 @@
-import { CHANNEL } from "../constants.js";
+import { CHANNEL, DISPLAY_TAG } from "../constants.js";
 import { gameSocket } from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
@@ -112,12 +112,6 @@ export function isAllowedImageSource(src: string): boolean {
   if (!scheme) return true; // relative to the Foundry server
   return scheme[1].toLowerCase() === "https";
 }
-
-/** Discriminator tag marking a player-facing projector broadcast on the shared
- * `module.table-companion` socket. Distinct from the agent's signed-envelope shape
- * ({ sig, body }), so the channel listener and the display listener never misread
- * each other's traffic. */
-const DISPLAY_TAG = "tcaDisplay";
 
 export type DisplayBroadcast =
   { tcaDisplay: "show"; view: DisplayView } | { tcaDisplay: "clear" };

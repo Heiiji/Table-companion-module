@@ -1,6 +1,7 @@
 import {
   CAP_RESPONSE_SIG,
   CHANNEL,
+  DISPLAY_TAG,
   DROP_WARN_INTERVAL_MS,
   ENVELOPE_VERSION,
   REPLAY_WINDOW_MS,
@@ -455,6 +456,11 @@ export class Channel {
     raw: unknown,
     sender: string,
   ): Promise<Envelope | null> {
+    // A projector frame shares this socket by design (see display.ts); it is
+    // not agent traffic, and logging it as a drop would fire on every client.
+    if (typeof raw === "object" && raw !== null && DISPLAY_TAG in raw) {
+      return null;
+    }
     const signed = parseSignedMessage(raw);
     if (!signed) {
       // Not a signed message (or over the size cap): the channel is signed-only,
@@ -467,6 +473,7 @@ export class Channel {
     try {
       inner = JSON.parse(signed.body);
     } catch {
+      this.warnDrop("unparseable body");
       return null;
     }
     const env = parseEnvelope(inner);
