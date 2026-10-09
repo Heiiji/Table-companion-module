@@ -6,6 +6,7 @@ import {
   SETTING_COMPANION_ANCHOR,
   SETTING_MODULE_KEYPAIR,
 } from "./constants.js";
+import { applicationV2Class } from "./foundry/runtime.js";
 import { registerBuiltinProcedures } from "./procedures/index.js";
 import { scheduleCompendiumWarmup } from "./procedures/compendium.js";
 import { startDisplayListener } from "./procedures/display.js";
@@ -172,11 +173,10 @@ Hooks.once("ready", () => {
  * public-API openSetup() is the fallback. */
 function registerSetupMenu(openSetup: () => void): void {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const AppV2 = (foundry as any)?.applications?.api?.ApplicationV2;
+    const AppV2 = applicationV2Class();
     if (!AppV2) return;
     class SetupLauncher extends AppV2 {
-      async render(): Promise<unknown> {
+      override async render(): Promise<unknown> {
         openSetup();
         return this;
       }

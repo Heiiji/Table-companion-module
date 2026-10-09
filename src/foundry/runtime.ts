@@ -123,6 +123,12 @@ export interface HooksLike {
 
 export type DialogV2Class = new (options: unknown) => unknown;
 
+/** `foundry.applications.api.ApplicationV2`, as far as a subclass that only
+ * overrides `render` needs it. */
+export type ApplicationV2Class = new (options?: unknown) => {
+  render(options?: unknown): unknown;
+};
+
 /** The slice of `game` this module reads. */
 export interface GameLike {
   user?: UserLike;
@@ -143,7 +149,14 @@ interface FoundryGlobals {
   Actor?: { implementation?: ActorFactoryLike };
   Hooks?: HooksLike;
   ui?: { notifications?: NotificationsLike };
-  foundry?: { applications?: { api?: { DialogV2?: DialogV2Class } } };
+  foundry?: {
+    applications?: {
+      api?: {
+        DialogV2?: DialogV2Class;
+        ApplicationV2?: ApplicationV2Class;
+      };
+    };
+  };
 }
 
 function globals(): FoundryGlobals {
@@ -224,4 +237,10 @@ export function foundryHooks(): HooksLike | undefined {
  * when the Application framework is missing (a very old Foundry, a unit test). */
 export function dialogV2Class(): DialogV2Class | undefined {
   return globals().foundry?.applications?.api?.DialogV2;
+}
+
+/** `foundry.applications.api.ApplicationV2`, resolved lazily for the same
+ * reason (the `foundry` global exists only once `init` runs). */
+export function applicationV2Class(): ApplicationV2Class | undefined {
+  return globals().foundry?.applications?.api?.ApplicationV2;
 }

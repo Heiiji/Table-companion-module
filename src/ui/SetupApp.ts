@@ -11,25 +11,28 @@ import {
   findCompanionUser,
   resetCompanionPassword,
 } from "../setup/companion-user.js";
+import { dialogV2Class } from "../foundry/runtime.js";
 import { escapeHtml } from "../util/html.js";
 import { localize, log } from "../util/log.js";
 
-// The ApplicationV2/DialogV2 generics in fvtt-types are intentionally loose to
-// keep this UI robust across Foundry 13/14 point releases; we touch only the
-// stable, documented surface (the DialogV2 instance API + a content string).
-// Accessed lazily (not at module load) so the bundle imports cleanly even before
-// the `foundry` global exists.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const DialogV2 = () => (foundry as any).applications.api.DialogV2;
-
-// Minimal structural shape of the DialogV2 instance bits we touch — keeps us off
-// `any` for everything except the constructor accessor above.
+// Minimal structural shape of the DialogV2 instance bits we touch: the stable,
+// documented surface (the instance API + a content string), robust across
+// Foundry 13/14 point releases.
 interface DialogInstance {
   element: HTMLElement;
   rendered: boolean;
   render(options: { force: boolean }): Promise<unknown>;
   bringToFront?: () => void;
   close(): Promise<unknown>;
+}
+
+/** A DialogV2, through the runtime gateway (resolved lazily, so the bundle
+ * imports cleanly before the `foundry` global exists). Throws when the
+ * Application framework is missing; every caller catches and logs. */
+function newDialog(options: unknown): DialogInstance {
+  const DialogV2 = dialogV2Class();
+  if (!DialogV2) throw new Error("Foundry's DialogV2 is unavailable");
+  return new DialogV2(options) as DialogInstance;
 }
 
 // Single live setup dialog. Re-opening the sidebar button refreshes this one
@@ -305,13 +308,13 @@ export async function openSetupApp(channel: Channel): Promise<void> {
   }
 
   try {
-    const dialog = new (DialogV2())({
+    const dialog = newDialog({
       window: { title: localize("setup.title"), icon: "fa-solid fa-dice-d20" },
       content: setupContent(await statusHtml(channel)),
       buttons: [
         { action: "close", label: localize("common.close"), default: true },
       ],
-    }) as DialogInstance;
+    });
     setupDialog = dialog;
     await dialog.render({ force: true });
     // The setup dialog is the explicit pairing window: while it is open, a first
@@ -368,7 +371,7 @@ async function showPassword(password: string): Promise<void> {
     }
   }
 
-  const dialog = new (DialogV2())({
+  const dialog = newDialog({
     window: {
       title: localize("setup.password.title"),
       icon: "fa-solid fa-key",
@@ -377,7 +380,7 @@ async function showPassword(password: string): Promise<void> {
     buttons: [
       { action: "done", label: localize("common.done"), default: true },
     ],
-  }) as DialogInstance;
+  });
   passwordDialog = dialog;
   await dialog.render({ force: true });
   dialog.element

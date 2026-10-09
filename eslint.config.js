@@ -33,8 +33,8 @@ export default [
       // where a callback's result is ignored does the same.
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-misused-promises": "error",
-      // Keep `any` flagged; the one untyped Foundry boundary (module.ts's
-      // ApplicationV2 lookup) opts out with a scoped inline disable.
+      // Keep `any` flagged; Foundry's globals go through the typed gateway in
+      // src/foundry/runtime.ts (test/sourceTyping.test.ts keeps src free of it).
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
