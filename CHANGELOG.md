@@ -6,6 +6,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **The first compendium search of a session no longer loads every index against its deadline.**
+  A Gamemaster's browser now loads the indexes of the compendiums the Companion user may read in
+  the background, one pack at a time, 15 seconds after the world is ready; the first
+  `compendium.index` then reads Foundry's own index cache. On a world with many packs that first
+  search could time out and the app reported the module as absent. Requests are served exactly
+  as before.
+
 ### Fixed
 - **Projector pushes no longer fill every browser's console with « dropped agent envelope ».**
   The frames that show or clear the shared screen travel on the same socket as the backend's

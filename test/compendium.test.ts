@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   compendiumIndex,
   compendiumGet,
+  scheduleCompendiumWarmup,
+  warmCompendiumIndexes,
 } from "../src/procedures/compendium.js";
 import { RpcError } from "../src/rpc/errors.js";
 import {
@@ -36,13 +38,17 @@ function hidden(pack: FakePack): FakePack {
 
 /** Stub `game` with these packs and the paired service user. `paired: false`
  * models a world whose agent has not paired yet. */
-function stubWorld(list: FakePack[], opts: { paired?: boolean } = {}): void {
+function stubWorld(
+  list: FakePack[],
+  opts: { paired?: boolean; gm?: boolean } = {},
+): void {
   const packs = [...list] as FakePack[] & {
     get: (c: string) => FakePack | undefined;
   };
   packs.get = (c) => list.find((p) => p.collection === c);
   const paired = opts.paired ?? true;
   vi.stubGlobal("game", {
+    user: { id: "gm1", isGM: opts.gm ?? true },
     packs,
     users: { get: (id: string) => (id === AGENT.id ? AGENT : undefined) },
     settings: {
@@ -339,5 +345,93 @@ describe("compendium permission gate", () => {
       entries: unknown[];
     };
     expect(result.entries).toEqual([]);
+  });
+});
+
+describe("compendium index warm-up", () => {
+  /** A pack whose index, like Foundry's, is loaded from the server once and
+   * then served from the pack's cache. `release()` answers a pending load. */
+  function cachingPack(collection: string, name: string) {
+    let index: Array<Record<string, unknown>> | undefined;
+    const pending: Array<() => void> = [];
+    const pack = shared({
+      collection,
+      metadata: { id: collection, label: collection, type: "Actor" },
+      getIndex: () =>
+        index
+          ? Promise.resolve(index)
+          : new Promise((resolve) =>
+              pending.push(() => resolve((index = [{ _id: name, name }]))),
+            ),
+      getDocument: async () => null,
+    });
+    return { pack, loads: () => pending.length, release: () => pending[0]() };
+  }
+
+  it("loads each readable pack index one after another, so the first search is warm", async () => {
+    const a = cachingPack("world.a", "Alpha");
+    const b = cachingPack("world.b", "Beta");
+    const secret = hidden({
+      collection: "world.secret",
+      metadata: { id: "secret", label: "Secret", type: "Actor" },
+      getIndex: vi.fn(async () => []),
+      getDocument: async () => null,
+    });
+    const broken = shared({
+      collection: "world.broken",
+      metadata: { id: "broken", label: "Broken", type: "Item" },
+      getIndex: () => Promise.reject(new Error("server said no")),
+      getDocument: async () => null,
+    });
+    stubWorld([broken, a.pack, secret, b.pack]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const warming = warmCompendiumIndexes();
+      await vi.waitFor(() => expect(a.loads()).toBe(1));
+      expect(b.loads()).toBe(0); // one pack at a time
+      a.release();
+      await vi.waitFor(() => expect(b.loads()).toBe(1));
+      b.release();
+      await warming;
+      expect(secret.getIndex).not.toHaveBeenCalled(); // never a hidden pack
+      expect(warn).toHaveBeenCalledTimes(1); // a failing pack is skipped
+
+      // The request now reads the cache: no new load, same answer.
+      const res = (await compendiumIndex(
+        { contentType: "creature" },
+        {} as never,
+      )) as { entries: Array<{ name: string }> };
+      expect(a.loads() + b.loads()).toBe(2);
+      expect(res.entries.map((e) => e.name)).toEqual(["Alpha", "Beta"]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("starts 15 s after ready, on a Gamemaster's browser only", () => {
+    vi.useFakeTimers();
+    try {
+      const getIndex = vi.fn(async () => []);
+      const pack = (): FakePack =>
+        shared({
+          collection: "world.a",
+          metadata: { id: "a", label: "A", type: "Actor" },
+          getIndex,
+          getDocument: async () => null,
+        });
+      stubWorld([pack()], { gm: false });
+      scheduleCompendiumWarmup();
+      vi.advanceTimersByTime(60_000);
+      expect(getIndex).not.toHaveBeenCalled();
+
+      stubWorld([pack()]);
+      scheduleCompendiumWarmup();
+      vi.advanceTimersByTime(14_999);
+      expect(getIndex).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(getIndex).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

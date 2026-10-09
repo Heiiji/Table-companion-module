@@ -1,4 +1,5 @@
 import {
+  foundryGame,
   gamePacks,
   type CompendiumPackLike,
   type CompendiumPacksLike,
@@ -7,6 +8,7 @@ import {
 import type { Procedure } from "../rpc/registry.js";
 import { RpcError, assertPayloadWithinCap } from "../rpc/errors.js";
 import { pairedAgentUser } from "../setup/identity.js";
+import { log } from "../util/log.js";
 
 /**
  * Live library passthrough: expose content that the paired service user is allowed to see as a
@@ -81,6 +83,34 @@ function packs(): CompendiumPacksLike {
   const p = gamePacks();
   if (!p) throw new Error("Foundry game.packs is unavailable");
   return p;
+}
+
+/** How long after `ready` a Gamemaster's browser starts warming the indexes: past the burst of
+ * world loading, before a player is likely to search. */
+const WARM_DELAY_MS = 15_000;
+
+/**
+ * Load the index of every pack the paired service user may read, one pack after another, so the
+ * first `compendium.index` of a session finds Foundry's own index cache warm instead of loading
+ * every pack against the request deadline. Sequential on purpose: it runs in the background and
+ * must not compete with the table. Never throws; a pack that fails is left for the request to load.
+ */
+export async function warmCompendiumIndexes(): Promise<void> {
+  const agent = pairedAgentUser();
+  for (const pack of gamePacks() ?? []) {
+    try {
+      if (readable(pack, agent)) await pack.getIndex();
+    } catch (err) {
+      log.warn(`could not preload the index of ${pack.collection}`, err);
+    }
+  }
+}
+
+/** Start the warm-up WARM_DELAY_MS after `ready`, on a Gamemaster's browser only: only a GM ever
+ * answers a request, and a player's browser has no reason to load the packs. */
+export function scheduleCompendiumWarmup(): void {
+  if (!foundryGame()?.user?.isGM) return;
+  setTimeout(() => void warmCompendiumIndexes(), WARM_DELAY_MS);
 }
 
 export const compendiumIndex: Procedure = async (payload) => {

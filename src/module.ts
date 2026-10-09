@@ -7,6 +7,7 @@ import {
   SETTING_MODULE_KEYPAIR,
 } from "./constants.js";
 import { registerBuiltinProcedures } from "./procedures/index.js";
+import { scheduleCompendiumWarmup } from "./procedures/compendium.js";
 import { startDisplayListener } from "./procedures/display.js";
 import { Channel } from "./rpc/channel.js";
 import { ProcedureRegistry } from "./rpc/registry.js";
@@ -159,6 +160,9 @@ Hooks.once("ready", () => {
   // Response signing: only GM clients hold a key (only the elected responder
   // ever signs). Players never sign, so they never generate one.
   if (channel && game.user?.isGM) void initResponseSigner(channel);
+  // Load the readable compendium indexes in the background, so the first
+  // search of the session does not load them all against its deadline.
+  scheduleCompendiumWarmup();
 });
 
 /** Register the setup launcher as a settings menu. The menu's `type` is a minimal
