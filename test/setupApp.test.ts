@@ -7,11 +7,29 @@ import { CAP_RESPONSE_SIG } from "../src/constants.js";
 // status. These tests stand in a DialogV2 that records its content, and a
 // channel object exposing only what the dialog reads.
 
+/** The status panel host: records every repaint. */
+class FakeHost {
+  writes = 0;
+  private html = "";
+  get innerHTML(): string {
+    return this.html;
+  }
+  set innerHTML(html: string) {
+    this.writes += 1;
+    this.html = html;
+  }
+  addEventListener(): void {}
+}
+
 class FakeDialog {
   static instances: FakeDialog[] = [];
   rendered = false;
   readonly content: string;
-  readonly element = { querySelector: () => null };
+  readonly host = new FakeHost();
+  readonly element = {
+    querySelector: (selector: string) =>
+      selector === ".tca-status-host" ? this.host : null,
+  };
   constructor(opts: { content: string }) {
     this.content = opts.content;
     FakeDialog.instances.push(this);
@@ -136,5 +154,116 @@ describe("openSetupApp", () => {
     expect(content).toContain("setup.status.signingActive");
     expect(content).toContain("setup.status.clockOffset");
     expect(content).toContain("setup.hint.clockOffset");
+  });
+});
+
+describe("Players in the app", () => {
+  // A fresh module graph per test: the presence store and the single setup
+  // dialog are module state.
+  let open: typeof openSetupApp;
+  let store: typeof import("../src/setup/appPresence.js").appPresence;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    open = (await import("../src/ui/SetupApp.js")).openSetupApp;
+    store = (await import("../src/setup/appPresence.js")).appPresence;
+    const actors = new Map([["actor1", { name: "Aria <the Bold>" }]]);
+    vi.stubGlobal("game", {
+      user: { id: "gm1", isGM: true },
+      users: { find: () => undefined },
+      settings: { get: () => "" },
+      actors: { get: (id: string) => actors.get(id) },
+      i18n: {
+        localize: (key: string) => key,
+        format: (key: string, data: Record<string, string>) =>
+          `${key}(${Object.values(data).join(",")})`,
+      },
+    });
+  });
+
+  const feed = (seats: unknown[]) =>
+    store.onEvent("app.presence", { v: 1, seats });
+
+  it("is hidden until the backend reports presence", async () => {
+    await open(fakeChannel().channel);
+    expect(FakeDialog.instances[0].content).not.toContain("setup.players");
+  });
+
+  it("names each seat after its actor, else its label, else its position", async () => {
+    feed([
+      {
+        memberId: "m1",
+        actorId: "actor1",
+        label: "ignored",
+        state: "inSession",
+      },
+      { memberId: "m2", actorId: "gone", label: "Bo & Co", state: "appOpen" },
+      { memberId: "m3", state: "offline" },
+    ]);
+    await open(fakeChannel().channel);
+    const { content } = FakeDialog.instances[0];
+    expect(content).toContain("setup.players.title");
+    expect(content).toContain("Aria &lt;the Bold&gt;");
+    expect(content).not.toContain("ignored");
+    expect(content).toContain("Bo &amp; Co");
+    expect(content).toContain("setup.players.seat(3)");
+    expect(content).toContain(
+      '<b class="tca-ok">table-companion.setup.players.inSession</b>',
+    );
+    expect(content).toContain(
+      '<b class="tca-off">table-companion.setup.players.appOpen</b>',
+    );
+    expect(content).toContain("setup.players.offline");
+    expect(content).not.toContain("setup.players.unknown");
+  });
+
+  it("shows one unknown hint instead of the states once the snapshot is old", async () => {
+    feed([
+      { memberId: "m1", label: "Aria", state: "inSession" },
+      { memberId: "m2", label: "Bo", state: "offline" },
+    ]);
+    await vi.advanceTimersByTimeAsync(3 * 60_000 + 1);
+    await open(fakeChannel().channel);
+    const { content } = FakeDialog.instances[0];
+    expect(content).toContain("Aria");
+    expect(content).toContain("Bo");
+    expect(content).not.toContain("setup.players.inSession");
+    expect(content).not.toContain("setup.players.offline");
+    expect(content.split("setup.players.unknown")).toHaveLength(2);
+  });
+
+  it("orders the seats by member id whatever order they arrive in", async () => {
+    feed([
+      { memberId: "m2", label: "Bo", state: "offline" },
+      { memberId: "m1", label: "Aria", state: "appOpen" },
+    ]);
+    await open(fakeChannel().channel);
+    const { content, host } = FakeDialog.instances[0];
+    expect(content.indexOf("Aria")).toBeGreaterThan(-1);
+    expect(content.indexOf("Aria")).toBeLessThan(content.indexOf("Bo"));
+
+    feed([
+      { memberId: "m1", label: "Aria", state: "appOpen" },
+      { memberId: "m2", label: "Bo", state: "offline" },
+    ]);
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(host.writes).toBe(0);
+  });
+
+  it("repaints the panel only when its content changed", async () => {
+    feed([{ memberId: "m1", label: "Aria", state: "appOpen" }]);
+    await open(fakeChannel().channel);
+    const { host } = FakeDialog.instances[0];
+
+    await vi.advanceTimersByTimeAsync(4000 * 3);
+    expect(host.writes).toBe(0); // nothing changed: focus and live region kept
+
+    feed([{ memberId: "m1", label: "Aria", state: "inSession" }]);
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(host.writes).toBe(1);
+    expect(host.innerHTML).toContain("setup.players.inSession");
+
+    await vi.advanceTimersByTimeAsync(4000 * 3);
+    expect(host.writes).toBe(1);
   });
 });

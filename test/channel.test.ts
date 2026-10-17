@@ -920,3 +920,80 @@ describe("Channel response signing", () => {
     expect(setSpy).toHaveBeenCalledWith(MODULE_ID, SETTING_AGENT_KEY, "");
   });
 });
+
+// Agent → module push events (e.g. who has the app open) reach the channel's
+// listeners only through the same gate as every other agent envelope.
+describe("Channel agent events", () => {
+  const payload = { v: 1, seats: [] };
+
+  function listen(channel: Channel) {
+    const got: Array<[string, unknown]> = [];
+    channel.onEvent((proc, p) => got.push([proc, p]));
+    return got;
+  }
+
+  it("delivers a signed agent event to every listener, past one that throws", async () => {
+    stubGame({ pinned: agentPubB64 });
+    const channel = startChannel();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      channel.onEvent(() => {
+        throw new Error("listener bug");
+      });
+      const got = listen(channel);
+      await deliver(
+        await sign(agentEnv("event", { proc: "app.presence", payload })),
+      );
+      expect(got).toEqual([["app.presence", payload]]);
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(emitSpy).not.toHaveBeenCalled(); // an event is never answered
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("delivers it on a Gamemaster client that is not the responder", async () => {
+    stubGame({ pinned: agentPubB64, responder: false });
+    const got = listen(startChannel());
+    await deliver(
+      await sign(agentEnv("event", { proc: "app.presence", payload })),
+    );
+    expect(got).toHaveLength(1);
+  });
+
+  it("stops delivering to a listener that unsubscribed", async () => {
+    stubGame({ pinned: agentPubB64 });
+    const channel = startChannel();
+    const got: unknown[] = [];
+    const off = channel.onEvent((proc) => got.push(proc));
+    off();
+    await deliver(
+      await sign(agentEnv("event", { proc: "app.presence", payload })),
+    );
+    expect(got).toEqual([]);
+  });
+
+  it("drops an event that is unsigned, re-sent by another user, for another world, signed by another key, or nameless", async () => {
+    stubGame({ pinned: agentPubB64 });
+    const channel = startChannel();
+    const got = listen(channel);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const event = (fields: Fields = {}) =>
+        agentEnv("event", { proc: "app.presence", payload, ...fields });
+      await deliver(event()); // unsigned
+      await deliver(await sign(event()), PLAYER); // captured and re-sent
+      await deliver(await sign(event({ worldId: "other-world" })));
+      const rogue = (await crypto.subtle.generateKey(
+        { name: "Ed25519" },
+        true,
+        ["sign", "verify"],
+      )) as CryptoKeyPair;
+      await deliver(await sign(event(), rogue.privateKey));
+      await deliver(await sign(event({ proc: undefined })));
+      expect(got).toEqual([]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});

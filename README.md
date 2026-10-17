@@ -15,7 +15,9 @@ unlocks richer, system-aware features over time.
 
 - **One-click setup** — creates the dedicated `Companion` user with a strong
   password and shows it once to paste into the app.
-- **Link status** — a panel showing whether the app is connected to your world.
+- **Link status** — a panel showing whether the app is connected to your world
+  and, with a current backend, which players have the Table Companion app open
+  (in session, app open or offline).
 - **Knight character provisioning** — when the app finishes or resumes its guided Knight creator,
   a signed GM-side procedure can create, explicitly adopt, or safely update the matching Foundry
   Actor without name-based guessing or overwriting unrelated equipment.

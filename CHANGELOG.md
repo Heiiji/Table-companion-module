@@ -6,6 +6,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Setup lists the players who have the Table Companion app open.** A « Players in the app »
+  section names each seat of the linked table — after its Foundry character, else its name in the
+  app — and says whether the player is *In session*, has the *App open* or is *Offline*. After three
+  minutes without news from the app's backend the states read as unknown; the section stays hidden
+  until the backend reports presence. Gamemasters only, kept in the browser's memory. Requires the
+  Table Companion backend released with this version.
+
 ### Changed
 - **The first compendium search of a session no longer loads every index against its deadline.**
   A Gamemaster's browser now loads the indexes of the compendiums the Companion user may read in
@@ -15,6 +23,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   as before.
 
 ### Fixed
+- **The setup panel is only redrawn when something in it changed.** It was rewritten every four
+  seconds, which made screen readers re-read it and moved keyboard focus off the Trust / Ignore
+  buttons of a pairing request.
 - **Projector pushes no longer fill every browser's console with « dropped agent envelope ».**
   The frames that show or clear the shared screen travel on the same socket as the backend's
   messages, and every connected browser logged each one as a refused message. They are now

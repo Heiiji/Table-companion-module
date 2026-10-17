@@ -11,7 +11,8 @@ import {
   findCompanionUser,
   resetCompanionPassword,
 } from "../setup/companion-user.js";
-import { dialogV2Class } from "../foundry/runtime.js";
+import { APP_PRESENCE_STALE_MS, appPresence } from "../setup/appPresence.js";
+import { dialogV2Class, gameActors } from "../foundry/runtime.js";
 import { escapeHtml } from "../util/html.js";
 import { localize, log } from "../util/log.js";
 
@@ -123,6 +124,46 @@ async function statusHtml(channel: Channel): Promise<string> {
       ? `<p class="tca-hint tca-linked">` +
         `<i class="fa-solid fa-circle-check" aria-hidden="true"></i> ` +
         `${escapeHtml(localize("setup.status.linkedHint"))}</p>`
+      : "") +
+    appPlayersHtml(row)
+  );
+}
+
+/** « Players in the app »: one row per seat the backend last reported, named
+ * after the seat's Foundry Actor, else the app's label, else its position.
+ * Hidden until a snapshot arrives (a backend that does not report presence);
+ * past APP_PRESENCE_STALE_MS the states give way to one « unknown » hint. */
+function appPlayersHtml(
+  row: (label: string, value: string, ok: boolean) => string,
+): string {
+  const snapshot = appPresence.get();
+  if (!snapshot?.seats.length) return "";
+  const stale = Date.now() - snapshot.receivedAt > APP_PRESENCE_STALE_MS;
+  // Ordered by member id, not by arrival order, so the same seats always render
+  // the same HTML (the repaint guard) and keep their « Seat n » number.
+  const rows = [...snapshot.seats]
+    .sort((a, b) =>
+      a.memberId < b.memberId ? -1 : a.memberId > b.memberId ? 1 : 0,
+    )
+    .map((seat, i) => {
+      const name =
+        (seat.actorId && gameActors()?.get(seat.actorId)?.name) ||
+        seat.label ||
+        localize("setup.players.seat", { n: String(i + 1) });
+      return stale
+        ? `<div class="tca-status-row"><span>${escapeHtml(name)}</span></div>`
+        : row(
+            name,
+            localize(`setup.players.${seat.state}`),
+            seat.state === "inSession",
+          );
+    })
+    .join("");
+  return (
+    `<h4>${escapeHtml(localize("setup.players.title"))}</h4>` +
+    `<div class="tca-status">${rows}</div>` +
+    (stale
+      ? `<p class="tca-hint">${escapeHtml(localize("setup.players.unknown"))}</p>`
       : "")
   );
 }
@@ -201,13 +242,22 @@ function setupContent(statusBlock: string): string {
   );
 }
 
+// The status markup last written into each panel host. A repaint replaces the
+// `aria-live` region and drops keyboard focus (Trust / Ignore), so the panel is
+// rewritten only when its markup changed.
+const renderedStatus = new WeakMap<Element, string>();
+
 /** Replace just the status panel in the open dialog, leaving wired buttons. */
 async function refreshStatus(
   channel: Channel,
   dialog: DialogInstance,
 ): Promise<void> {
   const host = dialog.element?.querySelector(".tca-status-host");
-  if (host) host.innerHTML = await statusHtml(channel);
+  if (!host) return;
+  const html = await statusHtml(channel);
+  if (renderedStatus.get(host) === html) return;
+  renderedStatus.set(host, html);
+  host.innerHTML = html;
 }
 
 /** Keep the open panel current: repaint on a light interval (covers the
@@ -308,15 +358,18 @@ export async function openSetupApp(channel: Channel): Promise<void> {
   }
 
   try {
+    const status = await statusHtml(channel);
     const dialog = newDialog({
       window: { title: localize("setup.title"), icon: "fa-solid fa-dice-d20" },
-      content: setupContent(await statusHtml(channel)),
+      content: setupContent(status),
       buttons: [
         { action: "close", label: localize("common.close"), default: true },
       ],
     });
     setupDialog = dialog;
     await dialog.render({ force: true });
+    const host = dialog.element?.querySelector(".tca-status-host");
+    if (host) renderedStatus.set(host, status);
     // The setup dialog is the explicit pairing window: while it is open, a first
     // agent contact may pair (automatically for the service user this module
     // created, otherwise after Trust). Closed again in startLiveRefresh.

@@ -72,6 +72,14 @@
         "createFailed": "Impossible de créer l'utilisateur Companion.",
         "resetFailed": "Impossible de réinitialiser le mot de passe Companion."
       },
+      "players": {
+        "title": "Joueurs dans l'appli",
+        "seat": "Place {n}",
+        "inSession": "En session",
+        "appOpen": "Appli ouverte",
+        "offline": "Hors ligne",
+        "unknown": "État inconnu — aucune nouvelle du service de l'application depuis plus de 3 minutes."
+      },
       "pendingHint": "N'acceptez que si {name} est bien l'utilisateur lié dans l'application Table Companion : sinon, un joueur pourrait se faire passer pour l'application.",
       "hint": {
         "keyMismatch": "Ouvrez Foundry depuis le navigateur appairé à l'application, ou touchez « Réappairer » dans l'application Table Companion, puis cliquez sur « Actualiser ».",

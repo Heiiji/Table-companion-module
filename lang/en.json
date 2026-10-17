@@ -72,6 +72,14 @@
         "createFailed": "Could not create the Companion user.",
         "resetFailed": "Could not reset the Companion password."
       },
+      "players": {
+        "title": "Players in the app",
+        "seat": "Seat {n}",
+        "inSession": "In session",
+        "appOpen": "App open",
+        "offline": "Offline",
+        "unknown": "State unknown — no news from the app service for more than 3 minutes."
+      },
       "pendingHint": "Only trust this if {name} is the user you linked in the Table Companion app. A player could otherwise pose as the app.",
       "hint": {
         "keyMismatch": "Open Foundry from the browser the app paired with, or tap Re-pair in the Table Companion app, then click Refresh here.",

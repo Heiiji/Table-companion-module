@@ -17,6 +17,7 @@ import {
   loadOrCreateSigner,
   type SignerStorage,
 } from "./rpc/responseSigning.js";
+import { appPresence } from "./setup/appPresence.js";
 import { startPresenceWatcher } from "./setup/presence.js";
 import { openSetupApp } from "./ui/SetupApp.js";
 import { indexedDbKeyStore } from "./util/keyStore.js";
@@ -161,6 +162,9 @@ Hooks.once("ready", () => {
   // Response signing: only GM clients hold a key (only the elected responder
   // ever signs). Players never sign, so they never generate one.
   if (channel && game.user?.isGM) void initResponseSigner(channel);
+  // Who has the Table Companion app open, for the setup panel. The backend
+  // sends this to Gamemasters only.
+  if (channel && game.user?.isGM) channel.onEvent(appPresence.onEvent);
   // Load the readable compendium indexes in the background, so the first
   // search of the session does not load them all against its deadline.
   scheduleCompendiumWarmup();
