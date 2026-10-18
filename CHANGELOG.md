@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-18
+
 ### Added
 - **Setup lists the players who have the Table Companion app open.** A « Players in the app »
   section names each seat of the linked table — after its Foundry character, else its name in the
