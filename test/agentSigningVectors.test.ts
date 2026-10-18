@@ -10,9 +10,8 @@ import { parseEnvelope } from "../src/rpc/envelope.js";
 import { ProcedureRegistry } from "../src/rpc/registry.js";
 import { verifySignature } from "../src/rpc/signing.js";
 
-// These vectors are byte-identical to the backend's
-// internal/connector/testdata/agent_signing_vectors.json, produced by the very
-// code path the backend sends with. They fence the wire shape of a signed
+// These vectors are byte-identical to the backend's own copy, produced by the
+// very code path the backend sends with. They fence the wire shape of a signed
 // backend message: had they existed, a backend that left `peer` off its
 // requests (which this module has always dropped) could not have passed.
 

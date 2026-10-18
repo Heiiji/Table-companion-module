@@ -1,5 +1,5 @@
 {
-  "_comment": "Agent->module signed envelopes: Ed25519 over the exact UTF-8 bytes of `body`. Frozen; byte-identical copies live in Table-companion-agent internal/connector/testdata/agent_signing_vectors.json and Table-companion-module test/vectors/agent_signing_vectors.json (hub gate tools/verify-module-envelope-parity.sh cmp's them). Regenerate only with UPDATE_AGENT_VECTORS=1 go test ./internal/connector -run TestAgentSigningVectors.",
+  "_comment": "Agent->module signed envelopes: Ed25519 over the exact UTF-8 bytes of `body`. Frozen: the agent and the module each keep a byte-identical copy of this file, and both suites verify the same frames. Regenerate only from the agent's own vector test, never by hand.",
   "seedB64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
   "publicKeyB64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
   "vectors": [

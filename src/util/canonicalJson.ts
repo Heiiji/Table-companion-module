@@ -1,8 +1,7 @@
 /**
  * Canonical JSON: one byte-exact serialization of a JSON value, so two
  * implementations can hash or sign "the same value" and agree on the bytes.
- * Byte-identical with the agent's Go canonicalizer
- * (internal/connector/moduleresponsesig.go); the shared vectors in
+ * Byte-identical with the agent's Go canonicalizer; the shared vectors in
  * test/vectors/response_signing_vectors.json (identical to the agent's
  * testdata copy) lock both.
  *

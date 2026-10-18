@@ -9,8 +9,7 @@ import {
   responseSigningString,
 } from "../src/rpc/responseSigning.js";
 
-// These vectors are byte-identical to the agent's
-// internal/connector/testdata/response_signing_vectors.json. Both suites assert
+// These vectors are byte-identical to the agent's own copy. Both suites assert
 // against the same file, which is the cross-language canonicalization proof: the
 // module builds the signing string, the agent rebuilds it, and they must agree
 // to the byte.

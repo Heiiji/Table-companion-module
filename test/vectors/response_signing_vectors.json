@@ -1,5 +1,5 @@
 {
-  "_comment": "M8 module->agent response-signing vectors (scheme v2: the envelope `type` is bound into the signed string, so an rpc.error cannot be replayed as an rpc.response). Embedded byte-identically in Table-companion-module (vitest) and Table-companion-agent (go); regenerate crypto cases from gen-vectors.mjs. The canonicalJSON cases carry no signature and are self-verified by each suite's canonicalizer, so pure canonical-JSON cases (e.g. key-sort-utf8-astral) may be appended by hand — both suites recompute and must agree.",
+  "_comment": "Module->agent response-signing vectors (scheme v2: the envelope `type` is bound into the signed string, so an rpc.error cannot be replayed as an rpc.response). Embedded byte-identically in the module (vitest) and the agent (go); the crypto cases are frozen. The canonicalJSON cases carry no signature and are self-verified by each suite's canonicalizer, so pure canonical-JSON cases (e.g. key-sort-utf8-astral) may be appended by hand — both suites recompute and must agree.",
   "canonicalScheme": "v2",
   "freshnessWindowMs": 90000,
   "signingKey": {
