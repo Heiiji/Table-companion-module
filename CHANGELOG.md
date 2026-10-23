@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-23
+
 ### Added
 - **Setup shows how many player characters Companion can see, and shares the rest.** A « Player
   characters » row reads « Companion can see N of M » and names the characters the Companion user
