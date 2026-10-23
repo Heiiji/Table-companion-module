@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { registerBuiltinProcedures } from "../src/procedures/index.js";
 import { ProcedureRegistry } from "../src/rpc/registry.js";
+import { KNIGHT_UPSERT_SYSTEM_VERSIONS } from "../src/procedures/upsertShared.js";
 
 // The system-agnostic floor: what EVERY world gets, whatever system it runs.
 // These touch no system-specific schema (core Roll API, compendium passthrough,
@@ -127,7 +128,7 @@ describe("ProcedureRegistry", () => {
 
   it("names why the Knight upserts are withheld on another Knight version", () => {
     vi.stubGlobal("game", {
-      system: { id: "knight", version: "3.58.35" },
+      system: { id: "knight", version: "3.58.36" },
       release: { generation: 14 },
     });
     const knight = new ProcedureRegistry();
@@ -136,7 +137,7 @@ describe("ProcedureRegistry", () => {
     const withheld = knight.unsupported();
     expect(Object.keys(withheld).sort()).toEqual(MUTATION_PROCEDURES);
     expect(withheld["actor.upsert.v1"]).toBe(
-      "Knight 3.58.35 on Foundry 14; requires Knight 3.58.33 on Foundry 13 or later",
+      "Knight 3.58.36 on Foundry 14; requires Knight 3.58.33 to 3.58.35 on Foundry 13 or later",
     );
 
     vi.stubGlobal("game", { system: { id: "dnd5e" } });
@@ -255,12 +256,41 @@ describe("ProcedureRegistry", () => {
     }
   });
 
-  it("does not advertise actor.upsert.v1 outside the exact fixture-pinned Knight runtime", () => {
+  it("advertises the Knight upserts on every admitted Knight version", () => {
+    expect(KNIGHT_UPSERT_SYSTEM_VERSIONS).toEqual([
+      "3.58.33",
+      "3.58.34",
+      "3.58.35",
+    ]);
+    for (const version of KNIGHT_UPSERT_SYSTEM_VERSIONS) {
+      vi.stubGlobal("game", {
+        system: { id: "knight", version },
+        release: { generation: 13 },
+      });
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      expect(registry.capabilities(), version).toEqual(KNIGHT_CAPABILITIES);
+      expect(registry.unsupported(), version).toEqual({});
+    }
+  });
+
+  it("does not advertise actor.upsert.v1 outside the admitted Knight runtime", () => {
     for (const game of [
-      {
-        system: { id: "knight", version: "3.58.34" },
+      ...[
+        "3.58.32",
+        "3.58.36",
+        "3.58.37",
+        "3.59.0",
+        "4.0.0",
+        "v3.58.33",
+        "3.58.3",
+        "3.58.33-beta",
+        "",
+        undefined,
+      ].map((version) => ({
+        system: { id: "knight", version },
         release: { generation: 14 },
-      },
+      })),
       {
         system: { id: "knight", version: "3.58.33" },
         release: { generation: 12 },

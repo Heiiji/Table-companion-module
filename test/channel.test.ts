@@ -641,17 +641,17 @@ describe("Channel.onMessage", () => {
   it("advertises withheld procedures with their reason", async () => {
     stubGame({ pinned: agentPubB64, responder: true });
     const registry = new ProcedureRegistry();
-    registry.markUnsupported("actor.upsert.v1", "Knight 3.58.35 on Foundry 14");
+    registry.markUnsupported("actor.upsert.v1", "Knight 3.58.36 on Foundry 14");
     new Channel(registry, "0.0.0-test").start();
     const [hello] = emitted("hello");
     expect(hello.unsupported).toEqual({
-      "actor.upsert.v1": "Knight 3.58.35 on Foundry 14",
+      "actor.upsert.v1": "Knight 3.58.36 on Foundry 14",
     });
 
     emitSpy.mockClear();
     await deliver(await sign(agentEnv("hello")));
     expect(emitted("hello.ack")[0].unsupported).toEqual({
-      "actor.upsert.v1": "Knight 3.58.35 on Foundry 14",
+      "actor.upsert.v1": "Knight 3.58.36 on Foundry 14",
     });
   });
 

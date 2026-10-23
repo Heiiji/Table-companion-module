@@ -153,27 +153,48 @@ export function parseAspectScores(value: unknown): AspectScoresV1 {
  * proves breaking is handled when it happens. */
 export const MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION = 13;
 
-/** The one Knight system version the actor mappings are verified against. */
-export const KNIGHT_UPSERT_SYSTEM_VERSION = "3.58.33";
+/** The Knight system versions the actor mappings are verified against: 3.58.33,
+ * which the PC and pnj fixtures were captured on, then each later release whose
+ * `module/documents/models/`, `module/helpers/config.mjs` and
+ * `module/migration.mjs` are byte-identical to it (3.58.34 and 3.58.35). An
+ * explicit list, not a range: a release joins it only on such a diff. */
+export const KNIGHT_UPSERT_SYSTEM_VERSIONS: readonly string[] = [
+  "3.58.33",
+  "3.58.34",
+  "3.58.35",
+];
 
-/** Runtime gate for the only Knight actor mapping admitted by this release:
- * the exact fixture-pinned Knight system version, on Foundry 13 or any later
- * generation. It decides whether the two provisioning procedures are
- * registered at all, and each procedure repeats it before touching the world.
- * The pnj data model is verified byte-identical 3.58.33 → 3.58.35, so one
- * widening of the system version moves both lanes. */
+/** The admitted versions as the « requires Knight … » messages name them. */
+export const KNIGHT_UPSERT_SYSTEM_VERSION_LABEL = `${KNIGHT_UPSERT_SYSTEM_VERSIONS[0]} to ${KNIGHT_UPSERT_SYSTEM_VERSIONS.at(-1)}`;
+
+/** True only for an exact listed version string ("v3.58.33", "3.58.3",
+ * "3.58.33-beta" and non-strings are all refused). */
+export function isAdmittedKnightSystemVersion(
+  version: unknown,
+): version is string {
+  return (
+    typeof version === "string" &&
+    KNIGHT_UPSERT_SYSTEM_VERSIONS.includes(version)
+  );
+}
+
+/** Runtime gate for the Knight actor mappings admitted by this release: a
+ * listed Knight system version, on Foundry 13 or any later generation. It
+ * decides whether the two provisioning procedures are registered at all, and
+ * each procedure repeats it before touching the world. Both lanes read the same
+ * version list, so one widening moves the PC and pnj lanes together. */
 export function supportsKnightActorUpsertV1Runtime(): boolean {
   return (
     systemId() === "knight" &&
-    systemVersion() === KNIGHT_UPSERT_SYSTEM_VERSION &&
+    isAdmittedKnightSystemVersion(systemVersion()) &&
     foundryGeneration() >= MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION
   );
 }
 
 /**
  * The gate both Knight lanes repeat before touching the world: the responder
- * must be a GM, and the runtime must be the exact Knight/Foundry pair the
- * mapping was verified against (the same check that decides registration).
+ * must be a GM, and the runtime must be a Knight/Foundry pair the mapping was
+ * verified against (the same check that decides registration).
  * `procedure` names the lane in the error message.
  */
 export function assertKnightUpsertAuthority(procedure: string): void {
@@ -185,7 +206,7 @@ export function assertKnightUpsertAuthority(procedure: string): void {
   if (!supportsKnightActorUpsertV1Runtime()) {
     throw new RpcError(
       "unsupported_runtime",
-      `${procedure} requires Knight 3.58.33 on Foundry 13 or later`,
+      `${procedure} requires Knight ${KNIGHT_UPSERT_SYSTEM_VERSION_LABEL} on Foundry ${MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION} or later`,
     );
   }
 }

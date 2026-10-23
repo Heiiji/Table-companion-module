@@ -8,6 +8,7 @@ import {
 } from "../src/procedures/npcUpsert.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
+import { KNIGHT_UPSERT_SYSTEM_VERSIONS } from "../src/procedures/upsertShared.js";
 
 const ACTOR_ID = "actor00000000pnj";
 
@@ -208,39 +209,45 @@ describe("pnj schema fixtures", () => {
 });
 
 describe("npc.upsert.v1", () => {
-  for (const fixture of PNJ_SCHEMA_FIXTURES) {
-    it(`writes only fixture-proven pnj paths on Foundry ${fixture.foundryGeneration}`, async () => {
-      const actors: FakeActor[] = [];
-      stubFoundry(actors, undefined, fixture.foundryGeneration);
+  // The 3.58.33 fixtures stand in for every admitted version: the later ones
+  // are admitted only because their data models are byte-identical to it.
+  for (const version of KNIGHT_UPSERT_SYSTEM_VERSIONS)
+    for (const fixture of PNJ_SCHEMA_FIXTURES) {
+      it(`writes only fixture-proven pnj paths under Knight ${version} on Foundry ${fixture.foundryGeneration}`, async () => {
+        const actors: FakeActor[] = [];
+        stubFoundry(actors, undefined, fixture.foundryGeneration, {
+          id: "knight",
+          version,
+        });
 
-      const result = (await npcUpsertV1(
-        request() as unknown as Record<string, unknown>,
-        {} as never,
-      )) as NpcUpsertResultV1;
-      expect(result.outcome).toBe("created");
+        const result = (await npcUpsertV1(
+          request() as unknown as Record<string, unknown>,
+          {} as never,
+        )) as NpcUpsertResultV1;
+        expect(result.outcome).toBe("created");
 
-      const written = actors[0].updates.flatMap((update) =>
-        Object.keys(update),
-      );
-      const systemKeys = written.filter((key) => key.startsWith("system."));
-      // The mapping is real only if it writes a substantive pnj surface.
-      expect(systemKeys.length).toBeGreaterThan(10);
-      for (const key of systemKeys) {
-        expect(
-          hasFixturePath(fixture.actor.system, key.slice("system.".length)),
-          key,
-        ).toBe(true);
-      }
-      for (const key of written.filter((k) =>
-        k.startsWith("prototypeToken."),
-      )) {
-        expect(
-          hasFixturePath(fixture.actor.prototypeToken, key.slice(15)),
-          key,
-        ).toBe(true);
-      }
-    });
-  }
+        const written = actors[0].updates.flatMap((update) =>
+          Object.keys(update),
+        );
+        const systemKeys = written.filter((key) => key.startsWith("system."));
+        // The mapping is real only if it writes a substantive pnj surface.
+        expect(systemKeys.length).toBeGreaterThan(10);
+        for (const key of systemKeys) {
+          expect(
+            hasFixturePath(fixture.actor.system, key.slice("system.".length)),
+            key,
+          ).toBe(true);
+        }
+        for (const key of written.filter((k) =>
+          k.startsWith("prototypeToken."),
+        )) {
+          expect(
+            hasFixturePath(fixture.actor.prototypeToken, key.slice(15)),
+            key,
+          ).toBe(true);
+        }
+      });
+    }
 
   it("creates a hidden pnj Actor fail-closed: ownership NONE, disposition SECRET", async () => {
     const actors: FakeActor[] = [];
@@ -419,14 +426,14 @@ describe("npc.upsert.v1", () => {
     );
   });
 
-  it("requires a GM responder and the exact fixture-pinned runtime", async () => {
+  it("requires a GM responder and an admitted Knight runtime", async () => {
     stubFoundry([], undefined, 13, { id: "knight", version: "3.58.33" }, false);
     await expectRpcError(
       npcUpsertV1(request() as unknown as Record<string, unknown>, {} as never),
       "permission_denied",
     );
 
-    stubFoundry([], undefined, 13, { id: "knight", version: "3.58.34" });
+    stubFoundry([], undefined, 13, { id: "knight", version: "3.58.36" });
     await expectRpcError(
       npcUpsertV1(request() as unknown as Record<string, unknown>, {} as never),
       "unsupported_runtime",

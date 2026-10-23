@@ -38,9 +38,8 @@ import {
  * NPC aspects are direct values plus aspects exceptionnels, there are no
  * caractéristiques, and defense/reaction/initiative are GM-authored bases.
  * Every written path is pinned by the pnj actor fixtures in
- * test/fixtures/knight-pnj-3.58.33-foundry{13,14}.json. The pnj data model is
- * verified byte-identical 3.58.33 → 3.58.35, so this shares the PC lane's exact
- * runtime gate and widens with it.
+ * test/fixtures/knight-pnj-3.58.33-foundry{13,14}.json. It shares the PC lane's
+ * runtime gate and its list of admitted Knight versions, so it widens with it.
  *
  * Unlike the PC lane there is no draft/approved state, no creation provenance,
  * no equipment, no foundryUserId and no unbound-actor adoption: lookup is

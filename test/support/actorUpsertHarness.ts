@@ -238,6 +238,7 @@ export function stubFoundry(
   create?: ReturnType<typeof vi.fn>,
   generation = 13,
   compendium?: StubCompendium,
+  knightVersion = "3.58.33",
 ): void {
   const collection = {
     contents: actors,
@@ -270,7 +271,7 @@ export function stubFoundry(
         };
       },
     },
-    system: { id: "knight", version: "3.58.33" },
+    system: { id: "knight", version: knightVersion },
     release: { generation },
   });
   vi.stubGlobal("Actor", {

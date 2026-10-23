@@ -1,5 +1,5 @@
 import { MODULE_ID } from "../constants.js";
-import { gameModules, gamePacks } from "../foundry/runtime.js";
+import { gameModules, gamePacks, systemVersion } from "../foundry/runtime.js";
 import {
   KNIGHT_COMPENDIUM_MODULE_ID,
   KNIGHT_COMPENDIUM_VERSION,
@@ -11,6 +11,7 @@ import {
   flagValue,
   foundryId,
   invalid,
+  isAdmittedKnightSystemVersion,
   itemID,
   type ActorItemLike,
   type ActorLike,
@@ -103,7 +104,7 @@ function itemCatalogSource(
     typeof p.pack !== "string" ||
     typeof p.documentId !== "string" ||
     p.compendiumVersion !== KNIGHT_COMPENDIUM_VERSION ||
-    p.knightSystemVersion !== "3.58.33"
+    !isAdmittedKnightSystemVersion(p.knightSystemVersion)
   )
     return null;
   return {
@@ -460,7 +461,7 @@ export async function applyEquipment(
       pack: item.mapped.pack,
       documentId: item.mapped.documentId,
       compendiumVersion: KNIGHT_COMPENDIUM_VERSION,
-      knightSystemVersion: "3.58.33",
+      knightSystemVersion: systemVersion(),
     } satisfies EquipmentCatalogSourceV1;
     sourceFlags[MODULE_ID] = tcFlags;
     source.flags = sourceFlags;

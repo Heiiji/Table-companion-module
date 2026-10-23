@@ -7,7 +7,7 @@ import { displayShow, displayClear } from "./display.js";
 import { actorUpsertV1 } from "./actorUpsert.js";
 import { npcUpsertV1 } from "./npcUpsert.js";
 import {
-  KNIGHT_UPSERT_SYSTEM_VERSION,
+  KNIGHT_UPSERT_SYSTEM_VERSION_LABEL,
   MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION,
   supportsKnightActorUpsertV1Runtime,
 } from "./upsertShared.js";
@@ -44,9 +44,8 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   // them unadvertised and refused on a responder that cannot sign its replies,
   // and the agent refuses to invoke them without moduleResponseSignatureV1.
   // Only Knight registers the system-specific mappings. The two lanes target different Knight actor
-  // types (PC "knight" vs NPC "pnj") and share ONE runtime gate — the pnj data
-  // model is verified byte-identical 3.58.33 → 3.58.35, so a future gate
-  // widening moves both together.
+  // types (PC "knight" vs NPC "pnj") and share ONE runtime gate over one list of
+  // admitted Knight versions, so a widening moves both together.
   if (supportsKnightActorUpsertV1Runtime()) {
     registry.register("actor.upsert.v1", actorUpsertV1, {
       kind: "mutation",
@@ -62,7 +61,7 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
     // supported on this version » rather than « no module ».
     const reason =
       `Knight ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; ` +
-      `requires Knight ${KNIGHT_UPSERT_SYSTEM_VERSION} on Foundry ${MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION} or later`;
+      `requires Knight ${KNIGHT_UPSERT_SYSTEM_VERSION_LABEL} on Foundry ${MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION} or later`;
     registry.markUnsupported("actor.upsert.v1", reason);
     registry.markUnsupported("npc.upsert.v1", reason);
   }

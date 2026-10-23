@@ -5,6 +5,7 @@ import {
 } from "../src/procedures/actorUpsert.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
+import { KNIGHT_UPSERT_SYSTEM_VERSIONS } from "../src/procedures/upsertShared.js";
 import {
   ACTOR_ID,
   KNIGHT_SCHEMA_FIXTURES,
@@ -20,36 +21,45 @@ import {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("actor.upsert.v1", () => {
-  for (const fixture of KNIGHT_SCHEMA_FIXTURES) {
-    it(`maps only schema-backed Knight 3.58.33 fields on Foundry ${fixture.foundryGeneration}`, async () => {
-      expect(fixture.knightSystemVersion).toBe("3.58.33");
-      expect(fixture.actorCreateAPI).toBe("Actor.implementation.create");
-      const actor = fakeActor();
-      actor.system = structuredClone(fixture.actor.system);
-      stubFoundry([actor], undefined, fixture.foundryGeneration);
+  // The 3.58.33 fixtures stand in for every admitted version: the later ones
+  // are admitted only because their data models are byte-identical to it.
+  for (const knightVersion of KNIGHT_UPSERT_SYSTEM_VERSIONS)
+    for (const fixture of KNIGHT_SCHEMA_FIXTURES) {
+      it(`maps only schema-backed Knight fields under Knight ${knightVersion} on Foundry ${fixture.foundryGeneration}`, async () => {
+        expect(fixture.knightSystemVersion).toBe("3.58.33");
+        expect(fixture.actorCreateAPI).toBe("Actor.implementation.create");
+        const actor = fakeActor();
+        actor.system = structuredClone(fixture.actor.system);
+        stubFoundry(
+          [actor],
+          undefined,
+          fixture.foundryGeneration,
+          undefined,
+          knightVersion,
+        );
 
-      const result = (await actorUpsertV1(
-        approved({ assignedActorId: actor.id, equipment: undefined }),
-        {} as never,
-      )) as ActorUpsertResultV1;
+        const result = (await actorUpsertV1(
+          approved({ assignedActorId: actor.id, equipment: undefined }),
+          {} as never,
+        )) as ActorUpsertResultV1;
 
-      const systemKeys = actor.updates
-        .flatMap((update) => Object.keys(update))
-        .filter((key) => key.startsWith("system."));
-      expect(systemKeys.length).toBeGreaterThan(20);
-      for (const key of systemKeys)
-        expect(hasFixturePath(fixture.actor, key), key).toBe(true);
-      const motivationCreates = actor.createEmbeddedDocuments.mock.calls.map(
-        (call) => call[1][0] as Record<string, unknown>,
-      );
-      expect(motivationCreates).toHaveLength(3);
-      for (const created of motivationCreates) {
-        expect(created.type).toBe(fixture.minorMotivationItem.type);
-        expect(hasFixturePath(created, "system.description")).toBe(true);
-      }
-      expect(result.warnings).toEqual([]);
-    });
-  }
+        const systemKeys = actor.updates
+          .flatMap((update) => Object.keys(update))
+          .filter((key) => key.startsWith("system."));
+        expect(systemKeys.length).toBeGreaterThan(20);
+        for (const key of systemKeys)
+          expect(hasFixturePath(fixture.actor, key), key).toBe(true);
+        const motivationCreates = actor.createEmbeddedDocuments.mock.calls.map(
+          (call) => call[1][0] as Record<string, unknown>,
+        );
+        expect(motivationCreates).toHaveLength(3);
+        for (const created of motivationCreates) {
+          expect(created.type).toBe(fixture.minorMotivationItem.type);
+          expect(hasFixturePath(created, "system.description")).toBe(true);
+        }
+        expect(result.warnings).toEqual([]);
+      });
+    }
 
   it("creates once, applies only authored bases/current values, and returns partial equipment", async () => {
     const actors: FakeActor[] = [];
@@ -240,18 +250,20 @@ describe("actor.upsert.v1", () => {
       },
     );
 
-    vi.unstubAllGlobals();
-    stubFoundry([]);
-    vi.stubGlobal("game", {
-      user: { id: "gm", isGM: true },
-      users: { get: () => ({}) },
-      actors: { contents: [], get: () => undefined },
-      system: { id: "knight", version: "3.58.34" },
-      release: { generation: 14 },
-    });
-    await expect(actorUpsertV1(approved(), {} as never)).rejects.toMatchObject({
-      code: "unsupported_runtime",
-    });
+    // The first Knight release past the window, and version strings that only
+    // look like an admitted one.
+    for (const version of ["3.58.36", "3.58.32", "v3.58.33", "3.58.3"]) {
+      vi.unstubAllGlobals();
+      stubFoundry([], undefined, 14, undefined, version);
+      await expect(
+        actorUpsertV1(approved(), {} as never),
+        version,
+      ).rejects.toMatchObject({
+        code: "unsupported_runtime",
+        message:
+          "actor.upsert.v1 requires Knight 3.58.33 to 3.58.35 on Foundry 13 or later",
+      });
+    }
   });
 
   it("allows official Tarot overlap, optional IA, and only the redacted public projection", async () => {

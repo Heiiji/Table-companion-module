@@ -179,6 +179,80 @@ describe("actor.upsert.v1 equipment import", () => {
     expect(modules[0].system).toMatchObject({ niveau: { value: "3" } });
   });
 
+  it("keeps equipment managed across a Knight upgrade inside the admitted versions", async () => {
+    const actor = fakeActor();
+    const armour = {
+      _id: "22826f541c384281",
+      name: "Fixture armour",
+      type: "armure",
+      system: {},
+      flags: {},
+    };
+    const weapon = { ...armour, _id: "df9dd63546eda43e", type: "arme" };
+    const compendium: StubCompendium = {
+      documents: {
+        "knight-compendium.armours-base": { [armour._id]: armour },
+        // The service pistol is multi-mode: one Item per compendium mode.
+        "knight-compendium.weapons-standard": {
+          [weapon._id]: weapon,
+          "448e9e2430dceff8": { ...weapon, _id: "448e9e2430dceff8" },
+        },
+      },
+    };
+    const sourceVersion = (type: string) =>
+      actor.items.contents
+        .filter((candidate) => candidate.type === type)
+        .map(
+          (candidate) =>
+            (
+              (candidate.flags as Record<string, Record<string, unknown>>)[
+                MODULE_ID
+              ].equipmentCatalogSourceV1 as Record<string, unknown>
+            ).knightSystemVersion,
+        );
+    const armourSelection = { catalogId: "knight.armour.warrior", quantity: 1 };
+
+    stubFoundry([actor], undefined, 14, compendium, "3.58.33");
+    await actorUpsertV1(
+      approved({
+        assignedActorId: actor.id,
+        equipment: { selections: [armourSelection] },
+      }),
+      {} as never,
+    );
+    expect(sourceVersion("armure")).toEqual(["3.58.33"]);
+    const armourItem = actor.items.contents.find((c) => c.type === "armure");
+
+    // The GM updates Knight to 3.58.35: the 3.58.33-stamped armour is still
+    // this module's (kept, not recreated), and new items carry the new version.
+    vi.unstubAllGlobals();
+    stubFoundry([actor], undefined, 14, compendium, "3.58.35");
+    const result = (await actorUpsertV1(
+      approved({
+        assignedActorId: actor.id,
+        approvedRevision: 2,
+        equipment: {
+          selections: [
+            armourSelection,
+            {
+              catalogId: "knight.weapon.pistolet-de-service",
+              quantity: 1,
+              slotAlternativeId: "handheld",
+            },
+          ],
+        },
+      }),
+      {} as never,
+    )) as ActorUpsertResultV1;
+    expect(result.equipmentCompleteness).toBe("complete");
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+    expect(actor.items.contents.find((c) => c.type === "armure")).toBe(
+      armourItem,
+    );
+    expect(sourceVersion("armure")).toEqual(["3.58.33"]);
+    expect(new Set(sourceVersion("arme"))).toEqual(new Set(["3.58.35"]));
+  });
+
   it("reports a missing or version-mismatched optional compendium without synthesizing items", async () => {
     const actor = fakeActor();
     stubFoundry([actor]);

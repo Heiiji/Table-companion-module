@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **Knight character provisioning accepts Knight 3.58.33 to 3.58.35.** It required 3.58.33 exactly;
+  3.58.34 and 3.58.35 leave the Knight Actor and Item data models unchanged. Any other Knight
+  version still keeps it off and says which versions it needs.
+
 ## [0.13.0] - 2026-10-18
 
 ### Added
