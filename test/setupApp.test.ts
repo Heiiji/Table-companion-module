@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Channel, LinkStatus, Pairing } from "../src/rpc/channel.js";
 import { openSetupApp } from "../src/ui/SetupApp.js";
 import { CAP_RESPONSE_SIG } from "../src/constants.js";
+import { fakeActor, stubWorld } from "./support/companionWorld.js";
 
 // The setup dialog drives the channel's pairing window and renders the link
 // status. These tests stand in a DialogV2 that records its content, and a
@@ -10,6 +11,7 @@ import { CAP_RESPONSE_SIG } from "../src/constants.js";
 /** The status panel host: records every repaint. */
 class FakeHost {
   writes = 0;
+  listener?: (event: unknown) => void;
   private html = "";
   get innerHTML(): string {
     return this.html;
@@ -18,11 +20,20 @@ class FakeHost {
     this.writes += 1;
     this.html = html;
   }
-  addEventListener(): void {}
+  addEventListener(_type: string, listener: (event: unknown) => void): void {
+    this.listener = listener;
+  }
+  /** A click whose target sits inside `selector`. */
+  click(selector: string): void {
+    this.listener?.({
+      target: { closest: (s: string) => (s === selector ? {} : null) },
+    });
+  }
 }
 
 class FakeDialog {
   static instances: FakeDialog[] = [];
+  static confirm = vi.fn(async (_options: { content: string }) => true);
   rendered = false;
   readonly content: string;
   readonly host = new FakeHost();
@@ -265,5 +276,86 @@ describe("Players in the app", () => {
 
     await vi.advanceTimersByTimeAsync(4000 * 3);
     expect(host.writes).toBe(1);
+  });
+});
+
+describe("Companion visibility", () => {
+  const i18n = {
+    localize: (key: string) => key,
+    format: (key: string, data: Record<string, string>) =>
+      `${key}(${Object.values(data).join(",")})`,
+  };
+  const world = (actors: ReturnType<typeof fakeActor>[]) =>
+    stubWorld(actors, true, { i18n });
+  const content = () => FakeDialog.instances[0].content;
+
+  beforeEach(() => FakeDialog.confirm.mockClear());
+
+  it("names the player characters Companion cannot see, escaped", async () => {
+    world([
+      fakeActor("seen", { ann: 3, comp1: 2 }, "Aria"),
+      fakeActor("hostile", { bob: 3 }, '<img src=x onerror="alert(1)">'),
+      fakeActor("npc", { default: 0 }, "Guard"),
+    ]);
+    await openSetupApp(fakeChannel().channel);
+
+    expect(content()).toContain(
+      '<b class="tca-off">table-companion.setup.visibility.value(Companion,1,2)</b>',
+    );
+    expect(content()).toContain(
+      "setup.visibility.unseen(Companion,&lt;img src=x onerror=&quot;alert(1)&quot;&gt;)",
+    );
+    expect(content()).not.toContain("<img src=x");
+    expect(content()).not.toContain("Guard");
+    expect(content()).toContain('data-tca-share="observer"');
+  });
+
+  it("offers nothing to share once every player character is visible", async () => {
+    world([fakeActor("seen", { ann: 3, comp1: 2 })]);
+    await openSetupApp(fakeChannel().channel);
+    expect(content()).toContain(
+      '<b class="tca-ok">table-companion.setup.visibility.value(Companion,1,1)</b>',
+    );
+    expect(content()).not.toContain("data-tca-share");
+  });
+
+  it("is hidden when no actor has a player owner", async () => {
+    world([fakeActor("npc", { default: 2 })]);
+    await openSetupApp(fakeChannel().channel);
+    expect(content()).not.toContain("setup.visibility");
+  });
+
+  it("shares after a confirmation that names the count, then repaints", async () => {
+    const unseen = fakeActor("pc", { ann: 3 }, "Bo & Co");
+    const other = fakeActor("other", { bob: 3, comp1: 1 });
+    world([unseen, other, fakeActor("npc", { default: 0 })]);
+    await openSetupApp(fakeChannel().channel);
+    const dialog = FakeDialog.instances[0];
+
+    dialog.host.click("[data-tca-share]");
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(FakeDialog.confirm).toHaveBeenCalledTimes(1);
+    expect(FakeDialog.confirm.mock.calls[0][0].content).toBe(
+      "<p>table-companion.setup.visibility.confirm(Companion,2)</p>",
+    );
+    expect(unseen.update.mock.calls).toEqual([[{ "ownership.comp1": 2 }]]);
+    expect(other.update.mock.calls).toEqual([[{ "ownership.comp1": 2 }]]);
+    expect(dialog.host.innerHTML).toContain(
+      "setup.visibility.value(Companion,2,2)",
+    );
+  });
+
+  it("changes nothing when the Gamemaster declines", async () => {
+    const unseen = fakeActor("pc", { ann: 3 });
+    world([unseen]);
+    FakeDialog.confirm.mockResolvedValueOnce(false);
+    await openSetupApp(fakeChannel().channel);
+
+    FakeDialog.instances[0].host.click("[data-tca-share]");
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(FakeDialog.confirm).toHaveBeenCalledTimes(1);
+    expect(unseen.update).not.toHaveBeenCalled();
   });
 });

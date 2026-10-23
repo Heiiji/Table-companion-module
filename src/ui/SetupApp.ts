@@ -12,6 +12,10 @@ import {
   resetCompanionPassword,
 } from "../setup/companion-user.js";
 import { APP_PRESENCE_STALE_MS, appPresence } from "../setup/appPresence.js";
+import {
+  companionVisibility,
+  shareUnseenWithCompanion,
+} from "../setup/companionVisibility.js";
 import { dialogV2Class, gameActors } from "../foundry/runtime.js";
 import { escapeHtml } from "../util/html.js";
 import { localize, log } from "../util/log.js";
@@ -125,8 +129,83 @@ async function statusHtml(channel: Channel): Promise<string> {
         `<i class="fa-solid fa-circle-check" aria-hidden="true"></i> ` +
         `${escapeHtml(localize("setup.status.linkedHint"))}</p>`
       : "") +
+    companionVisibilityHtml(row) +
     appPlayersHtml(row)
   );
+}
+
+/** The display name of the Companion user, for the visibility copy. */
+function companionName(name: string | null | undefined): string {
+  return name || COMPANION_USER_NAME;
+}
+
+/** « Companion can see N of M »: the player characters the backend can read,
+ * naming the others and offering to share them. Hidden without a Companion user
+ * or without any player character. */
+function companionVisibilityHtml(
+  row: (label: string, value: string, ok: boolean) => string,
+): string {
+  const visibility = companionVisibility();
+  if (!visibility?.total) return "";
+  const { companion, total, unseen } = visibility;
+  const name = companionName(companion.name);
+  const html =
+    `<div class="tca-status">` +
+    row(
+      localize("setup.visibility.label"),
+      localize("setup.visibility.value", {
+        name,
+        n: String(total - unseen.length),
+        m: String(total),
+      }),
+      unseen.length === 0,
+    ) +
+    `</div>`;
+  if (unseen.length === 0) return html;
+  const names = unseen.map((actor) => actor.name || actor.id || "").join(", ");
+  return (
+    html +
+    `<p class="tca-hint">${escapeHtml(localize("setup.visibility.unseen", { name, names }))}</p>` +
+    `<div class="tca-actions"><button type="button" data-tca-share="observer">` +
+    `<i class="fa-solid fa-eye" aria-hidden="true"></i> ` +
+    `${escapeHtml(localize("setup.visibility.share", { name }))}</button></div>`
+  );
+}
+
+/** Ask, then give the Companion user Observer on the unseen player characters. */
+async function shareWithCompanion(
+  channel: Channel,
+  dialog: DialogInstance,
+): Promise<void> {
+  if (!game.user?.isGM) {
+    ui.notifications?.warn(localize("setup.error.gmOnly"));
+    return;
+  }
+  const visibility = companionVisibility();
+  if (!visibility?.unseen.length) return;
+  const name = companionName(visibility.companion.name);
+  const confirmed = await dialogV2Class()?.confirm?.({
+    window: { title: localize("setup.visibility.confirmTitle") },
+    content: `<p>${escapeHtml(
+      localize("setup.visibility.confirm", {
+        name,
+        count: String(visibility.unseen.length),
+      }),
+    )}</p>`,
+    rejectClose: false,
+    modal: true,
+  });
+  if (confirmed !== true) return;
+  try {
+    const count = await shareUnseenWithCompanion(visibility);
+    ui.notifications?.info(
+      localize("setup.visibility.shared", { name, count: String(count) }),
+    );
+  } catch (err) {
+    log.error("could not share the player characters", err);
+    ui.notifications?.error(localize("setup.visibility.shareFailed", { name }));
+  }
+  await refreshStatus(channel, dialog);
 }
 
 /** « Players in the app »: one row per seat the backend last reported, named
@@ -324,13 +403,18 @@ function wireSetupActions(channel: Channel, dialog: DialogInstance): void {
   wirePendingActions(channel, dialog);
 }
 
-/** Trust / Ignore for a held pairing request. The buttons are re-rendered with
- * the status panel, so one delegated listener on the panel's host handles them. */
+/** Trust / Ignore for a held pairing request, and the visibility Share. The
+ * buttons are re-rendered with the status panel, so one delegated listener on
+ * the panel's host handles them. */
 function wirePendingActions(channel: Channel, dialog: DialogInstance): void {
   dialog.element
     .querySelector(".tca-status-host")
     ?.addEventListener("click", (event) => {
       const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-tca-share]")) {
+        void shareWithCompanion(channel, dialog);
+        return;
+      }
       const action = target
         ?.closest("[data-tca-pending]")
         ?.getAttribute("data-tca-pending");

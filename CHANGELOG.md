@@ -6,6 +6,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Setup shows how many player characters Companion can see, and shares the rest.** A « Player
+  characters » row reads « Companion can see N of M » and names the characters the Companion user
+  cannot observe, which the app cannot show. A Gamemaster-only « Share with Companion » button
+  gives the Companion user Observer permission on exactly those characters, after a confirmation
+  that gives their count; no other actor changes and no permission is lowered.
+
 ### Changed
 - **Knight character provisioning accepts Knight 3.58.33 to 3.58.35.** It required 3.58.33 exactly;
   3.58.34 and 3.58.35 leave the Knight Actor and Item data models unchanged. Any other Knight

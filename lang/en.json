@@ -80,6 +80,16 @@
         "offline": "Offline",
         "unknown": "State unknown — no news from the app service for more than 3 minutes."
       },
+      "visibility": {
+        "label": "Player characters",
+        "value": "{name} can see {n} of {m}",
+        "unseen": "{name} cannot see: {names}. The app shows a character only once {name} has at least Observer permission on it.",
+        "share": "Share with {name}",
+        "confirmTitle": "Share player characters",
+        "confirm": "Give {name} Observer permission on the player characters it cannot see ({count})? No other actor changes, and no permission is lowered.",
+        "shared": "Player characters shared with {name}: {count}.",
+        "shareFailed": "Could not share the player characters with {name}."
+      },
       "pendingHint": "Only trust this if {name} is the user you linked in the Table Companion app. A player could otherwise pose as the app.",
       "hint": {
         "keyMismatch": "Open Foundry from the browser the app paired with, or tap Re-pair in the Table Companion app, then click Refresh here.",

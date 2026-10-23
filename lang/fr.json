@@ -80,6 +80,16 @@
         "offline": "Hors ligne",
         "unknown": "État inconnu — aucune nouvelle du service de l'application depuis plus de 3 minutes."
       },
+      "visibility": {
+        "label": "Personnages joueurs",
+        "value": "{name} en voit {n} sur {m}",
+        "unseen": "{name} ne voit pas : {names}. L'application n'affiche un personnage qu'une fois que {name} a au moins la permission Observateur sur lui.",
+        "share": "Partager avec {name}",
+        "confirmTitle": "Partager les personnages joueurs",
+        "confirm": "Donner à {name} la permission Observateur sur les personnages joueurs qu'il ne voit pas ({count}) ? Aucun autre acteur ne change et aucune permission n'est abaissée.",
+        "shared": "Personnages joueurs partagés avec {name} : {count}.",
+        "shareFailed": "Impossible de partager les personnages joueurs avec {name}."
+      },
       "pendingHint": "N'acceptez que si {name} est bien l'utilisateur lié dans l'application Table Companion : sinon, un joueur pourrait se faire passer pour l'application.",
       "hint": {
         "keyMismatch": "Ouvrez Foundry depuis le navigateur appairé à l'application, ou touchez « Réappairer » dans l'application Table Companion, puis cliquez sur « Actualiser ».",

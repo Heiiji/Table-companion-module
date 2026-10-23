@@ -28,6 +28,7 @@ export interface UserLike {
 
 export interface UsersLike {
   get(id: string): UserLike | undefined;
+  contents?: UserLike[];
 }
 
 /** An Item embedded in an Actor. */
@@ -52,6 +53,11 @@ export interface ActorLike {
   system?: unknown;
   items?: { contents?: ActorItemLike[] } | Iterable<ActorItemLike>;
   getFlag?(namespace: string, key: string): unknown;
+  /** Foundry's own permission test (ownership, `default`, GM role). */
+  testUserPermission?(
+    user: UserLike,
+    permission: "OBSERVER" | "OWNER",
+  ): boolean;
   update(changes: Dict): Promise<unknown>;
   prepareData?(): void;
   createEmbeddedDocuments?(type: "Item", data: Dict[]): Promise<unknown>;
@@ -121,7 +127,10 @@ export interface HooksLike {
   on(hook: string, fn: () => void): unknown;
 }
 
-export type DialogV2Class = new (options: unknown) => unknown;
+export type DialogV2Class = (new (options: unknown) => unknown) & {
+  /** Resolves true on Yes; false or null on No or a closed window. */
+  confirm?(options: unknown): Promise<unknown>;
+};
 
 /** `foundry.applications.api.ApplicationV2`, as far as a subclass that only
  * overrides `render` needs it. */
