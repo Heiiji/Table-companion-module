@@ -1,7 +1,9 @@
 import { MODULE_ID } from "../constants.js";
+import { pairedAgentUserId } from "../setup/identity.js";
 import {
   ASPECT_KEYS,
   OWNERSHIP_NONE,
+  OWNERSHIP_OBSERVER,
   OWNERSHIP_OWNER,
   ownershipReplacement,
   type ActorLike,
@@ -21,20 +23,41 @@ import type {
  * current resource values.
  */
 
+/** The paired Companion user, which the backend reads the world as, unless it
+ * is the character's own player (who keeps OWNER). "" before pairing. */
+function companionUserId(foundryUserId: string | undefined): string {
+  const id = pairedAgentUserId();
+  return id && id !== foundryUserId ? id : "";
+}
+
 export function normalizedOwnership(foundryUserId: string | undefined): Dict {
-  return foundryUserId
-    ? { default: OWNERSHIP_NONE, [foundryUserId]: OWNERSHIP_OWNER }
-    : { default: OWNERSHIP_NONE };
+  const ownership: Dict = { default: OWNERSHIP_NONE };
+  if (foundryUserId) ownership[foundryUserId] = OWNERSHIP_OWNER;
+  const companion = companionUserId(foundryUserId);
+  if (companion) ownership[companion] = OWNERSHIP_OBSERVER;
+  return ownership;
 }
 
 // Actor.create receives the plain normalized map; Actor.update receives the
-// merge-safe replacement, which ends with exactly default:NONE plus, when
-// supplied, one OWNER — whatever grants an adopted or bound Actor carried.
+// merge-safe replacement, which ends with exactly default:NONE, one OWNER when
+// supplied, and the Companion user at its existing level but at least OBSERVER
+// — whatever other grants an adopted or bound Actor carried. The Companion
+// grant is never deleted or lowered, so setup's « Share » survives a revision.
 function normalizedOwnershipUpdate(
   actor: ActorLike,
   foundryUserId: string | undefined,
 ): Dict {
-  return ownershipReplacement(actor, OWNERSHIP_NONE, foundryUserId);
+  const update = ownershipReplacement(actor, OWNERSHIP_NONE, foundryUserId);
+  const companion = companionUserId(foundryUserId);
+  if (companion) {
+    delete update[`-=${companion}`];
+    const current = Number(actor.ownership?.[companion]);
+    update[companion] = Math.max(
+      OWNERSHIP_OBSERVER,
+      Number.isFinite(current) ? current : OWNERSHIP_NONE,
+    );
+  }
+  return update;
 }
 
 function storedCharacterCreation(

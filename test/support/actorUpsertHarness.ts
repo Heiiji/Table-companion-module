@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { vi } from "vitest";
 import type { KnightActorUpsertV1 } from "../../src/procedures/actorUpsert.js";
-import { MODULE_ID } from "../../src/constants.js";
+import { MODULE_ID, SETTING_AGENT_USER } from "../../src/constants.js";
 import { KNIGHT_COMPENDIUM_VERSION } from "../../src/refdata/knightCompendiumCrosswalkV14_0_1.js";
 
 // Shared harness for the actor.upsert.v1 suites: a complete approved request, a
@@ -283,6 +283,20 @@ export function stubFoundry(
           actors.push(actor);
           return actor;
         }),
+    },
+  });
+}
+
+/** Pair the stubbed world's backend as `userId` (the Companion user the PC
+ * lane keeps at OBSERVER or above). Call after stubFoundry. */
+export function pairCompanion(userId: string): void {
+  const game = (globalThis as unknown as { game: Record<string, unknown> })
+    .game;
+  vi.stubGlobal("game", {
+    ...game,
+    settings: {
+      get: (_scope: string, key: string) =>
+        key === SETTING_AGENT_USER ? userId : "",
     },
   });
 }

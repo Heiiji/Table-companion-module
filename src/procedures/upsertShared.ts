@@ -51,6 +51,7 @@ export interface BindingV1 {
 /** Foundry document ownership levels used by the provisioning lanes. */
 export const OWNERSHIP_NONE = 0;
 export const OWNERSHIP_LIMITED = 1;
+export const OWNERSHIP_OBSERVER = 2;
 export const OWNERSHIP_OWNER = 3;
 
 const utf8 = new TextEncoder();

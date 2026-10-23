@@ -14,6 +14,7 @@ import {
   binding,
   fakeActor,
   hasFixturePath,
+  pairCompanion,
   stubFoundry,
   type FakeActor,
 } from "./support/actorUpsertHarness.js";
@@ -371,5 +372,65 @@ describe("actor.upsert.v1", () => {
           key.startsWith(`flags.${MODULE_ID}.`),
       ),
     ).toBe(true);
+  });
+
+  describe("the Companion user's access", () => {
+    const COMPANION = "companion0000001";
+
+    it("is granted Observer when the lane creates the character", async () => {
+      const create = vi.fn(async (_data: Record<string, unknown>) =>
+        fakeActor(),
+      );
+      stubFoundry([], create);
+      pairCompanion(COMPANION);
+      await actorUpsertV1(approved({ equipment: undefined }), {} as never);
+      expect(create.mock.calls[0][0].ownership).toEqual({
+        default: 0,
+        [USER_ID]: 3,
+        [COMPANION]: 2,
+      });
+    });
+
+    it.each([
+      ["kept at Observer after Share", 2, 2],
+      ["kept above Observer", 3, 3],
+      ["raised to Observer from Limited", 1, 2],
+      ["added when missing", undefined, 2],
+    ])(
+      "is %s on a later revision, and no other grant survives",
+      async (_label, before, after) => {
+        const actor = fakeActor();
+        const req = approved({ approvedRevision: 2, equipment: undefined });
+        binding(actor, req);
+        actor.ownership = { default: 2, [USER_ID]: 3, stalePlayer: 3 };
+        if (before !== undefined) actor.ownership[COMPANION] = before;
+        stubFoundry([actor]);
+        pairCompanion(COMPANION);
+
+        await actorUpsertV1(req, {} as never);
+
+        expect(actor.ownership).toEqual({
+          default: 0,
+          [USER_ID]: 3,
+          [COMPANION]: after,
+        });
+        const patch = actor.updates[0]?.ownership as Record<string, unknown>;
+        expect(patch).not.toHaveProperty(`-=${COMPANION}`);
+        expect(patch).toHaveProperty("-=stalePlayer", null);
+      },
+    );
+
+    it("never demotes a player who is also the paired user", async () => {
+      const create = vi.fn(async (_data: Record<string, unknown>) =>
+        fakeActor(),
+      );
+      stubFoundry([], create);
+      pairCompanion(USER_ID);
+      await actorUpsertV1(approved({ equipment: undefined }), {} as never);
+      expect(create.mock.calls[0][0].ownership).toEqual({
+        default: 0,
+        [USER_ID]: 3,
+      });
+    });
   });
 });
