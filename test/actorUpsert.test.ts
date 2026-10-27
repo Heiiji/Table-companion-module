@@ -332,6 +332,24 @@ describe("actor.upsert.v1", () => {
     ).not.toContain("system.contacts.actuel");
   });
 
+  it("writes armour and energy on the gear the Actor wears", async () => {
+    const actor = fakeActor();
+    actor.system.wear = "guardian";
+    (actor.system.equipements as Record<string, unknown>).guardian = {
+      armure: { value: 5 },
+    };
+    stubFoundry([actor]);
+    const result = (await actorUpsertV1(
+      approved({ assignedActorId: actor.id, equipment: undefined }),
+      {} as never,
+    )) as ActorUpsertResultV1;
+    const keys = actor.updates.flatMap((update) => Object.keys(update));
+    expect(keys).toContain("system.equipements.guardian.armure.value");
+    expect(keys).not.toContain("system.equipements.armure.armure.value");
+    expect(keys).not.toContain("system.equipements.armure.energie.value");
+    expect(result.warnings).toContain("resource_unavailable:energy");
+  });
+
   it("keeps an unassigned Actor GM-only and returns an actionable assignment warning", async () => {
     const actor = fakeActor();
     actor.ownership = { default: 2, everyone: 3 };

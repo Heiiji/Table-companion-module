@@ -6,6 +6,7 @@ import { compendiumIndex, compendiumGet } from "./compendium.js";
 import { displayShow, displayClear } from "./display.js";
 import { actorUpsertV1 } from "./actorUpsert.js";
 import { npcUpsertV1 } from "./npcUpsert.js";
+import { actorResourcesV1 } from "./actorResources.js";
 import {
   KNIGHT_UPSERT_SYSTEM_VERSION_LABEL,
   MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION,
@@ -55,6 +56,12 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
       kind: "mutation",
       signedOnly: true,
     });
+    // Live current resources of an already-provisioned PC: same gate, same
+    // signed-only posture, bound Actor only.
+    registry.register("actor.resources.v1", actorResourcesV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
   } else if (systemId() === "knight") {
     // Another Knight or Foundry release: the lanes stay unregistered, and the
     // handshake says why, so the backend parks the GM's characters as « not
@@ -64,5 +71,6 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
       `requires Knight ${KNIGHT_UPSERT_SYSTEM_VERSION_LABEL} on Foundry ${MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION} or later`;
     registry.markUnsupported("actor.upsert.v1", reason);
     registry.markUnsupported("npc.upsert.v1", reason);
+    registry.markUnsupported("actor.resources.v1", reason);
   }
 }

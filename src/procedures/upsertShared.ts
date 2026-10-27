@@ -381,7 +381,7 @@ export function alreadyApplied(
   previous: { appliedRevision: number; appliedDigest: string } | null,
   revision: number,
   digest: string,
-  revisionKind: "approved" | "content",
+  revisionKind: "approved" | "content" | "sequence",
 ): boolean {
   if (!previous) return false;
   if (previous.appliedRevision > revision) {

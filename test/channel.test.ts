@@ -194,6 +194,7 @@ function startChannel(timeoutMs?: number, withActorUpsert = false): Channel {
     const SIGNED_MUTATION = { kind: "mutation", signedOnly: true } as const;
     registry.register("actor.upsert.v1", () => ({}), SIGNED_MUTATION);
     registry.register("npc.upsert.v1", () => ({}), SIGNED_MUTATION);
+    registry.register("actor.resources.v1", () => ({}), SIGNED_MUTATION);
   }
   const channel = new Channel(registry, "0.0.0-test", timeoutMs);
   channel.start();
@@ -814,6 +815,7 @@ describe("Channel response signing", () => {
     const unsigned = emitted("hello").at(-1)!.capabilities as string[];
     expect(unsigned).not.toContain("actor.upsert.v1");
     expect(unsigned).not.toContain("npc.upsert.v1");
+    expect(unsigned).not.toContain("actor.resources.v1");
 
     const { signer } = await ModuleResponseSigner.generate();
     emitSpy.mockClear();
@@ -821,6 +823,7 @@ describe("Channel response signing", () => {
     const capabilities = emitted("hello").at(-1)!.capabilities as string[];
     expect(capabilities).toContain("actor.upsert.v1");
     expect(capabilities).toContain("npc.upsert.v1");
+    expect(capabilities).toContain("actor.resources.v1");
     expect(capabilities).toContain(CAP_RESPONSE_SIG);
   });
 

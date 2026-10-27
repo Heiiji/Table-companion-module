@@ -29,6 +29,7 @@ const NEVER_ADVERTISED = [
 ];
 
 const KNIGHT_CAPABILITIES = [
+  "actor.resources.v1",
   "actor.upsert.v1",
   "npc.upsert.v1",
   ...BASE_CAPABILITIES,
@@ -37,7 +38,11 @@ const KNIGHT_CAPABILITIES = [
 // Every procedure that writes a Foundry document. The agent mirrors this list
 // and routes its fallback on it: a read that times out may fall back silently
 // to the app's local engine, a mutation with an unknown outcome may NOT.
-const MUTATION_PROCEDURES = ["actor.upsert.v1", "npc.upsert.v1"];
+const MUTATION_PROCEDURES = [
+  "actor.resources.v1",
+  "actor.upsert.v1",
+  "npc.upsert.v1",
+];
 
 const READ = { kind: "read" } as const;
 
@@ -253,6 +258,7 @@ describe("ProcedureRegistry", () => {
       registerBuiltinProcedures(registry);
       expect(registry.capabilities()).toContain("actor.upsert.v1");
       expect(registry.capabilities()).toContain("npc.upsert.v1");
+      expect(registry.capabilities()).toContain("actor.resources.v1");
     }
   });
 

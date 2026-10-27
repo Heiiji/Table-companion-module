@@ -6,6 +6,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Live Knight resources.** A new signed `actor.resources.v1` procedure lets the backend push a
+  player character's current Health, Hope, Armour, Energy, Heroism and Contacts to its linked
+  Knight Actor after every edit in the app. It writes only the Actor already linked to that
+  character, clamps each value to the sheet's maximum and skips a value the Actor has no field for.
+
+### Fixed
+- Character provisioning now writes current Armour and Energy on the gear the character wears
+  (armour, Guardian or civilian outfit) instead of always the armour slot.
+
 ## [0.14.0] - 2026-10-23
 
 ### Added

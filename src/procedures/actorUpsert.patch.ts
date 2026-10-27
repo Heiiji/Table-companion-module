@@ -125,7 +125,7 @@ export function authoredPatch(
   return patch;
 }
 
-function hasPath(root: unknown, path: string): boolean {
+export function hasPath(root: unknown, path: string): boolean {
   let current = root;
   for (const key of path.split(".")) {
     if (typeof current !== "object" || current === null || !(key in current))
@@ -135,16 +135,28 @@ function hasPath(root: unknown, path: string): boolean {
   return true;
 }
 
+/** The gear subtree the Actor currently wears: Knight keeps the equipped
+ * armour's (or Guardian's, or civilian outfit's) armour and energy under
+ * `system.equipements.<system.wear>`. An absent or malformed selector reads as
+ * the default `armure`, so the path checks below still decide. */
+export function wornGear(actor: ActorLike): string {
+  const wear = (actor.system as Dict | undefined)?.wear;
+  return typeof wear === "string" && /^[A-Za-z0-9_]{1,64}$/.test(wear)
+    ? wear
+    : "armure";
+}
+
 export async function applyCurrentResources(
   actor: ActorLike,
   resources: CurrentResourcesV1 | undefined,
 ): Promise<string[]> {
   if (!resources) return [];
+  const gear = `equipements.${wornGear(actor)}`;
   const specs: Array<[keyof CurrentResourcesV1, string]> = [
     ["health", "sante.value"],
     ["hope", "espoir.value"],
-    ["armour", "equipements.armure.armure.value"],
-    ["energy", "equipements.armure.energie.value"],
+    ["armour", `${gear}.armure.value`],
+    ["energy", `${gear}.energie.value`],
     ["contact", "contacts.actuel"],
   ];
   const patch: Dict = {};
