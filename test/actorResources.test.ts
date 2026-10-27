@@ -240,9 +240,39 @@ describe("actor.resources.v1", () => {
     expect(actor.updates).toHaveLength(2);
   });
 
+  it("writes an unbound Actor the app imported, named by its id", async () => {
+    const imported = boundActor();
+    delete imported.flags[MODULE_ID];
+    stubFoundry([imported]);
+    const result = await apply(request());
+    expect(result.resultDocId).toBe(ACTOR_ID);
+    expect(imported.updates[0]).toMatchObject({ "system.sante.value": 12 });
+    // The imported Actor is written, never bound.
+    expect(
+      (imported.flags[MODULE_ID] as Record<string, unknown>).binding,
+    ).toBeUndefined();
+  });
+
+  it("never writes an imported id bound to another character or of another type", async () => {
+    const elsewhere = boundActor();
+    (
+      elsewhere.flags[MODULE_ID] as { binding: { characterId: string } }
+    ).binding.characterId = "character-2";
+    stubFoundry([elsewhere]);
+    expect(await rpcCode(apply(request()))).toBe("binding_conflict");
+    expect(elsewhere.updates).toHaveLength(0);
+
+    const npc = boundActor();
+    delete npc.flags[MODULE_ID];
+    npc.type = "pnj";
+    stubFoundry([npc]);
+    expect(await rpcCode(apply(request()))).toBe("binding_conflict");
+    expect(npc.updates).toHaveLength(0);
+  });
+
   it("never creates, adopts or retargets an Actor", async () => {
     const create = vi.fn();
-    const unbound = fakeActor();
+    const unbound = fakeActor("actor00000000009");
     stubFoundry([unbound], create);
     expect(await rpcCode(apply(request()))).toBe("deleted_link");
 

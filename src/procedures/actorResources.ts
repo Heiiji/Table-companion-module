@@ -10,6 +10,7 @@ import {
   assertKnightUpsertAuthority,
   bindingFor,
   bindingId,
+  bindingOf,
   canonicalDigest,
   identifier,
   integer,
@@ -25,8 +26,9 @@ import {
  * Live current resources of a Knight player character (`actor.resources.v1`).
  * Provisioning (`actor.upsert.v1`) writes current values once per approved
  * revision; this lane re-pushes them on every edit made in the app. It touches
- * ONLY the Actor already bound to the character, which must be the one the app
- * expects: it never creates, adopts, or matches by name. Values land on the
+ * ONLY the Actor bound to the character (which must be the one the app expects)
+ * or, for a character imported from Foundry, the unbound Actor the app names by
+ * id: it never creates, binds, or matches by name. Values land on the
  * stored current fields (never a maximum), clamped to the prepared maximum
  * when the Actor exposes one. Re-sends converge by sequence/digest like the
  * provisioning lanes.
@@ -125,9 +127,21 @@ export const actorResourcesV1: Procedure = async (payload) => {
   const req = validateKnightActorResourcesV1(payload);
   assertKnightUpsertAuthority("actor.resources.v1");
   const digest = await canonicalDigest(req);
-  const actor = uniqueBoundActor(actorCollection(), bindingFor(req));
-  if (!actor)
-    throw new RpcError("deleted_link", "the linked Actor no longer exists");
+  const collection = actorCollection();
+  let actor = uniqueBoundActor(collection, bindingFor(req));
+  if (!actor) {
+    // A character imported from Foundry carries no binding: the app names the
+    // Actor it was imported from. Only an unbound Actor qualifies, so a binding
+    // owned by another character is never written through this path.
+    actor = collection.get(req.expectedActorId);
+    if (!actor)
+      throw new RpcError("deleted_link", "the linked Actor no longer exists");
+    if (bindingOf(actor))
+      throw new RpcError(
+        "binding_conflict",
+        "the Actor is bound to another character",
+      );
+  }
   const id = actorID(actor);
   if (actor.type !== ACTOR_TYPE || id !== req.expectedActorId)
     throw new RpcError(
