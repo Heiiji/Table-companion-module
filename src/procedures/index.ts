@@ -46,12 +46,6 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   // it opens a popout on connected browsers and writes no document.
   registry.register("display.show", displayShow, { kind: "clientState" });
   registry.register("display.clear", displayClear, { kind: "clientState" });
-  // Consequential, signed-response-only actor provisioning: `signedOnly` keeps
-  // them unadvertised and refused on a responder that cannot sign its replies,
-  // and the agent refuses to invoke them without moduleResponseSignatureV1.
-  // Only Knight registers the system-specific mappings. The two lanes target different Knight actor
-  // types (PC "knight" vs NPC "pnj") and share ONE runtime gate over one list of
-  // admitted Knight versions, so a widening moves both together.
   // Mirror of the app's combat into a Foundry Combat. Combat and Combatant are
   // core documents, so every system gets it, from the Foundry generation the
   // mapping was checked on (13, the module's own minimum). Signed-only and a
@@ -67,6 +61,12 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
       `Foundry ${foundryGeneration()}; requires Foundry ${MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION} or later`,
     );
   }
+  // Consequential, signed-response-only actor provisioning: `signedOnly` keeps
+  // them unadvertised and refused on a responder that cannot sign its replies,
+  // and the agent refuses to invoke them without moduleResponseSignatureV1.
+  // Only Knight registers the system-specific mappings. The two lanes target different Knight actor
+  // types (PC "knight" vs NPC "pnj") and share ONE runtime gate over one list of
+  // admitted Knight versions, so a widening moves both together.
   if (supportsKnightActorUpsertV1Runtime()) {
     registry.register("actor.upsert.v1", actorUpsertV1, {
       kind: "mutation",
