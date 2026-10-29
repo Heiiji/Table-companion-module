@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-10-29
+
 ### Changed
 - The combat mirror (`combat.sync.v1`) is no longer advertised on Pathfinder 2e and Cyberpunk RED
   worlds, where the backend never writes; setup names the reason instead.
