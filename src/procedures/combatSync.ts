@@ -4,6 +4,7 @@ import {
   foundryGeneration,
   gameActors,
   gameCombats,
+  systemId,
   viewedScene,
   type CombatLike,
   type CombatantLike,
@@ -81,8 +82,23 @@ export interface CombatSyncResultV1 {
   warnings: string[];
 }
 
+/** Systems whose worlds the backend never writes to: advertising the mirror
+ * there would promise something every request is refused for. */
+export const COMBAT_SYNC_REFUSED_SYSTEMS: ReadonlySet<string> = new Set([
+  "pf2e",
+  "cyberpunk-red-core",
+  "cpred",
+]);
+
+export function combatSyncRefusedSystem(): boolean {
+  return COMBAT_SYNC_REFUSED_SYSTEMS.has(systemId());
+}
+
 export function supportsCombatSyncV1Runtime(): boolean {
-  return foundryGeneration() >= MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION;
+  return (
+    foundryGeneration() >= MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION &&
+    !combatSyncRefusedSystem()
+  );
 }
 
 function nullable<T>(value: unknown, parse: (value: unknown) => T): T | null {
@@ -280,7 +296,9 @@ export const combatSyncV1: Procedure = async (payload) => {
   if (!supportsCombatSyncV1Runtime())
     throw new RpcError(
       "unsupported_runtime",
-      `combat.sync.v1 requires Foundry ${MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION} or later`,
+      combatSyncRefusedSystem()
+        ? `combat.sync.v1 is not available on ${systemId()}`
+        : `combat.sync.v1 requires Foundry ${MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION} or later`,
     );
   const digest = await canonicalDigest(req);
   let combat = mirroredCombat(req.combatId);

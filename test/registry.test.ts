@@ -114,7 +114,8 @@ describe("ProcedureRegistry", () => {
     const registry = new ProcedureRegistry();
     registerBuiltinProcedures(registry);
 
-    expect(registry.capabilities()).toEqual(MODERN_CAPABILITIES);
+    // No combat mirror either: the backend never writes to a PF2e world.
+    expect(registry.capabilities()).toEqual(BASE_CAPABILITIES);
     for (const procedure of RETIRED_PF2_PROCEDURES) {
       expect(registry.get(procedure), procedure).toBeUndefined();
     }
@@ -235,7 +236,7 @@ describe("ProcedureRegistry", () => {
 
     // Any other system exposes only the core-document combat mirror, and no
     // mutation at all before Foundry 13.
-    for (const id of ["dnd5e", "custom-system", "pf2e"]) {
+    for (const id of ["dnd5e", "custom-system"]) {
       vi.stubGlobal("game", { system: { id }, release: { generation: 14 } });
       const other = new ProcedureRegistry();
       registerBuiltinProcedures(other);
@@ -342,5 +343,18 @@ describe("ProcedureRegistry", () => {
     expect(old.unsupported()).toEqual({
       "combat.sync.v1": "Foundry 12; requires Foundry 13 or later",
     });
+  });
+
+  it("never advertises combat.sync.v1 on a system the backend does not write to", () => {
+    for (const id of ["pf2e", "cyberpunk-red-core", "cpred"]) {
+      vi.stubGlobal("game", { system: { id }, release: { generation: 14 } });
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      expect(registry.capabilities(), id).not.toContain("combat.sync.v1");
+      expect(registry.mutations(), id).toEqual([]);
+      expect(registry.unsupported()["combat.sync.v1"], id).toBe(
+        `combat mirroring is not available on ${id}`,
+      );
+    }
   });
 });

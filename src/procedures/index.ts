@@ -11,6 +11,7 @@ import {
   MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION,
   combatSyncV1,
   supportsCombatSyncV1Runtime,
+  combatSyncRefusedSystem,
 } from "./combatSync.js";
 import {
   KNIGHT_UPSERT_SYSTEM_VERSION_LABEL,
@@ -55,6 +56,12 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
       kind: "mutation",
       signedOnly: true,
     });
+  } else if (combatSyncRefusedSystem()) {
+    // The backend never writes to these worlds: say so rather than promise it.
+    registry.markUnsupported(
+      "combat.sync.v1",
+      `combat mirroring is not available on ${systemId()}`,
+    );
   } else if (foundryGeneration() > 0) {
     registry.markUnsupported(
       "combat.sync.v1",
