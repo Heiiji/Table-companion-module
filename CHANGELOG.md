@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-29
+
 ### Added
 - **Live Knight resources.** A new signed `actor.resources.v1` procedure lets the backend push a
   player character's current Health, Hope, Armour, Energy, Heroism and Contacts to its linked
