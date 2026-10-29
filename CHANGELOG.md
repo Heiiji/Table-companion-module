@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- `actor.resources.v1` no longer re-writes a value the Actor already holds (a capped re-send included);
+  only its result record is updated.
+
 ## [0.15.1] - 2026-10-29
 
 ### Changed

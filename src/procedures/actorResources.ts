@@ -170,7 +170,9 @@ export const actorResourcesV1: Procedure = async (payload) => {
       value = Math.max(0, Math.floor(max));
       warnings.push(`resource_clamped:${key}`);
     }
-    patch[`system.${path}`] = value;
+    // A value Foundry already holds is not re-written: a capped re-send
+    // changes nothing on the Actor but the result flag below.
+    if (valueAt(actor.system, path) !== value) patch[`system.${path}`] = value;
   }
   const result: ActorResourcesResultV1 = {
     schemaVersion: 1,
@@ -180,6 +182,10 @@ export const actorResourcesV1: Procedure = async (payload) => {
     appliedDigest: digest,
     warnings,
   };
+  // The flag is written even when the patch is empty: its appliedRevision is
+  // what refuses an older sequence arriving later (stale_revision). A newer
+  // key can drain before an older one (the backend supersedes only rows still
+  // queued), so skipping it would let that older sequence apply over this one.
   await actor.update({
     ...patch,
     [`flags.${MODULE_ID}.actorResourcesV1`]: result,

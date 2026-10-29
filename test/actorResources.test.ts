@@ -208,6 +208,42 @@ describe("actor.resources.v1", () => {
     ]);
   });
 
+  it("re-writes no value Foundry already holds, a capped re-send included", async () => {
+    const actor = boundActor();
+    actor.system.sante = { value: 30, max: 30 };
+    stubFoundry([actor]);
+    const result = await apply(
+      request({ resources: { health: 99, hope: 1, heroism: 4 } }),
+    );
+    expect(result).toMatchObject({
+      outcome: "updated",
+      appliedRevision: 7,
+      warnings: ["resource_clamped:health"],
+    });
+    expect(actor.updates[0]).toEqual({
+      "system.heroisme.value": 4,
+      [`flags.${MODULE_ID}.actorResourcesV1`]: result,
+    });
+  });
+
+  it("still advances the result flag on a no-op, so an older sequence stays refused", async () => {
+    const actor = boundActor();
+    actor.system.sante = { value: 30, max: 30 };
+    stubFoundry([actor]);
+    const noop = await apply(
+      request({ sequence: 9, resources: { health: 99 } }),
+    );
+    expect(Object.keys(actor.updates[0])).toEqual([
+      `flags.${MODULE_ID}.actorResourcesV1`,
+    ]);
+    expect(noop.appliedRevision).toBe(9);
+    // An older sequence that drains after it never lands over it.
+    expect(
+      await rpcCode(apply(request({ sequence: 8, resources: { health: 4 } }))),
+    ).toBe("stale_revision");
+    expect(actor.updates).toHaveLength(1);
+  });
+
   it("accepts the captured Knight actor shape", async () => {
     for (const fixture of KNIGHT_SCHEMA_FIXTURES) {
       const actor = boundActor();
