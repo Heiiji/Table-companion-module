@@ -28,11 +28,19 @@ const NEVER_ADVERTISED = [
   "sheet.derived",
 ];
 
-const KNIGHT_CAPABILITIES = [
+// Every system on Foundry 13 or later: the floor plus the core-document combat
+// mirror (Combat and Combatant are not system-specific).
+const MODERN_CAPABILITIES = ["combat.sync.v1", ...BASE_CAPABILITIES].sort();
+
+const KNIGHT_ONLY_MUTATIONS = [
   "actor.resources.v1",
   "actor.upsert.v1",
   "npc.upsert.v1",
-  ...BASE_CAPABILITIES,
+];
+
+const KNIGHT_CAPABILITIES = [
+  ...KNIGHT_ONLY_MUTATIONS,
+  ...MODERN_CAPABILITIES,
 ].sort();
 
 // Every procedure that writes a Foundry document. The agent mirrors this list
@@ -41,6 +49,7 @@ const KNIGHT_CAPABILITIES = [
 const MUTATION_PROCEDURES = [
   "actor.resources.v1",
   "actor.upsert.v1",
+  "combat.sync.v1",
   "npc.upsert.v1",
 ];
 
@@ -105,7 +114,7 @@ describe("ProcedureRegistry", () => {
     const registry = new ProcedureRegistry();
     registerBuiltinProcedures(registry);
 
-    expect(registry.capabilities()).toEqual(BASE_CAPABILITIES);
+    expect(registry.capabilities()).toEqual(MODERN_CAPABILITIES);
     for (const procedure of RETIRED_PF2_PROCEDURES) {
       expect(registry.get(procedure), procedure).toBeUndefined();
     }
@@ -138,9 +147,9 @@ describe("ProcedureRegistry", () => {
     });
     const knight = new ProcedureRegistry();
     registerBuiltinProcedures(knight);
-    expect(knight.capabilities()).toEqual(BASE_CAPABILITIES);
+    expect(knight.capabilities()).toEqual(MODERN_CAPABILITIES);
     const withheld = knight.unsupported();
-    expect(Object.keys(withheld).sort()).toEqual(MUTATION_PROCEDURES);
+    expect(Object.keys(withheld).sort()).toEqual(KNIGHT_ONLY_MUTATIONS);
     expect(withheld["actor.upsert.v1"]).toBe(
       "Knight 3.58.36 on Foundry 14; requires Knight 3.58.33 to 3.58.35 on Foundry 13 or later",
     );
@@ -224,19 +233,23 @@ describe("ProcedureRegistry", () => {
     registerBuiltinProcedures(knight);
     expect(knight.mutations()).toEqual([...MUTATION_PROCEDURES].sort());
 
-    // Any other system exposes NO mutation at all — nothing it advertises can
-    // write to the world.
-    for (const id of ["dnd5e", "custom-system"]) {
-      vi.stubGlobal("game", { system: { id } });
+    // Any other system exposes only the core-document combat mirror, and no
+    // mutation at all before Foundry 13.
+    for (const id of ["dnd5e", "custom-system", "pf2e"]) {
+      vi.stubGlobal("game", { system: { id }, release: { generation: 14 } });
       const other = new ProcedureRegistry();
       registerBuiltinProcedures(other);
-      expect(other.mutations(), id).toEqual([]);
+      expect(other.mutations(), id).toEqual(["combat.sync.v1"]);
+      vi.stubGlobal("game", { system: { id } });
+      const unknown = new ProcedureRegistry();
+      registerBuiltinProcedures(unknown);
+      expect(unknown.mutations(), id).toEqual([]);
     }
   });
 
   // The channel withholds a signed-only procedure from a responder that cannot
   // sign; the flag at registration is what puts the two upserts behind it.
-  it("registers exactly the Knight upserts as signed-only", () => {
+  it("registers exactly the mutations as signed-only", () => {
     vi.stubGlobal("game", {
       system: { id: "knight", version: "3.58.33" },
       release: { generation: 14 },
@@ -305,7 +318,29 @@ describe("ProcedureRegistry", () => {
       vi.stubGlobal("game", game);
       const registry = new ProcedureRegistry();
       registerBuiltinProcedures(registry);
-      expect(registry.capabilities()).toEqual(BASE_CAPABILITIES);
+      expect(registry.capabilities()).toEqual(
+        game.release.generation >= 13 ? MODERN_CAPABILITIES : BASE_CAPABILITIES,
+      );
     }
+  });
+
+  it("advertises combat.sync.v1 on every system from Foundry 13, and says why not before", () => {
+    for (const id of ["dnd5e", "knight", "custom-system", ""]) {
+      vi.stubGlobal("game", { system: { id }, release: { generation: 13 } });
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      expect(registry.capabilities(), id).toContain("combat.sync.v1");
+      expect(registry.isSignedOnly("combat.sync.v1"), id).toBe(true);
+    }
+    vi.stubGlobal("game", {
+      system: { id: "dnd5e" },
+      release: { generation: 12 },
+    });
+    const old = new ProcedureRegistry();
+    registerBuiltinProcedures(old);
+    expect(old.capabilities()).not.toContain("combat.sync.v1");
+    expect(old.unsupported()).toEqual({
+      "combat.sync.v1": "Foundry 12; requires Foundry 13 or later",
+    });
   });
 });

@@ -192,6 +192,15 @@ export function supportsKnightActorUpsertV1Runtime(): boolean {
   );
 }
 
+/** Every world-writing procedure runs only in a GM responder's browser. */
+export function assertGMResponder(procedure: string): void {
+  if (!foundryGame()?.user?.isGM)
+    throw new RpcError(
+      "permission_denied",
+      `${procedure} requires a GM responder`,
+    );
+}
+
 /**
  * The gate both Knight lanes repeat before touching the world: the responder
  * must be a GM, and the runtime must be a Knight/Foundry pair the mapping was
@@ -199,11 +208,7 @@ export function supportsKnightActorUpsertV1Runtime(): boolean {
  * `procedure` names the lane in the error message.
  */
 export function assertKnightUpsertAuthority(procedure: string): void {
-  if (!foundryGame()?.user?.isGM)
-    throw new RpcError(
-      "permission_denied",
-      `${procedure} requires a GM responder`,
-    );
+  assertGMResponder(procedure);
   if (!supportsKnightActorUpsertV1Runtime()) {
     throw new RpcError(
       "unsupported_runtime",

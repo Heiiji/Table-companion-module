@@ -11,6 +11,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   player character's current Health, Hope, Armour, Energy, Heroism and Contacts to its linked
   Knight Actor after every edit in the app. It writes only the Actor linked to that character, or
   for a character imported from Foundry the unlinked Actor it came from, clamps each value to the sheet's maximum and skips a value the Actor has no field for.
+- **Fights started in the app appear in Foundry.** A new signed `combat.sync.v1` procedure, on every
+  game system from Foundry 13, lets the backend mirror the app's combat into a Foundry Combat on the
+  scene the Gamemaster is viewing: combatants (linked to their actor and its token on that scene when
+  there is one), initiative, hidden state, round and current turn, and deletes that Combat when the
+  fight ends. Combatants the Gamemaster adds in Foundry are left alone, and turn changes are set
+  directly so no system turn effect runs twice. Changes made in Foundry are not sent back to the app.
 
 ### Fixed
 - Character provisioning now writes current Armour and Energy on the gear the character wears

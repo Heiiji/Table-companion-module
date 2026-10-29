@@ -8,6 +8,11 @@ import { actorUpsertV1 } from "./actorUpsert.js";
 import { npcUpsertV1 } from "./npcUpsert.js";
 import { actorResourcesV1 } from "./actorResources.js";
 import {
+  MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION,
+  combatSyncV1,
+  supportsCombatSyncV1Runtime,
+} from "./combatSync.js";
+import {
   KNIGHT_UPSERT_SYSTEM_VERSION_LABEL,
   MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION,
   supportsKnightActorUpsertV1Runtime,
@@ -47,6 +52,21 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   // Only Knight registers the system-specific mappings. The two lanes target different Knight actor
   // types (PC "knight" vs NPC "pnj") and share ONE runtime gate over one list of
   // admitted Knight versions, so a widening moves both together.
+  // Mirror of the app's combat into a Foundry Combat. Combat and Combatant are
+  // core documents, so every system gets it, from the Foundry generation the
+  // mapping was checked on (13, the module's own minimum). Signed-only and a
+  // mutation like the provisioning lanes.
+  if (supportsCombatSyncV1Runtime()) {
+    registry.register("combat.sync.v1", combatSyncV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
+  } else if (foundryGeneration() > 0) {
+    registry.markUnsupported(
+      "combat.sync.v1",
+      `Foundry ${foundryGeneration()}; requires Foundry ${MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION} or later`,
+    );
+  }
   if (supportsKnightActorUpsertV1Runtime()) {
     registry.register("actor.upsert.v1", actorUpsertV1, {
       kind: "mutation",

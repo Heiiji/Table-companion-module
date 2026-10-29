@@ -138,11 +138,63 @@ export type ApplicationV2Class = new (options?: unknown) => {
   render(options?: unknown): unknown;
 };
 
+/** A Combatant embedded in a Combat, as the combat mirror reads it. */
+export interface CombatantLike {
+  id?: string;
+  _id?: string;
+  flags?: Dict;
+  getFlag?(namespace: string, key: string): unknown;
+}
+
+/** A Combat document, as the combat mirror reads and writes it. */
+export interface CombatLike {
+  id?: string;
+  _id?: string;
+  flags?: Dict;
+  scene?: SceneLike | null;
+  combatants?: { contents?: CombatantLike[] } | Iterable<CombatantLike>;
+  turns?: CombatantLike[];
+  getFlag?(namespace: string, key: string): unknown;
+  setupTurns?(): CombatantLike[];
+  update(changes: Dict, options?: Dict): Promise<unknown>;
+  delete(): Promise<unknown>;
+  createEmbeddedDocuments(type: "Combatant", data: Dict[]): Promise<unknown>;
+  updateEmbeddedDocuments(type: "Combatant", data: Dict[]): Promise<unknown>;
+  deleteEmbeddedDocuments(type: "Combatant", ids: string[]): Promise<unknown>;
+}
+
+/** A token placed on a scene. */
+export interface TokenLike {
+  id?: string;
+  _id?: string;
+  actorId?: string | null;
+}
+
+/** A Scene, as far as finding an actor's token on it. */
+export interface SceneLike {
+  id?: string;
+  _id?: string;
+  tokens?: { contents?: TokenLike[] } | Iterable<TokenLike>;
+}
+
+/** `game.combats`: exposes `contents`, is iterable, or both. */
+export interface CombatsLike {
+  contents?: CombatLike[];
+  [Symbol.iterator]?(): Iterator<CombatLike>;
+}
+
+/** Combat.implementation — the configured Combat document class. */
+export interface CombatFactoryLike {
+  create(data: Dict, options?: Dict): Promise<unknown>;
+}
+
 /** The slice of `game` this module reads. */
 export interface GameLike {
   user?: UserLike;
   users?: UsersLike;
   actors?: ActorsLike;
+  combats?: CombatsLike;
+  scenes?: { viewed?: SceneLike | null };
   packs?: CompendiumPacksLike;
   modules?: ModulesLike;
   system?: { id?: string; version?: string };
@@ -156,6 +208,7 @@ export interface GameLike {
 interface FoundryGlobals {
   game?: GameLike;
   Actor?: { implementation?: ActorFactoryLike };
+  Combat?: { implementation?: CombatFactoryLike };
   Hooks?: HooksLike;
   ui?: { notifications?: NotificationsLike };
   foundry?: {
@@ -225,6 +278,20 @@ export function gameSettings(): SettingsLike | undefined {
 
 export function gameSocket(): SocketLike | undefined {
   return foundryGame()?.socket;
+}
+
+export function gameCombats(): CombatsLike | undefined {
+  return foundryGame()?.combats;
+}
+
+/** The scene the current user is viewing (`game.scenes.viewed`), or null. */
+export function viewedScene(): SceneLike | null {
+  return foundryGame()?.scenes?.viewed ?? null;
+}
+
+/** `Combat.implementation`, the class new Combats are created through. */
+export function combatImplementation(): CombatFactoryLike | undefined {
+  return globals().Combat?.implementation;
 }
 
 /** `Actor.implementation`, the class new Actors are created through. */
