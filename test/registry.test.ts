@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { registerBuiltinProcedures } from "../src/procedures/index.js";
 import { ProcedureRegistry } from "../src/rpc/registry.js";
-import { KNIGHT_UPSERT_SYSTEM_VERSIONS } from "../src/procedures/upsertShared.js";
+import {
+  isAdmittedKnightSystemVersion,
+  MINIMUM_KNIGHT_UPSERT_SYSTEM_VERSION,
+} from "../src/procedures/upsertShared.js";
 
 // The system-agnostic floor: what EVERY world gets, whatever system it runs.
 // These touch no system-specific schema (core Roll API, compendium passthrough,
@@ -143,7 +146,7 @@ describe("ProcedureRegistry", () => {
 
   it("names why the Knight upserts are withheld on another Knight version", () => {
     vi.stubGlobal("game", {
-      system: { id: "knight", version: "3.58.36" },
+      system: { id: "knight", version: "3.58.32" },
       release: { generation: 14 },
     });
     const knight = new ProcedureRegistry();
@@ -152,7 +155,7 @@ describe("ProcedureRegistry", () => {
     const withheld = knight.unsupported();
     expect(Object.keys(withheld).sort()).toEqual(KNIGHT_ONLY_MUTATIONS);
     expect(withheld["actor.upsert.v1"]).toBe(
-      "Knight 3.58.36 on Foundry 14; requires Knight 3.58.33 to 3.58.35 on Foundry 13 or later",
+      "Knight 3.58.32 on Foundry 14; requires Knight 3.58.33 or later on Foundry 13 or later",
     );
 
     vi.stubGlobal("game", { system: { id: "dnd5e" } });
@@ -276,13 +279,17 @@ describe("ProcedureRegistry", () => {
     }
   });
 
-  it("advertises the Knight upserts on every admitted Knight version", () => {
-    expect(KNIGHT_UPSERT_SYSTEM_VERSIONS).toEqual([
+  it("advertises the Knight upserts on every Knight version from the floor", () => {
+    expect(MINIMUM_KNIGHT_UPSERT_SYSTEM_VERSION).toBe("3.58.33");
+    for (const version of [
       "3.58.33",
       "3.58.34",
       "3.58.35",
-    ]);
-    for (const version of KNIGHT_UPSERT_SYSTEM_VERSIONS) {
+      "3.58.36",
+      "3.58.37",
+      "3.59.0",
+      "4.0.0",
+    ]) {
       vi.stubGlobal("game", {
         system: { id: "knight", version },
         release: { generation: 13 },
@@ -294,15 +301,31 @@ describe("ProcedureRegistry", () => {
     }
   });
 
+  it("compares the Knight version numerically against the floor", () => {
+    for (const v of ["3.58.33", "3.58.36", "3.58.37", "3.58.100", "4.0.0"])
+      expect(isAdmittedKnightSystemVersion(v), v).toBe(true);
+    for (const v of [
+      "3.58.32",
+      "3.57.99",
+      "3.6.0",
+      "v3.58.36",
+      "3.58.33-beta",
+      "3.58",
+      " 3.58.33",
+      3.58,
+      null,
+    ])
+      expect(isAdmittedKnightSystemVersion(v), String(v)).toBe(false);
+  });
+
   it("does not advertise actor.upsert.v1 outside the admitted Knight runtime", () => {
     for (const game of [
       ...[
         "3.58.32",
-        "3.58.36",
-        "3.58.37",
-        "3.59.0",
-        "4.0.0",
+        "3.57.99",
+        "2.99.99",
         "v3.58.33",
+        "v3.58.36",
         "3.58.3",
         "3.58.33-beta",
         "",

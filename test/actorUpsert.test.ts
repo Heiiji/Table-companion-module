@@ -5,7 +5,6 @@ import {
 } from "../src/procedures/actorUpsert.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
-import { KNIGHT_UPSERT_SYSTEM_VERSIONS } from "../src/procedures/upsertShared.js";
 import {
   ACTOR_ID,
   KNIGHT_SCHEMA_FIXTURES,
@@ -23,8 +22,8 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("actor.upsert.v1", () => {
   // The 3.58.33 fixtures stand in for every admitted version: the later ones
-  // are admitted only because their data models are byte-identical to it.
-  for (const knightVersion of KNIGHT_UPSERT_SYSTEM_VERSIONS)
+  // change only data preparation code, outside the written and read paths.
+  for (const knightVersion of ["3.58.33", "3.58.35", "3.58.37"])
     for (const fixture of KNIGHT_SCHEMA_FIXTURES) {
       it(`maps only schema-backed Knight fields under Knight ${knightVersion} on Foundry ${fixture.foundryGeneration}`, async () => {
         expect(fixture.knightSystemVersion).toBe("3.58.33");
@@ -251,9 +250,9 @@ describe("actor.upsert.v1", () => {
       },
     );
 
-    // The first Knight release past the window, and version strings that only
+    // The last Knight release below the floor, and version strings that only
     // look like an admitted one.
-    for (const version of ["3.58.36", "3.58.32", "v3.58.33", "3.58.3"]) {
+    for (const version of ["3.58.32", "3.57.99", "v3.58.36", "3.58.3"]) {
       vi.unstubAllGlobals();
       stubFoundry([], undefined, 14, undefined, version);
       await expect(
@@ -262,7 +261,7 @@ describe("actor.upsert.v1", () => {
       ).rejects.toMatchObject({
         code: "unsupported_runtime",
         message:
-          "actor.upsert.v1 requires Knight 3.58.33 to 3.58.35 on Foundry 13 or later",
+          "actor.upsert.v1 requires Knight 3.58.33 or later on Foundry 13 or later",
       });
     }
   });

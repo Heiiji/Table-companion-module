@@ -59,6 +59,7 @@ interface FakeChannel {
   open: boolean;
   status: LinkStatus;
   caps: string[];
+  withheld?: Record<string, string>;
   channel: Channel;
 }
 
@@ -87,6 +88,7 @@ function fakeChannel(
     getStatus: () => fake.status,
     getPairing: () => Promise.resolve(pairing),
     advertisedCapabilities: () => fake.caps,
+    withheldProcedures: () => fake.withheld,
     openPairingWindow: () => {
       fake.open = true;
     },
@@ -156,6 +158,17 @@ describe("openSetupApp", () => {
     expect(content).toContain("setup.status.signingUnavailable");
     expect(content).toContain("setup.hint.noSigner");
     expect(content).not.toContain("setup.status.clockOffset");
+  });
+
+  it("names each withheld procedure with its reason, escaped", async () => {
+    const fake = fakeChannel({}, [CAP_RESPONSE_SIG]);
+    fake.withheld = {
+      "actor.upsert.v1": "requires Knight 3.58.33 or later <b>",
+    };
+    await openSetupApp(fake.channel);
+    const { content } = FakeDialog.instances[0];
+    expect(content).toContain("actor.upsert.v1");
+    expect(content).toContain("requires Knight 3.58.33 or later &lt;b&gt;");
   });
 
   it("shows a clock offset past 45 seconds", async () => {

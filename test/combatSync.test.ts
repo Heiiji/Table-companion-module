@@ -352,6 +352,35 @@ describe("combat.sync.v1", () => {
     expect(combat.updates.at(-1)!.changes).toMatchObject({ round: 2, turn: 1 });
   });
 
+  it("keeps an initiative rolled in Foundry when the app's entry has none", async () => {
+    stub();
+    await apply(request());
+    const combat = combats[0];
+    const hero = combat.list.find((c) => keyOf(c) === "hero")!;
+    hero.initiative = 14; // rolled in Foundry
+    const spy = vi.spyOn(combat, "updateEmbeddedDocuments");
+
+    await apply(
+      request({
+        sequence: 2,
+        combatants: [
+          {
+            key: "hero",
+            actorId: HERO,
+            name: "Hero",
+            initiative: null,
+            hidden: false,
+          },
+        ],
+      }),
+    );
+
+    const [, data] = spy.mock.calls[0];
+    const update = data.find((d) => d._id === hero.id)!;
+    expect(update).not.toHaveProperty("initiative");
+    expect(hero.initiative).toBe(14);
+  });
+
   it("replays the stored result without writing, and refuses stale or conflicting sequences", async () => {
     stub();
     const first = await apply(request({ sequence: 5 }));

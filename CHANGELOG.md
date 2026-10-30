@@ -9,6 +9,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 - `actor.resources.v1` no longer re-writes a value the Actor already holds (a capped re-send included);
   only its result record is updated.
+- `actor.resources.v1` leaves the Actor untouched, result record included, when a new request re-sends
+  the values it already recorded; the record update no longer echoes back as a change.
+- Knight character provisioning and resource sync accept Knight 3.58.33 or any later release (was
+  3.58.33 to 3.58.35); later releases change only data preparation the module does not touch.
+- The setup panel lists each procedure withheld on this world, with the reason.
+
+### Fixed
+- `combat.sync.v1` no longer erases an initiative rolled in Foundry when the app's entry has none yet.
 
 ## [0.15.1] - 2026-10-29
 

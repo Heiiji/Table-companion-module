@@ -154,36 +154,38 @@ export function parseAspectScores(value: unknown): AspectScoresV1 {
  * proves breaking is handled when it happens. */
 export const MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION = 13;
 
-/** The Knight system versions the actor mappings are verified against: 3.58.33,
- * which the PC and pnj fixtures were captured on, then each later release whose
- * `module/documents/models/`, `module/helpers/config.mjs` and
- * `module/migration.mjs` are byte-identical to it (3.58.34 and 3.58.35). An
- * explicit list, not a range: a release joins it only on such a diff. */
-export const KNIGHT_UPSERT_SYSTEM_VERSIONS: readonly string[] = [
-  "3.58.33",
-  "3.58.34",
-  "3.58.35",
-];
+/** Oldest Knight system version the actor mappings run on: 3.58.33, which the
+ * PC and pnj fixtures were captured on. A floor, not a list: the later releases
+ * inspected so far change only the system's data preparation code, outside the
+ * source paths these mappings write and read, so a newer Knight release is
+ * accepted, and one that proves breaking is handled when it happens. */
+export const MINIMUM_KNIGHT_UPSERT_SYSTEM_VERSION = "3.58.33";
 
 /** The admitted versions as the « requires Knight … » messages name them. */
-export const KNIGHT_UPSERT_SYSTEM_VERSION_LABEL = `${KNIGHT_UPSERT_SYSTEM_VERSIONS[0]} to ${KNIGHT_UPSERT_SYSTEM_VERSIONS.at(-1)}`;
+export const KNIGHT_UPSERT_SYSTEM_VERSION_LABEL = `${MINIMUM_KNIGHT_UPSERT_SYSTEM_VERSION} or later`;
 
-/** True only for an exact listed version string ("v3.58.33", "3.58.3",
- * "3.58.33-beta" and non-strings are all refused). */
+const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
+
+/** True only for a plain `major.minor.patch` string at or above the floor
+ * ("v3.58.33", "3.58.33-beta", "3.58.32" and non-strings are all refused). */
 export function isAdmittedKnightSystemVersion(
   version: unknown,
 ): version is string {
-  return (
-    typeof version === "string" &&
-    KNIGHT_UPSERT_SYSTEM_VERSIONS.includes(version)
-  );
+  if (typeof version !== "string" || !STRICT_VERSION.test(version))
+    return false;
+  const have = version.split(".").map(Number);
+  const floor = MINIMUM_KNIGHT_UPSERT_SYSTEM_VERSION.split(".").map(Number);
+  for (let i = 0; i < 3; i++)
+    if (have[i] !== floor[i]) return have[i] > floor[i];
+  return true;
 }
 
 /** Runtime gate for the Knight actor mappings admitted by this release: a
- * listed Knight system version, on Foundry 13 or any later generation. It
+ * Knight system version at or above the floor, on Foundry 13 or any later
+ * generation. It
  * decides whether the two provisioning procedures are registered at all, and
- * each procedure repeats it before touching the world. Both lanes read the same
- * version list, so one widening moves the PC and pnj lanes together. */
+ * each procedure repeats it before touching the world. All three lanes read the
+ * same floor, so moving it moves the PC and pnj lanes together. */
 export function supportsKnightActorUpsertV1Runtime(): boolean {
   return (
     systemId() === "knight" &&

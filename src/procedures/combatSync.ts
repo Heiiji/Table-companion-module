@@ -340,8 +340,12 @@ export const combatSyncV1: Procedure = async (payload) => {
   for (const entry of req.combatants) {
     const data = combatantData(entry, scene, warnings);
     const current = existing.get(entry.key);
-    if (current) updates.push({ _id: docId(current), ...data });
-    else
+    if (current) {
+      // An initiative the app has not set leaves Foundry's alone: a roll
+      // made in Foundry is not erased by an entry still waiting for one.
+      if (entry.initiative === null) delete data.initiative;
+      updates.push({ _id: docId(current), ...data });
+    } else
       creates.push({
         ...data,
         flags: { [MODULE_ID]: { [COMBATANT_FLAG]: entry.key } },

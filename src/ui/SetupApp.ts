@@ -121,6 +121,11 @@ async function statusHtml(channel: Channel): Promise<string> {
     ) +
     row(localize("setup.status.pairing"), pairingValue, pairing.paired) +
     signingRows +
+    // A procedure this runtime withholds (e.g. sheet sync on an unsupported
+    // system version), named with its reason so a silent lane explains itself.
+    Object.entries(channel.withheldProcedures() ?? {})
+      .map(([name, reason]) => row(name, reason, false))
+      .join("") +
     `</div>` +
     signingHints +
     pending +

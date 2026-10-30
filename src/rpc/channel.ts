@@ -180,8 +180,9 @@ export class Channel {
   }
 
   /** The procedures withheld on this runtime with their reason, for the
-   * handshake — undefined (the field omitted) when nothing is withheld. */
-  private withheldProcedures(): Record<string, string> | undefined {
+   * handshake and the setup panel — undefined (the field omitted) when nothing
+   * is withheld. */
+  withheldProcedures(): Record<string, string> | undefined {
     const withheld = this.registry.unsupported();
     return Object.keys(withheld).length > 0 ? withheld : undefined;
   }

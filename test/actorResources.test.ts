@@ -146,7 +146,10 @@ describe("actor.resources.v1", () => {
       "system.equipements.armure.energie.value": 5,
       "system.heroisme.value": 2,
       "system.contacts.actuel": 0,
-      [`flags.${MODULE_ID}.actorResourcesV1`]: result,
+      [`flags.${MODULE_ID}.actorResourcesV1`]: {
+        ...result,
+        contentDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+      },
     });
   });
 
@@ -222,11 +225,14 @@ describe("actor.resources.v1", () => {
     });
     expect(actor.updates[0]).toEqual({
       "system.heroisme.value": 4,
-      [`flags.${MODULE_ID}.actorResourcesV1`]: result,
+      [`flags.${MODULE_ID}.actorResourcesV1`]: {
+        ...result,
+        contentDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+      },
     });
   });
 
-  it("still advances the result flag on a no-op, so an older sequence stays refused", async () => {
+  it("writes the result flag on a first no-op, so an older sequence stays refused", async () => {
     const actor = boundActor();
     actor.system.sante = { value: 30, max: 30 };
     stubFoundry([actor]);
@@ -242,6 +248,51 @@ describe("actor.resources.v1", () => {
       await rpcCode(apply(request({ sequence: 8, resources: { health: 4 } }))),
     ).toBe("stale_revision");
     expect(actor.updates).toHaveLength(1);
+  });
+
+  it("writes nothing when a new sequence re-sends the values the flag records", async () => {
+    const actor = boundActor();
+    stubFoundry([actor]);
+    const first = await apply(request({ sequence: 7 }));
+    expect(actor.updates).toHaveLength(1);
+    const flagKey = `flags.${MODULE_ID}.actorResourcesV1`;
+    const firstDigest = (actor.updates[0][flagKey] as Record<string, unknown>)
+      .contentDigest;
+    expect(firstDigest).toMatch(/^[0-9a-f]{64}$/);
+    // The result handed back keeps the strict shape: no contentDigest.
+    expect(first).not.toHaveProperty("contentDigest");
+
+    const again = await apply(request({ sequence: 8 }));
+    expect(again).toMatchObject({ outcome: "updated", appliedRevision: 8 });
+    expect(again).not.toHaveProperty("contentDigest");
+    expect(actor.updates).toHaveLength(1);
+
+    // Changed values write the patch and a flag with the new digest.
+    await apply(request({ sequence: 9, resources: { health: 13 } }));
+    expect(actor.updates).toHaveLength(2);
+    expect(actor.updates[1]).toMatchObject({ "system.sante.value": 13 });
+    const flag = actor.updates[1][flagKey] as Record<string, unknown>;
+    expect(flag.appliedRevision).toBe(9);
+    expect(flag.contentDigest).toMatch(/^[0-9a-f]{64}$/);
+    expect(flag.contentDigest).not.toBe(firstDigest);
+  });
+
+  it("writes the flag once over an older flag that has no content digest", async () => {
+    const actor = boundActor();
+    stubFoundry([actor]);
+    const flagKey = `flags.${MODULE_ID}.actorResourcesV1`;
+    await apply(request({ sequence: 7 }));
+    const legacy = {
+      ...(actor.updates[0][flagKey] as Record<string, unknown>),
+    };
+    delete legacy.contentDigest;
+    (actor.flags[MODULE_ID] as Record<string, unknown>).actorResourcesV1 =
+      legacy;
+    await apply(request({ sequence: 8 }));
+    expect(actor.updates).toHaveLength(2);
+    expect(Object.keys(actor.updates[1])).toEqual([flagKey]);
+    await apply(request({ sequence: 9 }));
+    expect(actor.updates).toHaveLength(2);
   });
 
   it("accepts the captured Knight actor shape", async () => {
@@ -271,7 +322,9 @@ describe("actor.resources.v1", () => {
     expect(await rpcCode(apply(request({ sequence: 6 })))).toBe(
       "stale_revision",
     );
-    const next = await apply(request({ sequence: 8 }));
+    const next = await apply(
+      request({ sequence: 8, resources: { health: 13 } }),
+    );
     expect(next.appliedRevision).toBe(8);
     expect(actor.updates).toHaveLength(2);
   });
@@ -338,7 +391,7 @@ describe("actor.resources.v1", () => {
     vi.stubGlobal("game", { ...game, user: { id: "p", isGM: false } });
     expect(await rpcCode(apply(request()))).toBe("permission_denied");
 
-    stubFoundry([actor], undefined, 13, undefined, "3.58.36");
+    stubFoundry([actor], undefined, 13, undefined, "3.58.32");
     expect(await rpcCode(apply(request()))).toBe("unsupported_runtime");
     expect(actor.updates).toHaveLength(0);
   });

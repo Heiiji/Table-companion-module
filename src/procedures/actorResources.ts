@@ -110,7 +110,7 @@ function valueAt(root: unknown, path: string): unknown {
 }
 
 /** Stored current path and prepared-maximum path of each resource (Knight
- * 3.58.33-35 PC model). Armour and energy live on the worn gear; their prepared
+ * PC model, 3.58.33 or later). Armour and energy live on the worn gear; their prepared
  * maxima are the top-level `armure.max` / `energie.max`. Contact has no max. */
 function resourcePaths(gear: string): Record<ResourceKey, [string, string?]> {
   return {
@@ -149,7 +149,8 @@ export const actorResourcesV1: Procedure = async (payload) => {
       "the binding points at a different Actor",
     );
 
-  const previous = parseStoredResult(actor, "actorResourcesV1")?.result ?? null;
+  const stored = parseStoredResult(actor, "actorResourcesV1");
+  const previous = stored?.result ?? null;
   if (previous && alreadyApplied(previous, req.sequence, digest, "sequence")) {
     return { ...previous, warnings: [...previous.warnings] };
   }
@@ -182,13 +183,22 @@ export const actorResourcesV1: Procedure = async (payload) => {
     appliedDigest: digest,
     warnings,
   };
-  // The flag is written even when the patch is empty: its appliedRevision is
-  // what refuses an older sequence arriving later (stale_revision). A newer
-  // key can drain before an older one (the backend supersedes only rows still
-  // queued), so skipping it would let that older sequence apply over this one.
+  // A re-send of the values the flag already records, under a new sequence,
+  // changes nothing: skip the write, or the flag update itself comes back from
+  // the backend as an Actor change, the app re-sends, and the loop never ends.
+  // Any other request writes the flag even with an empty patch: its
+  // appliedRevision is what refuses an older sequence arriving later
+  // (stale_revision). `contentDigest` lives in the flag only; the returned
+  // result keeps the shape the backend decodes strictly.
+  const contentDigest = await canonicalDigest(req.resources);
+  if (
+    Object.keys(patch).length === 0 &&
+    stored?.flag.contentDigest === contentDigest
+  )
+    return result;
   await actor.update({
     ...patch,
-    [`flags.${MODULE_ID}.actorResourcesV1`]: result,
+    [`flags.${MODULE_ID}.actorResourcesV1`]: { ...result, contentDigest },
   });
   return result;
 };

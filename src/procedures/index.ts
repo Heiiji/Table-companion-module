@@ -72,8 +72,8 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   // them unadvertised and refused on a responder that cannot sign its replies,
   // and the agent refuses to invoke them without moduleResponseSignatureV1.
   // Only Knight registers the system-specific mappings. The two lanes target different Knight actor
-  // types (PC "knight" vs NPC "pnj") and share ONE runtime gate over one list of
-  // admitted Knight versions, so a widening moves both together.
+  // types (PC "knight" vs NPC "pnj") and share ONE runtime gate over one Knight
+  // version floor, so moving it moves both together.
   if (supportsKnightActorUpsertV1Runtime()) {
     registry.register("actor.upsert.v1", actorUpsertV1, {
       kind: "mutation",
@@ -90,7 +90,8 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
       signedOnly: true,
     });
   } else if (systemId() === "knight") {
-    // Another Knight or Foundry release: the lanes stay unregistered, and the
+    // A Knight release below the floor, an unparsable version, or an older
+    // Foundry generation: the lanes stay unregistered, and the
     // handshake says why, so the backend parks the GM's characters as « not
     // supported on this version » rather than « no module ».
     const reason =
