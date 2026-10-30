@@ -22,7 +22,7 @@ const COMPANION_FLAG = "companion";
 type FlagReader = { getFlag(scope: string, key: string): unknown };
 type UserCreateData = Parameters<typeof User.create>[0];
 
-export interface CompanionResult {
+interface CompanionResult {
   /** The freshly created (or pre-existing) Companion user's id. */
   userId: string;
   /** The plaintext password — shown to the GM ONCE, never stored by us. Only

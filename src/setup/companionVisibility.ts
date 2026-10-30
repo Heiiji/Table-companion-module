@@ -7,15 +7,15 @@ import {
 } from "../foundry/runtime.js";
 import {
   OWNERSHIP_OBSERVER,
-  actorID,
-  allActors,
+  docId,
+  contentsOf,
 } from "../procedures/upsertShared.js";
 import { log } from "../util/log.js";
 import { companionAnchorId, pairedAgentUserId, userById } from "./identity.js";
 
 /** Which player characters the Companion user can read. The backend reads the
  * world as that user, so a character it cannot observe never reaches the app. */
-export interface CompanionVisibility {
+interface CompanionVisibility {
   companion: UserLike & { id: string };
   /** Actors a player owns: a user who is neither a GM nor the Companion user. */
   total: number;
@@ -42,7 +42,7 @@ export function companionVisibility(): CompanionVisibility | null {
   const players = (gameUsers()?.contents ?? []).filter(
     (user) => !user.isGM && user.id !== companion.id,
   );
-  const characters = allActors(actors).filter((actor) =>
+  const characters = contentsOf(actors).filter((actor) =>
     players.some((user) => can(actor, user, "OWNER")),
   );
   return {
@@ -67,16 +67,16 @@ export async function shareUnseenWithCompanion(
     throw new Error("only a Gamemaster can share characters with Companion");
   const now = companionVisibility();
   if (!now || now.companion.id !== confirmed.companion.id) return 0;
-  const ids = new Set(confirmed.unseen.map(actorID));
+  const ids = new Set(confirmed.unseen.map(docId));
   const { companion } = now;
   let changed = 0;
   for (const actor of now.unseen) {
-    if (!ids.has(actorID(actor)) || can(actor, companion, "OBSERVER")) continue;
+    if (!ids.has(docId(actor)) || can(actor, companion, "OBSERVER")) continue;
     try {
       await actor.update({ [`ownership.${companion.id}`]: OWNERSHIP_OBSERVER });
       changed += 1;
     } catch (err) {
-      log.warn(`could not share actor ${actorID(actor)} with Companion`, err);
+      log.warn(`could not share actor ${docId(actor)} with Companion`, err);
     }
   }
   return changed;

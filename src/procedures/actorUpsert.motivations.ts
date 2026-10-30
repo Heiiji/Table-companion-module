@@ -1,12 +1,12 @@
 import { MODULE_ID } from "../constants.js";
 import {
-  actorItems,
-  flagValue,
+  contentsOf,
+  FLAG_KEYS,
+  flagRecord,
   foundryId,
-  itemID,
+  docId,
   type ActorItemLike,
   type ActorLike,
-  type Dict,
 } from "./upsertShared.js";
 
 /**
@@ -24,11 +24,10 @@ interface MinorMotivationFlagV1 {
 function minorMotivationFlag(
   item: ActorItemLike,
 ): MinorMotivationFlagV1 | null {
-  const value = flagValue(item, "actorUpsertMinorMotivationV1");
-  if (typeof value !== "object" || value === null) return null;
-  const p = value as Dict;
-  if (p.schemaVersion !== 1 || !Number.isSafeInteger(p.index)) return null;
-  return { schemaVersion: 1, index: p.index as number };
+  const p = flagRecord(item, FLAG_KEYS.minorMotivation, (p) =>
+    Number.isSafeInteger(p.index),
+  );
+  return p ? { schemaVersion: 1, index: p.index as number } : null;
 }
 
 export async function applyMinorMotivations(
@@ -36,7 +35,7 @@ export async function applyMinorMotivations(
   motivations: string[],
 ): Promise<string[]> {
   const warnings: string[] = [];
-  const managed = actorItems(actor).filter(
+  const managed = contentsOf(actor.items).filter(
     (item) =>
       item.type === "motivationMineure" && minorMotivationFlag(item) !== null,
   );
@@ -56,16 +55,16 @@ export async function applyMinorMotivations(
     retained.set(index, item);
   }
   if (remove.length > 0) {
-    const valid = remove.filter((item) => foundryId.test(itemID(item)));
+    const valid = remove.filter((item) => foundryId.test(docId(item)));
     for (const item of remove.filter(
-      (candidate) => !foundryId.test(itemID(candidate)),
+      (candidate) => !foundryId.test(docId(candidate)),
     ))
       warnings.push(
         `minor_motivation_delete_unavailable:${minorMotivationFlag(item)!.index}`,
       );
     if (valid.length > 0) {
       if (typeof actor.deleteEmbeddedDocuments === "function")
-        await actor.deleteEmbeddedDocuments("Item", valid.map(itemID));
+        await actor.deleteEmbeddedDocuments("Item", valid.map(docId));
       else
         for (const item of valid)
           warnings.push(
@@ -81,7 +80,7 @@ export async function applyMinorMotivations(
       await existing.update({
         name: `Motivation mineure ${index + 1}`,
         "system.description": motivation,
-        [`flags.${MODULE_ID}.actorUpsertMinorMotivationV1`]: flag,
+        [`flags.${MODULE_ID}.${FLAG_KEYS.minorMotivation}`]: flag,
       });
       continue;
     }
@@ -99,7 +98,7 @@ export async function applyMinorMotivations(
         type: "motivationMineure",
         system: { description: motivation },
         flags: {
-          [MODULE_ID]: { actorUpsertMinorMotivationV1: flag },
+          [MODULE_ID]: { [FLAG_KEYS.minorMotivation]: flag },
         },
       },
     ]);

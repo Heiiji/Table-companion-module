@@ -1,4 +1,5 @@
 import {
+  ASPECT_KEYS,
   SCHEMA_VERSION,
   bindingId,
   foundryId,
@@ -8,11 +9,14 @@ import {
   parseAspectScores,
   record,
   text,
+  type Dict,
 } from "./upsertShared.js";
 import {
   ACTOR_TYPE,
   catalogDigest,
   catalogId,
+  CHARACTERISTIC_KEYS,
+  UPSERT_RESOURCE_KEYS,
   type AIV1,
   type CharacterCreationV1,
   type CharacteristicsV1,
@@ -217,83 +221,26 @@ function base(value: unknown, path: string): number {
 }
 
 function parseCharacteristics(value: unknown): CharacteristicsV1 {
-  const p = record(value, "characteristics", [
-    "chair",
-    "bete",
-    "machine",
-    "dame",
-    "masque",
-  ]);
-  const chair = record(p.chair, "characteristics.chair", [
-    "deplacement",
-    "force",
-    "endurance",
-  ]);
-  const bete = record(p.bete, "characteristics.bete", [
-    "combat",
-    "hargne",
-    "instinct",
-  ]);
-  const machine = record(p.machine, "characteristics.machine", [
-    "tir",
-    "savoir",
-    "technique",
-  ]);
-  const dame = record(p.dame, "characteristics.dame", [
-    "aura",
-    "parole",
-    "sangFroid",
-  ]);
-  const masque = record(p.masque, "characteristics.masque", [
-    "discretion",
-    "dexterite",
-    "perception",
-  ]);
-  return {
-    chair: {
-      deplacement: base(chair.deplacement, "characteristics.chair.deplacement"),
-      force: base(chair.force, "characteristics.chair.force"),
-      endurance: base(chair.endurance, "characteristics.chair.endurance"),
-    },
-    bete: {
-      combat: base(bete.combat, "characteristics.bete.combat"),
-      hargne: base(bete.hargne, "characteristics.bete.hargne"),
-      instinct: base(bete.instinct, "characteristics.bete.instinct"),
-    },
-    machine: {
-      tir: base(machine.tir, "characteristics.machine.tir"),
-      savoir: base(machine.savoir, "characteristics.machine.savoir"),
-      technique: base(machine.technique, "characteristics.machine.technique"),
-    },
-    dame: {
-      aura: base(dame.aura, "characteristics.dame.aura"),
-      parole: base(dame.parole, "characteristics.dame.parole"),
-      sangFroid: base(dame.sangFroid, "characteristics.dame.sangFroid"),
-    },
-    masque: {
-      discretion: base(masque.discretion, "characteristics.masque.discretion"),
-      dexterite: base(masque.dexterite, "characteristics.masque.dexterite"),
-      perception: base(masque.perception, "characteristics.masque.perception"),
-    },
-  };
+  const p = record(value, "characteristics", ASPECT_KEYS);
+  // Every group's shape is checked before any value, as the wire contract's
+  // error order has always been.
+  const groups = ASPECT_KEYS.map((aspect) =>
+    record(p[aspect], `characteristics.${aspect}`, CHARACTERISTIC_KEYS[aspect]),
+  );
+  const out: Dict = {};
+  ASPECT_KEYS.forEach((aspect, i) => {
+    const group: Dict = {};
+    for (const key of CHARACTERISTIC_KEYS[aspect])
+      group[key] = base(groups[i][key], `characteristics.${aspect}.${key}`);
+    out[aspect] = group;
+  });
+  return out as unknown as CharacteristicsV1;
 }
 
 function parseResources(value: unknown): CurrentResourcesV1 {
-  const p = record(value, "resources", [
-    "health",
-    "hope",
-    "armour",
-    "energy",
-    "contact",
-  ]);
+  const p = record(value, "resources", UPSERT_RESOURCE_KEYS);
   const out: CurrentResourcesV1 = {};
-  for (const key of [
-    "health",
-    "hope",
-    "armour",
-    "energy",
-    "contact",
-  ] as const) {
+  for (const key of UPSERT_RESOURCE_KEYS) {
     if (p[key] !== undefined)
       out[key] = integer(p[key], `resources.${key}`, 0, 100_000);
   }

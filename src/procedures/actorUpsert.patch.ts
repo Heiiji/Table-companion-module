@@ -2,6 +2,7 @@ import { MODULE_ID } from "../constants.js";
 import { pairedAgentUserId } from "../setup/identity.js";
 import {
   ASPECT_KEYS,
+  FLAG_KEYS,
   OWNERSHIP_NONE,
   OWNERSHIP_OBSERVER,
   OWNERSHIP_OWNER,
@@ -10,10 +11,12 @@ import {
   type BindingV1,
   type Dict,
 } from "./upsertShared.js";
-import type {
-  CurrentResourcesV1,
-  KnightActorUpsertV1,
-  StoredCharacterCreationV1,
+import {
+  UPSERT_RESOURCE_KEYS,
+  type CurrentResourcesV1,
+  type ResourceKey,
+  type KnightActorUpsertV1,
+  type StoredCharacterCreationV1,
 } from "./actorUpsert.types.js";
 
 /**
@@ -78,10 +81,11 @@ export function authoredPatch(
   const patch: Dict = {
     name: req.name,
     ownership: normalizedOwnershipUpdate(actor, req.foundryUserId),
-    [`flags.${MODULE_ID}.binding`]: binding,
+    [`flags.${MODULE_ID}.${FLAG_KEYS.binding}`]: binding,
   };
   const creation = storedCharacterCreation(req);
-  if (creation) patch[`flags.${MODULE_ID}.characterCreationV1`] = creation;
+  if (creation)
+    patch[`flags.${MODULE_ID}.${FLAG_KEYS.characterCreation}`] = creation;
   if (req.state !== "approved") return patch;
   const p = req.profile!;
   const aspects = req.aspects!;
@@ -108,15 +112,8 @@ export function authoredPatch(
   for (const aspect of ASPECT_KEYS) {
     patch[`system.aspects.${aspect}.base`] = aspects[aspect];
   }
-  const characteristicGroups: Record<string, Record<string, number>> = {
-    chair: chars.chair,
-    bete: chars.bete,
-    machine: chars.machine,
-    dame: chars.dame,
-    masque: chars.masque,
-  };
-  for (const [aspect, group] of Object.entries(characteristicGroups)) {
-    for (const [characteristic, value] of Object.entries(group)) {
+  for (const aspect of ASPECT_KEYS) {
+    for (const [characteristic, value] of Object.entries(chars[aspect])) {
       patch[
         `system.aspects.${aspect}.caracteristiques.${characteristic}.base`
       ] = value;
@@ -139,11 +136,30 @@ export function hasPath(root: unknown, path: string): boolean {
  * armour's (or Guardian's, or civilian outfit's) armour and energy under
  * `system.equipements.<system.wear>`. An absent or malformed selector reads as
  * the default `armure`, so the path checks below still decide. */
-export function wornGear(actor: ActorLike): string {
+function wornGear(actor: ActorLike): string {
   const wear = (actor.system as Dict | undefined)?.wear;
   return typeof wear === "string" && /^[A-Za-z0-9_]{1,64}$/.test(wear)
     ? wear
     : "armure";
+}
+
+/** Stored current path and prepared-maximum path of each Knight resource (PC
+ * model, 3.58.33 or later), relative to `system`. Armour and energy live on the
+ * worn gear; their prepared maxima are the top-level `armure.max` /
+ * `energie.max`. Contact has no max. Shared by `actor.upsert.v1` (current
+ * values only) and `actor.resources.v1` (which also clamps to the max). */
+export function resourcePaths(
+  actor: ActorLike,
+): Record<ResourceKey, [string, string?]> {
+  const gear = `equipements.${wornGear(actor)}`;
+  return {
+    health: ["sante.value", "sante.max"],
+    hope: ["espoir.value", "espoir.max"],
+    armour: [`${gear}.armure.value`, "armure.max"],
+    energy: [`${gear}.energie.value`, "energie.max"],
+    heroism: ["heroisme.value", "heroisme.max"],
+    contact: ["contacts.actuel"],
+  };
 }
 
 export async function applyCurrentResources(
@@ -151,19 +167,13 @@ export async function applyCurrentResources(
   resources: CurrentResourcesV1 | undefined,
 ): Promise<string[]> {
   if (!resources) return [];
-  const gear = `equipements.${wornGear(actor)}`;
-  const specs: Array<[keyof CurrentResourcesV1, string]> = [
-    ["health", "sante.value"],
-    ["hope", "espoir.value"],
-    ["armour", `${gear}.armure.value`],
-    ["energy", `${gear}.energie.value`],
-    ["contact", "contacts.actuel"],
-  ];
+  const paths = resourcePaths(actor);
   const patch: Dict = {};
   const warnings: string[] = [];
-  for (const [key, path] of specs) {
+  for (const key of UPSERT_RESOURCE_KEYS) {
     const value = resources[key];
     if (value === undefined) continue;
+    const [path] = paths[key];
     if (!hasPath(actor.system, path)) {
       warnings.push(`resource_unavailable:${key}`);
       continue;

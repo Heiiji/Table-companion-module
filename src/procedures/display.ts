@@ -36,7 +36,7 @@ const MAX_LABEL = 100;
 const MAX_VALUE = 2000;
 const MAX_IMG = 1000;
 
-export interface DisplayField {
+interface DisplayField {
   label: string;
   value: string;
 }
@@ -113,13 +113,13 @@ export function isAllowedImageSource(src: string): boolean {
   return scheme[1].toLowerCase() === "https";
 }
 
-export type DisplayBroadcast =
+type DisplayBroadcast =
   { tcaDisplay: "show"; view: DisplayView } | { tcaDisplay: "clear" };
 
 export function buildShowBroadcast(view: DisplayView): DisplayBroadcast {
   return { [DISPLAY_TAG]: "show", view };
 }
-export function buildClearBroadcast(): DisplayBroadcast {
+function buildClearBroadcast(): DisplayBroadcast {
   return { [DISPLAY_TAG]: "clear" };
 }
 
@@ -187,7 +187,7 @@ async function renderLocal(view: DisplayView): Promise<boolean> {
  * as anyone receiving it — Foundry's `module.*` relay gives no acknowledgement,
  * so the other clients' state is genuinely unknown and is reported as such
  * rather than folded into a blanket success. */
-export interface DisplayReceipt {
+interface DisplayReceipt {
   /** The projector popout is up on the responder's own client. */
   rendered: boolean;
   /** The show/clear frame was handed to Foundry's socket relay. */

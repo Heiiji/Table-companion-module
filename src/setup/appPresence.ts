@@ -2,7 +2,7 @@ import { DROP_WARN_INTERVAL_MS } from "../constants.js";
 import { log } from "../util/log.js";
 
 /** The backend's event naming who has the Table Companion app open. */
-export const APP_PRESENCE_EVENT = "app.presence";
+const APP_PRESENCE_EVENT = "app.presence";
 
 /** Past this age the last snapshot no longer says anything about the players:
  * setup shows their state as unknown. */
@@ -13,10 +13,10 @@ const MAX_ID_LENGTH = 64;
 const MAX_LABEL_LENGTH = 128;
 const STATES = ["inSession", "appOpen", "offline"] as const;
 
-export type AppSeatState = (typeof STATES)[number];
+type AppSeatState = (typeof STATES)[number];
 
 /** One seat of the table, as the backend reports it. */
-export interface AppSeat {
+interface AppSeat {
   memberId: string;
   /** The Foundry Actor bound to this seat, if any. */
   actorId?: string;
@@ -27,7 +27,7 @@ export interface AppSeat {
   lastSeenAt?: number;
 }
 
-export interface AppPresence {
+interface AppPresence {
   seats: AppSeat[];
   /** Unix ms at which this browser received the snapshot. */
   receivedAt: number;

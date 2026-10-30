@@ -28,7 +28,7 @@ export type Procedure = (
  *   no document. Recoverable by repeating or clearing it, so it needs neither a
  *   read's silent fallback nor a mutation's ceremony.
  */
-export type ProcedureKind = "read" | "mutation" | "clientState";
+type ProcedureKind = "read" | "mutation" | "clientState";
 
 /**
  * The contract a procedure claims. Required at registration, so a procedure

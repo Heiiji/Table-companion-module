@@ -7,12 +7,14 @@ import {
   type KnightEquipmentCrosswalkDocumentV1,
 } from "../refdata/knightCompendiumCrosswalkV14_0_1.js";
 import {
-  actorItems,
+  contentsOf,
+  FLAG_KEYS,
+  flagRecord,
   flagValue,
   foundryId,
   invalid,
   isAdmittedKnightSystemVersion,
-  itemID,
+  docId,
   type ActorItemLike,
   type ActorLike,
   type Dict,
@@ -38,29 +40,31 @@ import { canonicalSlotAlternative } from "./actorUpsert.validate.js";
 function itemCatalogVariant(
   item: ActorItemLike,
 ): EquipmentCatalogVariantV1 | null {
-  const value = flagValue(item, "equipmentCatalogVariantV1");
-  if (typeof value !== "object" || value === null) return null;
-  const p = value as Dict;
-  if (
-    p.schemaVersion !== 1 ||
-    !Array.isArray(p.catalogIds) ||
-    p.catalogIds.length === 0 ||
-    !p.catalogIds.every((id) => typeof id === "string" && catalogId.test(id)) ||
-    new Set(p.catalogIds).size !== p.catalogIds.length ||
-    !Number.isSafeInteger(p.quantity) ||
-    (p.quantity as number) < 1 ||
-    (p.quantity as number) > 10 ||
-    !Number.isSafeInteger(p.instanceIndex) ||
-    (p.instanceIndex as number) < 0 ||
-    (p.instanceIndex as number) >= (p.quantity as number) ||
-    (p.slotAlternativeId !== undefined &&
-      typeof p.slotAlternativeId !== "string") ||
-    (p.parentCatalogId !== undefined &&
-      (typeof p.parentCatalogId !== "string" ||
-        !catalogId.test(p.parentCatalogId))) ||
-    (p.moduleLevel !== undefined && ![1, 2, 3].includes(Number(p.moduleLevel)))
-  )
-    return null;
+  const p = flagRecord(
+    item,
+    FLAG_KEYS.equipmentCatalogVariant,
+    (p) =>
+      Array.isArray(p.catalogIds) &&
+      p.catalogIds.length > 0 &&
+      p.catalogIds.every(
+        (id) => typeof id === "string" && catalogId.test(id),
+      ) &&
+      new Set(p.catalogIds).size === p.catalogIds.length &&
+      Number.isSafeInteger(p.quantity) &&
+      (p.quantity as number) >= 1 &&
+      (p.quantity as number) <= 10 &&
+      Number.isSafeInteger(p.instanceIndex) &&
+      (p.instanceIndex as number) >= 0 &&
+      (p.instanceIndex as number) < (p.quantity as number) &&
+      (p.slotAlternativeId === undefined ||
+        typeof p.slotAlternativeId === "string") &&
+      (p.parentCatalogId === undefined ||
+        (typeof p.parentCatalogId === "string" &&
+          catalogId.test(p.parentCatalogId))) &&
+      (p.moduleLevel === undefined ||
+        [1, 2, 3].includes(Number(p.moduleLevel))),
+  );
+  if (!p) return null;
   if (p.slotAlternativeId !== undefined) {
     try {
       canonicalSlotAlternative(
@@ -73,7 +77,7 @@ function itemCatalogVariant(
   }
   return {
     schemaVersion: 1,
-    catalogIds: [...p.catalogIds].sort(),
+    catalogIds: [...(p.catalogIds as string[])].sort(),
     quantity: p.quantity as number,
     instanceIndex: p.instanceIndex as number,
     slotAlternativeId: p.slotAlternativeId as string | undefined,
@@ -85,7 +89,7 @@ function itemCatalogVariant(
 function itemCatalogIDs(item: ActorItemLike): string[] {
   const variant = itemCatalogVariant(item);
   if (variant) return variant.catalogIds;
-  const value = flagValue(item, "equipmentCatalogId");
+  const value = flagValue(item, FLAG_KEYS.equipmentCatalogId);
   return typeof value === "string" && catalogId.test(value) ? [value] : [];
 }
 
@@ -96,23 +100,22 @@ function itemCatalogID(item: ActorItemLike): string {
 function itemCatalogSource(
   item: ActorItemLike,
 ): EquipmentCatalogSourceV1 | null {
-  const value = flagValue(item, "equipmentCatalogSourceV1");
-  if (typeof value !== "object" || value === null) return null;
-  const p = value as Dict;
-  if (
-    p.schemaVersion !== 1 ||
-    typeof p.pack !== "string" ||
-    typeof p.documentId !== "string" ||
-    p.compendiumVersion !== KNIGHT_COMPENDIUM_VERSION ||
-    !isAdmittedKnightSystemVersion(p.knightSystemVersion)
-  )
-    return null;
+  const p = flagRecord(
+    item,
+    FLAG_KEYS.equipmentCatalogSource,
+    (p) =>
+      typeof p.pack === "string" &&
+      typeof p.documentId === "string" &&
+      p.compendiumVersion === KNIGHT_COMPENDIUM_VERSION &&
+      isAdmittedKnightSystemVersion(p.knightSystemVersion),
+  );
+  if (!p) return null;
   return {
     schemaVersion: 1,
-    pack: p.pack,
-    documentId: p.documentId,
-    compendiumVersion: p.compendiumVersion,
-    knightSystemVersion: p.knightSystemVersion,
+    pack: p.pack as string,
+    documentId: p.documentId as string,
+    compendiumVersion: KNIGHT_COMPENDIUM_VERSION,
+    knightSystemVersion: p.knightSystemVersion as string,
   };
 }
 
@@ -122,7 +125,7 @@ async function deleteManagedEquipment(
   warnings: string[],
 ): Promise<boolean> {
   if (items.length === 0) return true;
-  const ids = items.map(itemID);
+  const ids = items.map(docId);
   if (
     ids.some((id) => !foundryId.test(id)) ||
     typeof actor.deleteEmbeddedDocuments !== "function"
@@ -370,7 +373,7 @@ export async function applyEquipment(
       .map((selection) => selection.catalogId)
       .filter((id) => KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1[id] === undefined),
   );
-  const managed = actorItems(actor).filter(
+  const managed = contentsOf(actor.items).filter(
     (item) => itemCatalogIDs(item).length > 0,
   );
   const stale: ActorItemLike[] = [];
@@ -440,8 +443,8 @@ export async function applyEquipment(
       sourceFlags[MODULE_ID] !== null
         ? { ...(sourceFlags[MODULE_ID] as Dict) }
         : {};
-    tcFlags.equipmentCatalogId = item.catalogIds.at(-1)!;
-    tcFlags.equipmentCatalogVariantV1 = {
+    tcFlags[FLAG_KEYS.equipmentCatalogId] = item.catalogIds.at(-1)!;
+    tcFlags[FLAG_KEYS.equipmentCatalogVariant] = {
       schemaVersion: 1,
       catalogIds: item.catalogIds,
       quantity: item.quantity,
@@ -456,7 +459,7 @@ export async function applyEquipment(
         ? {}
         : { moduleLevel: item.moduleLevel }),
     } satisfies EquipmentCatalogVariantV1;
-    tcFlags.equipmentCatalogSourceV1 = {
+    tcFlags[FLAG_KEYS.equipmentCatalogSource] = {
       schemaVersion: 1,
       pack: item.mapped.pack,
       documentId: item.mapped.documentId,

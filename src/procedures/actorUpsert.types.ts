@@ -36,23 +36,47 @@ export interface AIV1 {
 }
 
 /** PC aspect bases (the prepared values stay derived in Foundry). */
-export type AspectsV1 = AspectScoresV1;
+type AspectsV1 = AspectScoresV1;
 
-export interface CharacteristicsV1 {
-  chair: { deplacement: number; force: number; endurance: number };
-  bete: { combat: number; hargne: number; instinct: number };
-  machine: { tir: number; savoir: number; technique: number };
-  dame: { aura: number; parole: number; sangFroid: number };
-  masque: { discretion: number; dexterite: number; perception: number };
-}
+/** The three characteristics of each aspect, in the order Knight stores them. */
+export const CHARACTERISTIC_KEYS = {
+  chair: ["deplacement", "force", "endurance"],
+  bete: ["combat", "hargne", "instinct"],
+  machine: ["tir", "savoir", "technique"],
+  dame: ["aura", "parole", "sangFroid"],
+  masque: ["discretion", "dexterite", "perception"],
+} as const;
 
-export interface CurrentResourcesV1 {
-  health?: number;
-  hope?: number;
-  armour?: number;
-  energy?: number;
-  contact?: number;
-}
+/** PC characteristic bases, per aspect. */
+export type CharacteristicsV1 = {
+  [A in keyof typeof CHARACTERISTIC_KEYS]: Record<
+    (typeof CHARACTERISTIC_KEYS)[A][number],
+    number
+  >;
+};
+
+/** The six Knight resources `actor.resources.v1` carries, in write order. */
+export const RESOURCE_KEYS = [
+  "health",
+  "hope",
+  "armour",
+  "energy",
+  "heroism",
+  "contact",
+] as const;
+export type ResourceKey = (typeof RESOURCE_KEYS)[number];
+
+/** The five `actor.upsert.v1` carries: heroism is not provisioned. */
+export const UPSERT_RESOURCE_KEYS = [
+  "health",
+  "hope",
+  "armour",
+  "energy",
+  "contact",
+] as const;
+export type CurrentResourcesV1 = Partial<
+  Record<(typeof UPSERT_RESOURCE_KEYS)[number], number>
+>;
 
 export interface CharacterCreationV1 {
   schemaVersion: 1;

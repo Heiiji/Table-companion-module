@@ -4,7 +4,7 @@ import { gameUsers } from "../foundry/runtime.js";
 import type { Procedure } from "../rpc/registry.js";
 import {
   actorCollection,
-  actorID,
+  docId,
   alreadyApplied,
   assertKnightUpsertAuthority,
   bindingFor,
@@ -18,6 +18,7 @@ import {
   type ActorLike,
   type BindingV1,
   type Outcome,
+  FLAG_KEYS,
 } from "./upsertShared.js";
 import {
   ACTOR_TYPE,
@@ -51,7 +52,7 @@ function assertRuntimeAndAuthority(req: KnightActorUpsertV1): void {
 }
 
 function syncOf(actor: ActorLike): SyncV1 | null {
-  const stored = parseStoredResult(actor, "actorUpsertV1");
+  const stored = parseStoredResult(actor, FLAG_KEYS.actorUpsert);
   if (!stored) return null;
   const { result, flag } = stored;
   if (
@@ -73,7 +74,7 @@ function createActor(
   return createActorDocument({
     name: req.name,
     type: ACTOR_TYPE,
-    flags: { [MODULE_ID]: { binding } },
+    flags: { [MODULE_ID]: { [FLAG_KEYS.binding]: binding } },
     ownership: normalizedOwnership(req.foundryUserId),
   });
 }
@@ -99,13 +100,13 @@ export const actorUpsertV1: Procedure = async (payload) => {
         "deleted_link",
         "the previously linked Actor no longer exists",
       );
-    if (actorID(actor) !== req.expectedActorId)
+    if (docId(actor) !== req.expectedActorId)
       throw new RpcError(
         "binding_conflict",
         "the binding points at a different Actor",
       );
   }
-  if (actor && req.assignedActorId && actorID(actor) !== req.assignedActorId) {
+  if (actor && req.assignedActorId && docId(actor) !== req.assignedActorId) {
     throw new RpcError(
       "binding_conflict",
       "assignedActorId differs from the bound Actor",
@@ -129,7 +130,7 @@ export const actorUpsertV1: Procedure = async (payload) => {
     outcome = "created";
   }
   if (actor.type !== ACTOR_TYPE) invalid("bound Actor is not a Knight actor");
-  const id = actorID(actor);
+  const id = docId(actor);
   if (!foundryId.test(id))
     throw new Error("Foundry returned an invalid Actor id");
 
@@ -183,6 +184,6 @@ export const actorUpsertV1: Procedure = async (payload) => {
     ],
   };
   const sync: SyncV1 = { ...result, state: req.state };
-  await actor.update({ [`flags.${MODULE_ID}.actorUpsertV1`]: sync });
+  await actor.update({ [`flags.${MODULE_ID}.${FLAG_KEYS.actorUpsert}`]: sync });
   return result;
 };

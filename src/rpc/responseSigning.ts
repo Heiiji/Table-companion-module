@@ -74,7 +74,7 @@ function bytesToB64(bytes: ArrayBuffer | Uint8Array): string {
 }
 
 /** The signed material this signer attaches to an rpc.response / rpc.error. */
-export interface ResponseSignature {
+interface ResponseSignature {
   /** base64 Ed25519 signature over the canonical signing string. */
   sig: string;
   /** Unix ms the signature was produced (the `signedAt` in the string). */

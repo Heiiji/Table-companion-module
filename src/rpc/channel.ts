@@ -71,7 +71,7 @@ export interface Pairing {
 
 /** An agent that asked to pair from a user other than the one this module
  * created. It is held, not trusted, until the GM decides. */
-export interface PendingPairing {
+interface PendingPairing {
   userId: string;
   userName: string;
   fingerprint: string;

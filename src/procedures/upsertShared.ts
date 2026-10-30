@@ -6,7 +6,6 @@ import {
   gameActors,
   systemId,
   systemVersion,
-  type ActorItemLike,
   type ActorLike,
   type ActorsLike,
   type Dict,
@@ -131,7 +130,7 @@ export const ASPECT_KEYS = [
   "dame",
   "masque",
 ] as const;
-export type AspectKey = (typeof ASPECT_KEYS)[number];
+type AspectKey = (typeof ASPECT_KEYS)[number];
 export type AspectScoresV1 = Record<AspectKey, number>;
 
 /** Parse the exact five-aspect object. Both the PC base scores and the pnj
@@ -228,70 +227,85 @@ export function actorCollection(): ActorsLike {
   return actors;
 }
 
-export function allActors(collection: ActorsLike): ActorLike[] {
-  if (Array.isArray(collection.contents)) return collection.contents;
-  const iterator = collection[Symbol.iterator];
-  if (iterator)
-    return [
-      ...({
-        [Symbol.iterator]: iterator.bind(collection),
-      } as Iterable<ActorLike>),
-    ];
+/** The documents of a Foundry collection, whichever shape the runtime exposes
+ * (`contents`, an iterable, or both, depending on the generation). */
+export function contentsOf<T>(
+  collection: { contents?: T[] } | Iterable<T> | null | undefined,
+): T[] {
+  if (!collection) return [];
+  if ("contents" in collection && Array.isArray(collection.contents))
+    return collection.contents;
+  if (Symbol.iterator in collection) return [...(collection as Iterable<T>)];
   return [];
 }
 
-export function actorID(actor: ActorLike): string {
-  return actor.id ?? actor._id ?? "";
+/** A Foundry document's id, or "" when it has none. */
+export function docId(
+  doc: { id?: string; _id?: string } | null | undefined,
+): string {
+  return doc?.id ?? doc?._id ?? "";
 }
 
-/** An Actor's embedded Items, whichever collection shape the runtime exposes. */
-export function actorItems(actor: ActorLike): ActorItemLike[] {
-  const items = actor.items;
-  if (!items) return [];
-  if ("contents" in items && Array.isArray(items.contents))
-    return items.contents;
-  if (Symbol.iterator in items) return [...(items as Iterable<ActorItemLike>)];
-  return [];
-}
+/** The keys this module stores under `flags["table-companion"]`. */
+export const FLAG_KEYS = {
+  binding: "binding",
+  actorUpsert: "actorUpsertV1",
+  actorResources: "actorResourcesV1",
+  npcUpsert: "npcUpsertV1",
+  characterCreation: "characterCreationV1",
+  minorMotivation: "actorUpsertMinorMotivationV1",
+  equipmentCatalogId: "equipmentCatalogId",
+  equipmentCatalogVariant: "equipmentCatalogVariantV1",
+  equipmentCatalogSource: "equipmentCatalogSourceV1",
+  combatSync: "combatSync",
+  combatantKey: "key",
+} as const;
 
-export function itemID(item: ActorItemLike): string {
-  return item.id ?? item._id ?? "";
-}
+type FlagDoc = {
+  getFlag?(namespace: string, key: string): unknown;
+  flags?: Dict;
+};
 
-export function flagValue(
-  actor: ActorLike | ActorItemLike,
-  key: string,
-): unknown {
-  if (typeof actor.getFlag === "function") return actor.getFlag(MODULE_ID, key);
-  const namespace = actor.flags?.[MODULE_ID];
+export function flagValue(doc: FlagDoc, key: string): unknown {
+  if (typeof doc.getFlag === "function") return doc.getFlag(MODULE_ID, key);
+  const namespace = doc.flags?.[MODULE_ID];
   return typeof namespace === "object" && namespace !== null
     ? (namespace as Dict)[key]
     : undefined;
 }
 
-export function bindingOf(actor: ActorLike): BindingV1 | null {
-  const value = flagValue(actor, "binding");
+/** A schema-1 object flag that `isValid` accepts, or null: a missing or
+ * malformed record reads as absent. */
+export function flagRecord(
+  doc: FlagDoc,
+  key: string,
+  isValid: (p: Dict) => boolean,
+): Dict | null {
+  const value = flagValue(doc, key);
   if (typeof value !== "object" || value === null) return null;
   const p = value as Dict;
-  if (
-    p.schemaVersion !== 1 ||
-    typeof p.worldId !== "string" ||
-    typeof p.tableId !== "string" ||
-    typeof p.characterId !== "string"
-  )
-    return null;
+  return p.schemaVersion === 1 && isValid(p) ? p : null;
+}
+
+export function bindingOf(actor: ActorLike): BindingV1 | null {
+  const p = flagRecord(
+    actor,
+    FLAG_KEYS.binding,
+    (p) =>
+      typeof p.worldId === "string" &&
+      typeof p.tableId === "string" &&
+      typeof p.characterId === "string",
+  );
+  if (!p) return null;
   return {
     schemaVersion: 1,
-    worldId: p.worldId,
-    tableId: p.tableId,
-    characterId: p.characterId,
+    worldId: p.worldId as string,
+    tableId: p.tableId as string,
+    characterId: p.characterId as string,
   };
 }
 
-export function exactBinding(
-  binding: BindingV1 | null,
-  expected: BindingV1,
-): boolean {
+function exactBinding(binding: BindingV1 | null, expected: BindingV1): boolean {
   return (
     binding?.schemaVersion === 1 &&
     binding.worldId === expected.worldId &&
@@ -321,7 +335,7 @@ export function uniqueBoundActor(
   collection: ActorsLike,
   binding: BindingV1,
 ): ActorLike | undefined {
-  const matches = allActors(collection).filter((actor) =>
+  const matches = contentsOf(collection).filter((actor) =>
     exactBinding(bindingOf(actor), binding),
   );
   if (matches.length > 1)
@@ -342,6 +356,21 @@ export interface StoredResultV1 {
   warnings: string[];
 }
 
+/** The fields every stored result flag carries, with its outcome among
+ * `outcomes` (shared by the provisioning lanes and the combat mirror). */
+export function storedResultShape(
+  p: Dict,
+  outcomes: readonly string[],
+): boolean {
+  return (
+    Number.isSafeInteger(p.appliedRevision) &&
+    typeof p.appliedDigest === "string" &&
+    outcomes.includes(String(p.outcome)) &&
+    Array.isArray(p.warnings) &&
+    p.warnings.every((w) => typeof w === "string")
+  );
+}
+
 /**
  * Read the result a previous apply stored under `flags["table-companion"][flagKey]`.
  * Returns the common fields plus the raw flag (so a lane can check and read its
@@ -352,25 +381,15 @@ export function parseStoredResult(
   actor: ActorLike,
   flagKey: string,
 ): { result: StoredResultV1; flag: Dict } | null {
-  const value = flagValue(actor, flagKey);
-  if (typeof value !== "object" || value === null) return null;
-  const p = value as Dict;
-  if (
-    p.schemaVersion !== 1 ||
-    !Number.isSafeInteger(p.appliedRevision) ||
-    typeof p.appliedDigest !== "string" ||
-    !OUTCOMES.includes(String(p.outcome)) ||
-    !Array.isArray(p.warnings) ||
-    !p.warnings.every((w) => typeof w === "string")
-  )
-    return null;
+  const p = flagRecord(actor, flagKey, (p) => storedResultShape(p, OUTCOMES));
+  if (!p) return null;
   return {
     result: {
       schemaVersion: 1,
-      resultDocId: actorID(actor),
+      resultDocId: docId(actor),
       outcome: p.outcome as Outcome,
       appliedRevision: p.appliedRevision as number,
-      appliedDigest: p.appliedDigest,
+      appliedDigest: p.appliedDigest as string,
       warnings: p.warnings as string[],
     },
     flag: p,

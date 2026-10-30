@@ -26,7 +26,7 @@ export interface UserLike {
   active?: boolean;
 }
 
-export interface UsersLike {
+interface UsersLike {
   get(id: string): UserLike | undefined;
   contents?: UserLike[];
 }
@@ -73,7 +73,7 @@ export interface ActorsLike {
 }
 
 /** Actor.implementation — the configured Actor document class. */
-export interface ActorFactoryLike {
+interface ActorFactoryLike {
   create(data: Dict, options?: Dict): Promise<unknown>;
 }
 
@@ -91,18 +91,18 @@ export interface CompendiumPacksLike {
   get(collection: string): CompendiumPackLike | undefined;
 }
 
-export interface ModuleLike {
+interface ModuleLike {
   active?: boolean;
   version?: string;
 }
 
-export interface ModulesLike {
+interface ModulesLike {
   get(id: string): ModuleLike | undefined;
 }
 
 // fvtt-types models settings only for keys it knows; this module's keys are
 // registered in module.ts at init and read structurally here.
-export interface SettingsLike {
+interface SettingsLike {
   get(namespace: string, key: string): unknown;
   set(namespace: string, key: string, value: unknown): Promise<unknown>;
 }
@@ -111,7 +111,7 @@ export interface SettingsLike {
  * server passes the sender's user id as a listener's second argument. Foundry
  * ignores a listener's return value, so a listener that returns a promise must
  * handle its own rejection (the promise is there for callers that await it). */
-export interface SocketLike {
+interface SocketLike {
   emit(event: string, ...args: unknown[]): void;
   on(
     event: string,
@@ -119,22 +119,22 @@ export interface SocketLike {
   ): void;
 }
 
-export type NotificationsLike = Partial<
+type NotificationsLike = Partial<
   Record<"info" | "warn" | "error", (message: string) => void>
 >;
 
-export interface HooksLike {
+interface HooksLike {
   on(hook: string, fn: () => void): unknown;
 }
 
-export type DialogV2Class = (new (options: unknown) => unknown) & {
+type DialogV2Class = (new (options: unknown) => unknown) & {
   /** Resolves true on Yes; false or null on No or a closed window. */
   confirm?(options: unknown): Promise<unknown>;
 };
 
 /** `foundry.applications.api.ApplicationV2`, as far as a subclass that only
  * overrides `render` needs it. */
-export type ApplicationV2Class = new (options?: unknown) => {
+type ApplicationV2Class = new (options?: unknown) => {
   render(options?: unknown): unknown;
 };
 
@@ -179,18 +179,18 @@ export interface SceneLike {
 }
 
 /** `game.combats`: exposes `contents`, is iterable, or both. */
-export interface CombatsLike {
+interface CombatsLike {
   contents?: CombatLike[];
   [Symbol.iterator]?(): Iterator<CombatLike>;
 }
 
 /** Combat.implementation — the configured Combat document class. */
-export interface CombatFactoryLike {
+interface CombatFactoryLike {
   create(data: Dict, options?: Dict): Promise<unknown>;
 }
 
 /** The slice of `game` this module reads. */
-export interface GameLike {
+interface GameLike {
   user?: UserLike;
   users?: UsersLike;
   actors?: ActorsLike;

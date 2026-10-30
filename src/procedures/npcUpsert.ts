@@ -7,7 +7,7 @@ import {
   OWNERSHIP_NONE,
   SCHEMA_VERSION,
   actorCollection,
-  actorID,
+  docId,
   alreadyApplied,
   assertKnightUpsertAuthority,
   bindingFor,
@@ -30,6 +30,7 @@ import {
   type Dict,
   type Outcome,
   type StoredResultV1,
+  FLAG_KEYS,
 } from "./upsertShared.js";
 
 /**
@@ -203,7 +204,7 @@ function npcOwnershipUpdate(actor: ActorLike, visibility: Visibility): Dict {
 }
 
 function npcSyncOf(actor: ActorLike): NpcUpsertResultV1 | null {
-  return parseStoredResult(actor, "npcUpsertV1")?.result ?? null;
+  return parseStoredResult(actor, FLAG_KEYS.npcUpsert)?.result ?? null;
 }
 
 function createNpcActor(
@@ -213,7 +214,7 @@ function createNpcActor(
   return createActorDocument({
     name: req.name,
     type: NPC_ACTOR_TYPE,
-    flags: { [MODULE_ID]: { binding } },
+    flags: { [MODULE_ID]: { [FLAG_KEYS.binding]: binding } },
     ownership: { default: ownershipDefault(req.visibility) },
     prototypeToken: { disposition: tokenDisposition(req.visibility) },
   });
@@ -232,7 +233,7 @@ function authoredNpcPatch(
     name: req.name,
     ownership: npcOwnershipUpdate(actor, req.visibility),
     "prototypeToken.disposition": tokenDisposition(req.visibility),
-    [`flags.${MODULE_ID}.binding`]: binding,
+    [`flags.${MODULE_ID}.${FLAG_KEYS.binding}`]: binding,
   };
   for (const key of ASPECT_KEYS) {
     patch[`system.aspects.${key}.value`] = req.aspects[key];
@@ -291,7 +292,7 @@ export const npcUpsertV1: Procedure = async (payload) => {
     actor = await createNpcActor(req, binding);
     outcome = "created";
   }
-  const id = actorID(actor);
+  const id = docId(actor);
   if (!foundryId.test(id))
     throw new Error("Foundry returned an invalid Actor id");
 
@@ -319,6 +320,6 @@ export const npcUpsertV1: Procedure = async (payload) => {
     appliedDigest: digest,
     warnings: [],
   };
-  await actor.update({ [`flags.${MODULE_ID}.npcUpsertV1`]: result });
+  await actor.update({ [`flags.${MODULE_ID}.${FLAG_KEYS.npcUpsert}`]: result });
   return result;
 };

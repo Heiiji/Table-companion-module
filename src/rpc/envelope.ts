@@ -2,7 +2,7 @@ import { ENVELOPE_VERSION } from "../constants.js";
 
 /** Envelope message types. Additive: new types may be added in later envelope
  * versions; receivers MUST ignore types they do not recognize. */
-export type EnvelopeType =
+type EnvelopeType =
   | "hello"
   | "hello.ack"
   | "ping"

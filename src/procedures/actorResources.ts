@@ -1,11 +1,12 @@
 import { MODULE_ID } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
-import { hasPath, wornGear } from "./actorUpsert.patch.js";
+import { hasPath, resourcePaths } from "./actorUpsert.patch.js";
+import { RESOURCE_KEYS, type ResourceKey } from "./actorUpsert.types.js";
 import {
   SCHEMA_VERSION,
   actorCollection,
-  actorID,
+  docId,
   alreadyApplied,
   assertKnightUpsertAuthority,
   bindingFor,
@@ -20,6 +21,7 @@ import {
   uniqueBoundActor,
   type Dict,
   type StoredResultV1,
+  FLAG_KEYS,
 } from "./upsertShared.js";
 
 /**
@@ -35,16 +37,6 @@ import {
  */
 
 const ACTOR_TYPE = "knight";
-const RESOURCE_KEYS = [
-  "health",
-  "hope",
-  "armour",
-  "energy",
-  "heroism",
-  "contact",
-] as const;
-type ResourceKey = (typeof RESOURCE_KEYS)[number];
-
 export interface KnightActorResourcesV1 {
   schemaVersion: 1;
   actorType: "knight";
@@ -109,20 +101,6 @@ function valueAt(root: unknown, path: string): unknown {
   return current;
 }
 
-/** Stored current path and prepared-maximum path of each resource (Knight
- * PC model, 3.58.33 or later). Armour and energy live on the worn gear; their prepared
- * maxima are the top-level `armure.max` / `energie.max`. Contact has no max. */
-function resourcePaths(gear: string): Record<ResourceKey, [string, string?]> {
-  return {
-    health: ["sante.value", "sante.max"],
-    hope: ["espoir.value", "espoir.max"],
-    armour: [`equipements.${gear}.armure.value`, "armure.max"],
-    energy: [`equipements.${gear}.energie.value`, "energie.max"],
-    heroism: ["heroisme.value", "heroisme.max"],
-    contact: ["contacts.actuel"],
-  };
-}
-
 export const actorResourcesV1: Procedure = async (payload) => {
   const req = validateKnightActorResourcesV1(payload);
   assertKnightUpsertAuthority("actor.resources.v1");
@@ -142,20 +120,20 @@ export const actorResourcesV1: Procedure = async (payload) => {
         "the Actor is bound to another character",
       );
   }
-  const id = actorID(actor);
+  const id = docId(actor);
   if (actor.type !== ACTOR_TYPE || id !== req.expectedActorId)
     throw new RpcError(
       "binding_conflict",
       "the binding points at a different Actor",
     );
 
-  const stored = parseStoredResult(actor, "actorResourcesV1");
+  const stored = parseStoredResult(actor, FLAG_KEYS.actorResources);
   const previous = stored?.result ?? null;
   if (previous && alreadyApplied(previous, req.sequence, digest, "sequence")) {
     return { ...previous, warnings: [...previous.warnings] };
   }
 
-  const paths = resourcePaths(wornGear(actor));
+  const paths = resourcePaths(actor);
   const patch: Dict = {};
   const warnings: string[] = [];
   for (const key of RESOURCE_KEYS) {
@@ -198,7 +176,10 @@ export const actorResourcesV1: Procedure = async (payload) => {
     return result;
   await actor.update({
     ...patch,
-    [`flags.${MODULE_ID}.actorResourcesV1`]: { ...result, contentDigest },
+    [`flags.${MODULE_ID}.${FLAG_KEYS.actorResources}`]: {
+      ...result,
+      contentDigest,
+    },
   });
   return result;
 };

@@ -19,7 +19,12 @@ import {
   assertGMResponder,
   bindingId,
   canonicalDigest,
+  FLAG_KEYS,
+  contentsOf,
+  docId,
+  flagRecord,
   flagValue,
+  storedResultShape,
   identifier,
   integer,
   invalid,
@@ -46,13 +51,11 @@ const MAX_COMBATANTS = 64;
 const MAX_NAME = 120;
 const MAX_ROUND = 9999;
 const MAX_INITIATIVE = 1_000_000;
-const COMBAT_FLAG = "combatSync";
-const COMBATANT_FLAG = "key";
 
 /** A Foundry document id (randomID(16)). */
 const documentId = /^[A-Za-z0-9]{16}$/;
 
-export interface CombatantSyncV1 {
+interface CombatantSyncV1 {
   key: string;
   actorId: string | null;
   name: string;
@@ -84,7 +87,7 @@ export interface CombatSyncResultV1 {
 
 /** Systems whose worlds the backend never writes to: advertising the mirror
  * there would promise something every request is refused for. */
-export const COMBAT_SYNC_REFUSED_SYSTEMS: ReadonlySet<string> = new Set([
+const COMBAT_SYNC_REFUSED_SYSTEMS: ReadonlySet<string> = new Set([
   "pf2e",
   "cyberpunk-red-core",
   "cpred",
@@ -170,20 +173,6 @@ export function validateCombatSyncV1(payload: unknown): CombatSyncV1 {
   };
 }
 
-function listOf<T>(
-  collection: { contents?: T[] } | Iterable<T> | null | undefined,
-): T[] {
-  if (!collection) return [];
-  if ("contents" in collection && Array.isArray(collection.contents))
-    return collection.contents;
-  if (Symbol.iterator in collection) return [...(collection as Iterable<T>)];
-  return [];
-}
-
-function docId(doc: { id?: string; _id?: string } | null | undefined): string {
-  return doc?.id ?? doc?._id ?? "";
-}
-
 function mirroredCombat(combatId: string): CombatLike | undefined {
   const combats = gameCombats();
   if (!combats)
@@ -191,8 +180,8 @@ function mirroredCombat(combatId: string): CombatLike | undefined {
       "unsupported_runtime",
       "Foundry game.combats is unavailable",
     );
-  const matches = listOf(combats).filter((combat) => {
-    const flag = flagValue(combat, COMBAT_FLAG);
+  const matches = contentsOf(combats).filter((combat) => {
+    const flag = flagValue(combat, FLAG_KEYS.combatSync);
     return (
       typeof flag === "object" &&
       flag !== null &&
@@ -209,24 +198,16 @@ function mirroredCombat(combatId: string): CombatLike | undefined {
 
 /** The result a previous apply stored on the Combat, or null. */
 function storedResult(combat: CombatLike): CombatSyncResultV1 | null {
-  const flag = flagValue(combat, COMBAT_FLAG);
-  if (typeof flag !== "object" || flag === null) return null;
-  const p = flag as Dict;
-  if (
-    p.schemaVersion !== 1 ||
-    !Number.isSafeInteger(p.appliedRevision) ||
-    typeof p.appliedDigest !== "string" ||
-    (p.outcome !== "created" && p.outcome !== "updated") ||
-    !Array.isArray(p.warnings) ||
-    !p.warnings.every((w) => typeof w === "string")
-  )
-    return null;
+  const p = flagRecord(combat, FLAG_KEYS.combatSync, (p) =>
+    storedResultShape(p, ["created", "updated"]),
+  );
+  if (!p) return null;
   return {
     schemaVersion: 1,
     resultDocId: docId(combat),
-    outcome: p.outcome,
+    outcome: p.outcome as "created" | "updated",
     appliedRevision: p.appliedRevision as number,
-    appliedDigest: p.appliedDigest,
+    appliedDigest: p.appliedDigest as string,
     warnings: [...(p.warnings as string[])],
   };
 }
@@ -244,7 +225,7 @@ async function createCombat(combatId: string): Promise<CombatLike> {
       scene: sceneId || null,
       active: true,
       flags: {
-        [MODULE_ID]: { [COMBAT_FLAG]: { schemaVersion: 1, combatId } },
+        [MODULE_ID]: { [FLAG_KEYS.combatSync]: { schemaVersion: 1, combatId } },
       },
     },
     { renderSheet: false },
@@ -278,7 +259,7 @@ function combatantData(
     return data;
   }
   data.actorId = entry.actorId;
-  const token = listOf<TokenLike>(scene?.tokens).find(
+  const token = contentsOf<TokenLike>(scene?.tokens).find(
     (t) => t.actorId === entry.actorId,
   );
   if (token && scene) {
@@ -331,8 +312,8 @@ export const combatSyncV1: Procedure = async (payload) => {
   const scene = combat.scene ?? null;
   const warnings: string[] = [];
   const existing = new Map<string, CombatantLike>();
-  for (const c of listOf(combat.combatants)) {
-    const key = flagValue(c, COMBATANT_FLAG);
+  for (const c of contentsOf(combat.combatants)) {
+    const key = flagValue(c, FLAG_KEYS.combatantKey);
     if (typeof key === "string") existing.set(key, c);
   }
   const creates: Dict[] = [];
@@ -348,7 +329,7 @@ export const combatSyncV1: Procedure = async (payload) => {
     } else
       creates.push({
         ...data,
-        flags: { [MODULE_ID]: { [COMBATANT_FLAG]: entry.key } },
+        flags: { [MODULE_ID]: { [FLAG_KEYS.combatantKey]: entry.key } },
       });
   }
   const wanted = new Set(req.combatants.map((c) => c.key));
@@ -373,7 +354,7 @@ export const combatSyncV1: Procedure = async (payload) => {
   let turn: number | null = turns.length ? 0 : null;
   if (req.activeKey !== null) {
     const index = turns.findIndex(
-      (c) => flagValue(c, COMBATANT_FLAG) === req.activeKey,
+      (c) => flagValue(c, FLAG_KEYS.combatantKey) === req.activeKey,
     );
     if (index >= 0) turn = index;
     else warnings.push("active_combatant_missing");
@@ -392,7 +373,7 @@ export const combatSyncV1: Procedure = async (payload) => {
     {
       round: req.round,
       turn,
-      [`flags.${MODULE_ID}.${COMBAT_FLAG}`]: {
+      [`flags.${MODULE_ID}.${FLAG_KEYS.combatSync}`]: {
         ...result,
         combatId: req.combatId,
       },
