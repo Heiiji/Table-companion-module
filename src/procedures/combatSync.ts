@@ -355,6 +355,11 @@ export const combatSyncV1: Procedure = async (payload) => {
   const removals = [...existing]
     .filter(([key]) => !wanted.has(key))
     .map(([, c]) => docId(c));
+  // Foundry keeps the current combatant across a create or delete by emitting
+  // its own `update({turn})`, with turn events on. Clearing the turn first
+  // leaves it nothing to shift; the final update below sets it quietly.
+  if ((removals.length || creates.length) && combat.turn != null)
+    await combat.update({ turn: null }, { turnEvents: false });
   if (removals.length)
     await combat.deleteEmbeddedDocuments("Combatant", removals);
   if (updates.length)

@@ -154,6 +154,7 @@ export interface CombatLike {
   scene?: SceneLike | null;
   combatants?: { contents?: CombatantLike[] } | Iterable<CombatantLike>;
   turns?: CombatantLike[];
+  turn?: number | null;
   getFlag?(namespace: string, key: string): unknown;
   setupTurns?(): CombatantLike[];
   update(changes: Dict, options?: Dict): Promise<unknown>;

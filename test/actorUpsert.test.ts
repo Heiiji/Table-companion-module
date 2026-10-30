@@ -149,6 +149,33 @@ describe("actor.upsert.v1", () => {
     expect(createdActor!.updates).toHaveLength(updateCount); // exact idempotent replay is read-only
   });
 
+  it("creates without resources and then writes no current resource", async () => {
+    const actors: FakeActor[] = [];
+    const created = fakeActor();
+    stubFoundry(
+      actors,
+      vi.fn(async () => (actors.push(created), created)),
+    );
+
+    const result = (await actorUpsertV1(
+      approved({ resources: undefined, equipment: undefined }),
+      {} as never,
+    )) as ActorUpsertResultV1;
+
+    expect(result.outcome).toBe("created");
+    expect(result.warnings).toEqual([]);
+    const keys = created.updates.flatMap((update) => Object.keys(update));
+    expect(keys).toContain("system.aspects.chair.base");
+    for (const path of [
+      "system.sante.value",
+      "system.espoir.value",
+      "system.contacts.actuel",
+      "system.equipements.armure.armure.value",
+      "system.equipements.armure.energie.value",
+    ])
+      expect(keys).not.toContain(path);
+  });
+
   it("adopts only an explicitly assigned unbound Actor and never matches a name", async () => {
     const sameName = fakeActor(ACTOR_ID, "Lancelot");
     const created = fakeActor("actor00000000002", "Lancelot");

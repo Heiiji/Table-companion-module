@@ -617,11 +617,15 @@ export class Channel {
    * guard both ran it — a provisioning request could create the Actor twice.
    * Only the tab that takes this browser's lock for the request id answers; the
    * others stay silent. Web Locks need a secure context: on plain-http Foundry
-   * `navigator.locks` is absent and every tab answers, as before. */
+   * `navigator.locks` is absent and a `localStorage` claim stands in. */
   private async handleRequest(env: Envelope, sender: string): Promise<void> {
     const locks = (globalThis as { navigator?: { locks?: LockManager } })
       .navigator?.locks;
-    if (!locks || !env.id) return this.dispatchRequest(env, sender);
+    if (!env.id) return this.dispatchRequest(env, sender);
+    if (!locks) {
+      if (claimRequest(env.id)) await this.dispatchRequest(env, sender);
+      return;
+    }
     await locks.request(
       `${MODULE_ID}:${env.id}`,
       { ifAvailable: true },
@@ -738,5 +742,33 @@ export class Channel {
     } catch (err) {
       log.error("failed to sign rpc reply", err);
     }
+  }
+}
+
+const CLAIM_PREFIX = `${MODULE_ID}:req:`;
+const CLAIM_TTL_MS = 60_000;
+
+/** The first tab of this browser to claim a request id answers it; claims
+ * expire after a minute and are pruned on each call. Without storage (or when
+ * it throws) every tab answers, as before.
+ * ponytail: get-then-set is not atomic across tabs; tabs receive a socket
+ * message at different moments, which is the race this closes in practice. */
+export function claimRequest(id: string, now = Date.now()): boolean {
+  try {
+    const store = (globalThis as { localStorage?: Storage }).localStorage;
+    if (!store) return true;
+    for (let i = store.length - 1; i >= 0; i--) {
+      const key = store.key(i);
+      if (
+        key?.startsWith(CLAIM_PREFIX) &&
+        !(now - Number(store.getItem(key)) < CLAIM_TTL_MS)
+      )
+        store.removeItem(key);
+    }
+    if (store.getItem(CLAIM_PREFIX + id) !== null) return false;
+    store.setItem(CLAIM_PREFIX + id, String(now));
+    return true;
+  } catch {
+    return true;
   }
 }

@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { Channel } from "../src/rpc/channel.js";
+import { Channel, claimRequest } from "../src/rpc/channel.js";
 import { ProcedureRegistry } from "../src/rpc/registry.js";
 import { RpcError } from "../src/rpc/errors.js";
 import {
@@ -697,6 +697,37 @@ describe("Channel.onMessage", () => {
     );
     await Promise.all([firstTab(raw, AGENT_USER), secondTab(raw, AGENT_USER)]);
     expect(emitted("rpc.response")).toHaveLength(1);
+  });
+
+  it("answers from only one tab through a localStorage claim when Web Locks are absent", async () => {
+    stubGame({ pinned: agentPubB64 });
+    vi.stubGlobal("navigator", {}); // plain http: no navigator.locks
+    const items = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      get length() {
+        return items.size;
+      },
+      key: (i: number) => [...items.keys()][i] ?? null,
+      getItem: (k: string) => items.get(k) ?? null,
+      setItem: (k: string, v: string) => items.set(k, v),
+      removeItem: (k: string) => items.delete(k),
+    });
+    startChannel();
+    const firstTab = socketHandler!;
+    startChannel();
+    const secondTab = socketHandler!;
+    const raw = await sign(
+      agentEnv("rpc.request", { id: "two-tabs-http", proc: "slow" }),
+    );
+    await Promise.all([firstTab(raw, AGENT_USER), secondTab(raw, AGENT_USER)]);
+    expect(emitted("rpc.response")).toHaveLength(1);
+
+    // A claim expires after a minute: it is pruned and the id can be taken again.
+    const later = Date.now() + 60_001;
+    expect(claimRequest("two-tabs-http", later - 1_000)).toBe(false);
+    expect(claimRequest("other", later)).toBe(true);
+    expect([...items.keys()]).toEqual([`${MODULE_ID}:req:other`]);
+    expect(claimRequest("two-tabs-http", later)).toBe(true);
   });
 
   it("records the backend's pairing verdict from hello.ack", async () => {

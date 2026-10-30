@@ -17,6 +17,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 - `combat.sync.v1` no longer erases an initiative rolled in Foundry when the app's entry has none yet.
+- `combat.sync.v1` no longer lets Foundry emit its own turn change, with turn hooks, when combatants
+  join or leave: the turn is cleared quietly first, then set once.
+- On a plain-http world (no Web Locks), two browser tabs of the same Gamemaster no longer both answer
+  a request: the first tab to claim it in `localStorage` answers, the others stay silent.
 
 ## [0.15.1] - 2026-10-29
 

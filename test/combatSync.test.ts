@@ -35,7 +35,10 @@ const newId = (prefix: string) =>
   `${prefix}${String(++nextId).padStart(16 - prefix.length, "0")}`;
 
 /** A Combat that applies its embedded writes and orders turns like Foundry:
- * initiative descending (unrolled last), then name. */
+ * initiative descending (unrolled last), then name. Like Foundry's
+ * `_onCreateDescendantDocuments`/`_onDeleteDescendantDocuments`, a create or
+ * delete keeps the current combatant by emitting its own `update({turn})`,
+ * turn events on, when that combatant's index moved. */
 class FakeCombat {
   id = newId("combat");
   flags: Dict;
@@ -77,10 +80,23 @@ class FakeCombat {
     this.deleted = true;
     combats.splice(combats.indexOf(this), 1);
   }
+  private async keepCurrent(write: () => void) {
+    const current = this.turn === null ? undefined : this.turns[this.turn];
+    write();
+    this.setupTurns();
+    if (!current) return;
+    const turn = Math.max(
+      this.turns.findIndex((c) => c.id === current.id),
+      0,
+    );
+    if (turn !== this.turn) await this.update({ turn });
+  }
   async createEmbeddedDocuments(_type: string, data: Dict[]) {
     this.embeddedWrites++;
-    for (const d of data)
-      this.list.push({ id: newId("cbt"), ...(d as object) } as FakeCombatant);
+    await this.keepCurrent(() => {
+      for (const d of data)
+        this.list.push({ id: newId("cbt"), ...(d as object) } as FakeCombatant);
+    });
   }
   async updateEmbeddedDocuments(_type: string, data: Dict[]) {
     this.embeddedWrites++;
@@ -92,7 +108,9 @@ class FakeCombat {
   }
   async deleteEmbeddedDocuments(_type: string, ids: string[]) {
     this.embeddedWrites++;
-    this.list = this.list.filter((c) => !ids.includes(c.id));
+    await this.keepCurrent(() => {
+      this.list = this.list.filter((c) => !ids.includes(c.id));
+    });
   }
 }
 
@@ -350,6 +368,42 @@ describe("combat.sync.v1", () => {
     expect(combat.list.find((c) => keyOf(c) === "goblin")!.id).toBe(goblinId);
     // Ambush 30, Goblin chief 20, Hero 17: the GM's own combatant counts in Foundry's order.
     expect(combat.updates.at(-1)!.changes).toMatchObject({ round: 2, turn: 1 });
+  });
+
+  it("emits no turn update with turn events on when the list changes, and no reset when it does not", async () => {
+    stub();
+    await apply(request()); // Hero 17, Dragon 12.5, Goblin 8: Goblin active at 2
+    const combat = combats[0];
+    expect(combat.turn).toBe(2);
+    combat.updates = [];
+
+    // Dragon leaves and a 30 Ambush joins: Foundry would shift Goblin's index.
+    const [goblin, hero] = request().combatants;
+    const ambush = {
+      ...hero,
+      key: "ambush",
+      actorId: null,
+      name: "Ambush",
+      initiative: 30,
+    };
+    await apply(request({ sequence: 2, combatants: [goblin, hero, ambush] }));
+    expect(combat.updates.map((u) => u.options)).toEqual([
+      { turnEvents: false },
+      { turnEvents: false },
+    ]);
+    expect(combat.updates[0].changes).toEqual({ turn: null });
+    expect(combat.updates[1].changes).toMatchObject({ turn: 2 });
+    expect(combat.turn).toBe(2);
+
+    combat.updates = [];
+    await apply(
+      request({ sequence: 3, round: 2, combatants: [goblin, hero, ambush] }),
+    );
+    expect(combat.updates).toHaveLength(1);
+    expect(combat.updates[0]).toMatchObject({
+      changes: { round: 2, turn: 2 },
+      options: { turnEvents: false },
+    });
   });
 
   it("keeps an initiative rolled in Foundry when the app's entry has none", async () => {
