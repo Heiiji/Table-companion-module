@@ -393,6 +393,104 @@ describe("actor.upsert.v1", () => {
     expect(result.warnings).toContain("assign_foundry_user");
   });
 
+  it("converges on a retry after a failure between two embedded writes", async () => {
+    const armour = {
+      _id: "22826f541c384281",
+      name: "Fixture armour",
+      type: "armure",
+      system: {},
+      flags: {},
+    };
+    const compendium = {
+      documents: {
+        "knight-compendium.armours-base": { [armour._id]: armour },
+      },
+    };
+    const equipment = {
+      selections: [{ catalogId: "knight.armour.warrior", quantity: 1 }],
+    };
+    const itemsOf = (actor: FakeActor) =>
+      actor.items.contents.map((item) => [item.type, item.name]);
+
+    const clean = fakeActor();
+    stubFoundry([clean], undefined, 14, compendium);
+    const expected = (await actorUpsertV1(
+      approved({ assignedActorId: clean.id, equipment }),
+      {} as never,
+    )) as ActorUpsertResultV1;
+
+    const actor = fakeActor();
+    stubFoundry([actor], undefined, 14, compendium);
+    type Create = (
+      type: string,
+      data: Record<string, unknown>[],
+    ) => Promise<unknown>;
+    const create =
+      actor.createEmbeddedDocuments.getMockImplementation() as Create;
+    let failed = false;
+    actor.createEmbeddedDocuments = vi.fn<Create>(async (type, data) => {
+      // The motivations land, then the first equipment write fails.
+      if (!failed && data[0]?.type !== "motivationMineure") {
+        failed = true;
+        throw new Error("connection lost");
+      }
+      return create(type, data);
+    });
+    const req = approved({ assignedActorId: actor.id, equipment });
+    await expect(actorUpsertV1(req, {} as never)).rejects.toThrow(
+      "connection lost",
+    );
+    expect(
+      actor.items.contents.filter((i) => i.type === "motivationMineure"),
+    ).toHaveLength(3);
+
+    const retried = (await actorUpsertV1(
+      req,
+      {} as never,
+    )) as ActorUpsertResultV1;
+    // The failed attempt already bound the Actor: the retry finds it bound.
+    expect(retried).toEqual({ ...expected, outcome: "updated" });
+    expect(itemsOf(actor)).toEqual(itemsOf(clean));
+    expect(actor.system).toEqual(clean.system);
+  });
+
+  it("removes a hand-made OWNER grant when no Foundry user is assigned", async () => {
+    const COMPANION = "companion0000001";
+    const actor = fakeActor();
+    const req = approved({
+      approvedRevision: 2,
+      foundryUserId: undefined,
+      equipment: undefined,
+    });
+    binding(actor, req);
+    // The GM gave the player the sheet by hand in Foundry.
+    actor.ownership = { default: 0, [USER_ID]: 3, [COMPANION]: 2 };
+    stubFoundry([actor]);
+    pairCompanion(COMPANION);
+    const result = (await actorUpsertV1(
+      req,
+      {} as never,
+    )) as ActorUpsertResultV1;
+    expect(actor.ownership).toEqual({ default: 0, [COMPANION]: 2 });
+    expect(actor.updates[0]?.ownership).toHaveProperty(`-=${USER_ID}`, null);
+    expect(result.warnings).toContain("assign_foundry_user");
+  });
+
+  it("leaves a HOSTILE token disposition unchanged", async () => {
+    const actor = fakeActor() as FakeActor & {
+      prototypeToken: { disposition: number };
+    };
+    actor.prototypeToken = { disposition: -1 }; // CONST.TOKEN_DISPOSITIONS.HOSTILE
+    stubFoundry([actor]);
+    await actorUpsertV1(
+      approved({ assignedActorId: actor.id, equipment: undefined }),
+      {} as never,
+    );
+    const keys = actor.updates.flatMap((update) => Object.keys(update));
+    expect(keys.some((key) => key.startsWith("prototypeToken"))).toBe(false);
+    expect(actor.prototypeToken).toEqual({ disposition: -1 });
+  });
+
   it("keeps a draft to name, binding, sync flags, and target-user ownership", async () => {
     const actor = fakeActor();
     stubFoundry([actor]);

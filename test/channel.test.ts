@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { Channel, claimRequest } from "../src/rpc/channel.js";
 import { ProcedureRegistry } from "../src/rpc/registry.js";
+import { registerBuiltinProcedures } from "../src/procedures/index.js";
 import { RpcError } from "../src/rpc/errors.js";
 import {
   ModuleResponseSigner,
@@ -859,6 +860,45 @@ describe("Channel response signing", () => {
     expect(capabilities).toContain("actor.resources.v1");
     expect(capabilities).toContain("combat.sync.v1");
     expect(capabilities).toContain(CAP_RESPONSE_SIG);
+  });
+
+  it("advertises the combat mirror while withholding the Knight author lanes", async () => {
+    const AUTHOR_LANES = [
+      "actor.resources.v1",
+      "actor.upsert.v1",
+      "npc.upsert.v1",
+    ];
+    const { signer } = await ModuleResponseSigner.generate();
+    const helloOn = (version: string) => {
+      stubGame({ pinned: agentPubB64, responder: true });
+      vi.stubGlobal("game", {
+        ...(globalThis as unknown as { game: object }).game,
+        system: { id: "knight", version },
+        release: { generation: 14 },
+      });
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      const channel = new Channel(registry, "0.0.0-test");
+      channel.start();
+      emitSpy.mockClear();
+      channel.setResponseSigner(signer);
+      return emitted("hello").at(-1)!;
+    };
+
+    // The mixed state: a Knight release below the floor on a current Foundry.
+    const mixed = helloOn("3.58.32");
+    const capabilities = mixed.capabilities as string[];
+    expect(capabilities).toContain("combat.sync.v1");
+    for (const lane of AUTHOR_LANES) expect(capabilities).not.toContain(lane);
+    expect(Object.keys(mixed.unsupported as object).sort()).toEqual(
+      AUTHOR_LANES,
+    );
+
+    // 3.58.36 is above the floor: every lane is advertised, none withheld.
+    const admitted = helloOn("3.58.36");
+    for (const lane of [...AUTHOR_LANES, "combat.sync.v1"])
+      expect(admitted.capabilities as string[]).toContain(lane);
+    expect(admitted.unsupported).toBeUndefined();
   });
 
   it("does not advertise/sign when a signer is set but this client is NOT the responder", async () => {

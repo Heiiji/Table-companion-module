@@ -406,6 +406,59 @@ describe("combat.sync.v1", () => {
     });
   });
 
+  // Foundry persists no turn of its own on a Combatant update (rollInitiative
+  // and resetAll take `updateTurn` to do it themselves), so an initiative-only
+  // change needs no reset: the final quiet update sets the re-sorted index.
+  it("re-sorts on an initiative-only change without a turn reset", async () => {
+    stub();
+    await apply(request()); // Hero 17, Dragon 12.5, Goblin 8: Goblin active at 2
+    const combat = combats[0];
+    combat.updates = [];
+    const [goblin, hero, dragon] = request().combatants;
+    await apply(
+      request({
+        sequence: 2,
+        combatants: [{ ...goblin, initiative: 20 }, hero, dragon],
+      }),
+    );
+    expect(combat.updates).toHaveLength(1);
+    expect(combat.updates[0]).toMatchObject({
+      changes: { round: 1, turn: 0 },
+      options: { turnEvents: false },
+    });
+    expect(combat.turns[0].name).toBe("Goblin");
+  });
+
+  it("links two combatants of one actor, both to the first of its tokens", async () => {
+    const scene = {
+      ...SCENE,
+      tokens: {
+        contents: [
+          { id: "tokenHero0000001", actorId: HERO },
+          { id: "tokenHero0000002", actorId: HERO },
+        ],
+      },
+    };
+    stub({ scene });
+    const [, hero] = request().combatants;
+    const result = await apply(
+      request({
+        activeKey: "hero-a",
+        combatants: [
+          { ...hero, key: "hero-a", name: "Hero A" },
+          { ...hero, key: "hero-b", name: "Hero B", initiative: 3 },
+        ],
+      }),
+    );
+    expect(result.warnings).toEqual([]);
+    const list = combats[0].list;
+    expect(list.map(keyOf)).toEqual(["hero-a", "hero-b"]);
+    // The request names the actor, not a token: the mirror cannot tell two
+    // tokens of one actor apart, so both take the first.
+    for (const c of list)
+      expect(c).toMatchObject({ actorId: HERO, tokenId: "tokenHero0000001" });
+  });
+
   it("keeps an initiative rolled in Foundry when the app's entry has none", async () => {
     stub();
     await apply(request());
@@ -478,6 +531,42 @@ describe("combat.sync.v1", () => {
     const replay = await apply(ended);
     expect(replay).toEqual({ ...result, resultDocId: "" });
     expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("ends only its own Combat while another one is active in the world", async () => {
+    stub();
+    await apply(request());
+    const mirrored = combats[0];
+    const other = new FakeCombat({}, SCENE); // the GM's own encounter
+    other.list.push({
+      id: newId("cbt"),
+      name: "Orc",
+      initiative: 5,
+      hidden: false,
+      actorId: null,
+      tokenId: null,
+      flags: {},
+    });
+    other.turn = 0;
+    combats.push(other);
+
+    await apply(
+      request({
+        sequence: 2,
+        state: "ended",
+        activeKey: null,
+        combatants: [],
+      }),
+    );
+    expect(mirrored.deleted).toBe(true);
+    expect(combats).toEqual([other]);
+    expect(other).toMatchObject({
+      deleted: false,
+      updates: [],
+      embeddedWrites: 0,
+      turn: 0,
+    });
+    expect(other.list).toHaveLength(1);
   });
 
   it("creates a combatant by name only when its actor is not in the world", async () => {

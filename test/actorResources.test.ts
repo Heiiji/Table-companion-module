@@ -13,6 +13,7 @@ import {
   fakeActor,
   stubFoundry,
   type FakeActor,
+  type KnightSchemaFixture,
 } from "./support/actorUpsertHarness.js";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -58,6 +59,25 @@ function boundActor(id = ACTOR_ID): FakeActor {
       tenueCivile: {},
     },
   };
+  return actor;
+}
+
+/** SYNTHETIC: a prepared-shape Knight PC built from a captured fixture. The
+ * captures are source data only (no `wear`, `heroisme`, top-level `armure` /
+ * `energie`, nor any `max`); this adds the fields the Knight system prepares,
+ * so the six resources run against the shape a live world serves. It stands in
+ * until a prepared actor is captured from a live world. */
+function preparedKnightActor(fixture: KnightSchemaFixture): FakeActor {
+  const actor = boundActor();
+  const system = structuredClone(fixture.actor.system);
+  const at = (key: string) => system[key] as Record<string, unknown>;
+  Object.assign(at("sante"), { max: 30 });
+  Object.assign(at("espoir"), { max: 50 });
+  system.wear = "armure";
+  system.heroisme = { value: 0, max: 6 };
+  system.armure = { max: 40 };
+  system.energie = { max: 20 };
+  actor.system = system;
   return actor;
 }
 
@@ -307,6 +327,82 @@ describe("actor.resources.v1", () => {
       );
       expect(result.warnings).toEqual([]);
     }
+  });
+
+  it("writes the six resources on a prepared-shape actor, and nothing on a re-send", async () => {
+    const all = {
+      health: 31,
+      hope: 4,
+      armour: 41,
+      energy: 7,
+      heroism: 2,
+      contact: 3,
+    };
+    for (const fixture of KNIGHT_SCHEMA_FIXTURES) {
+      const actor = preparedKnightActor(fixture);
+      stubFoundry([actor], undefined, fixture.foundryGeneration);
+      const result = await apply(request({ resources: all }));
+      expect(result.warnings).toEqual([
+        "resource_clamped:health",
+        "resource_clamped:armour",
+      ]);
+      expect(actor.updates).toHaveLength(1);
+      expect(actor.system).toMatchObject({
+        sante: { value: 30 },
+        espoir: { value: 4 },
+        heroisme: { value: 2 },
+        contacts: { actuel: 3 },
+        equipements: {
+          armure: { armure: { value: 40 }, energie: { value: 7 } },
+        },
+      });
+      await apply(request({ sequence: 8, resources: all }));
+      expect(actor.updates).toHaveLength(1);
+    }
+  });
+
+  it("follows an ascension wear, and warns when that gear has no path", async () => {
+    const actor = boundActor();
+    actor.system.wear = "ascension";
+    // Synthetic gear subtree: the paths follow whatever `wear` names.
+    (actor.system.equipements as Record<string, unknown>).ascension = {
+      armure: { value: 1 },
+      energie: { value: 1 },
+    };
+    stubFoundry([actor]);
+    const result = await apply(
+      request({ resources: { armour: 9, energy: 4 } }),
+    );
+    expect(result.warnings).toEqual([]);
+    expect(actor.updates[0]).toMatchObject({
+      "system.equipements.ascension.armure.value": 9,
+      "system.equipements.ascension.energie.value": 4,
+    });
+    expect(Object.keys(actor.updates[0])).not.toContain(
+      "system.equipements.armure.armure.value",
+    );
+
+    const bare = boundActor();
+    bare.system.wear = "ascension";
+    stubFoundry([bare]);
+    const missing = await apply(
+      request({ resources: { armour: 9, energy: 4 } }),
+    );
+    expect(missing.warnings).toEqual([
+      "resource_unavailable:armour",
+      "resource_unavailable:energy",
+    ]);
+  });
+
+  it("writes armour unclamped when the prepared armure.max is absent", async () => {
+    const actor = boundActor();
+    delete actor.system.armure;
+    stubFoundry([actor]);
+    const result = await apply(request({ resources: { armour: 999 } }));
+    expect(result.warnings).toEqual([]);
+    expect(actor.updates[0]).toMatchObject({
+      "system.equipements.armure.armure.value": 999,
+    });
   });
 
   it("replays the same sequence, refuses an older one and a reused one with other values", async () => {
