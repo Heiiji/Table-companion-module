@@ -1,5 +1,6 @@
 import qrcode from "qrcode-generator";
 import type { Channel } from "../rpc/channel.js";
+import { signatureSupport } from "../rpc/signatureSupport.js";
 import {
   CAP_RESPONSE_SIG,
   CLOCK_SKEW_WARN_MS,
@@ -100,7 +101,17 @@ async function statusHtml(channel: Channel): Promise<string> {
 
   const { signingRows, signingHints } = replySigningHtml(channel, status, row);
 
+  // On plain http the browser has no WebCrypto, so nothing the backend sends
+  // can be verified: say so above the rows that would otherwise just wait.
+  const insecure =
+    signatureSupport() === "ok"
+      ? ""
+      : `<p class="tca-hint" role="alert">${escapeHtml(
+          localize("setup.hint.insecureContext"),
+        )}</p>`;
+
   return (
+    insecure +
     `<div class="tca-status">` +
     row(
       localize("setup.status.userExists"),

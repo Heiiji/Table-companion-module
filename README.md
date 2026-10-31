@@ -86,6 +86,8 @@ Gamemaster can open setup from the console with
   has an additive, constrained actor-provisioning integration (other Knight versions refuse it). Exact equipment materialization optionally
   uses Knight Compendium 14.0.1; other/missing versions remain safely partial.
 - **Languages:** English, Français
+- **Connection:** Foundry must be served over HTTPS (or opened on localhost): the module verifies the
+  backend's signatures with the browser's WebCrypto, which plain http does not provide.
 
 ## Developing
 

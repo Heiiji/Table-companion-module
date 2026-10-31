@@ -16,6 +16,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The setup panel lists each procedure withheld on this world, with the reason.
 
 ### Fixed
+- On a Foundry served over plain http, the module no longer waits silently: it reports once to the
+  Gamemaster, and in setup, that a secure connection (HTTPS, or localhost) is required to verify the
+  backend's signatures.
 - `combat.sync.v1` no longer erases an initiative rolled in Foundry when the app's entry has none yet.
 - `combat.sync.v1` no longer lets Foundry emit its own turn change, with turn hooks, when combatants
   join or leave: the turn is cleared quietly first, then set once.

@@ -171,6 +171,28 @@ describe("openSetupApp", () => {
     expect(content).toContain("requires Knight 3.58.33 or later &lt;b&gt;");
   });
 
+  it("explains that plain http blocks the backend's signatures", async () => {
+    const { checkSignatureSupport } =
+      await import("../src/rpc/signatureSupport.js");
+    vi.stubGlobal("isSecureContext", false);
+    await checkSignatureSupport();
+    const fake = fakeChannel({}, [CAP_RESPONSE_SIG]);
+    await openSetupApp(fake.channel);
+    expect(FakeDialog.instances[0].content).toContain(
+      "setup.hint.insecureContext",
+    );
+    vi.stubGlobal("isSecureContext", true);
+    await checkSignatureSupport(); // back to ok for the other tests
+  });
+
+  it("says nothing about the connection when signatures can be checked", async () => {
+    const fake = fakeChannel({}, [CAP_RESPONSE_SIG]);
+    await openSetupApp(fake.channel);
+    expect(FakeDialog.instances[0].content).not.toContain(
+      "setup.hint.insecureContext",
+    );
+  });
+
   it("shows a clock offset past 45 seconds", async () => {
     const fake = fakeChannel({ lastSkewMs: -60_000 }, [CAP_RESPONSE_SIG]);
     await openSetupApp(fake.channel);

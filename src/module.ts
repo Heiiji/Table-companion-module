@@ -12,6 +12,7 @@ import { scheduleCompendiumWarmup } from "./procedures/compendium.js";
 import { startDisplayListener } from "./procedures/display.js";
 import { Channel } from "./rpc/channel.js";
 import { ProcedureRegistry } from "./rpc/registry.js";
+import { checkSignatureSupport } from "./rpc/signatureSupport.js";
 import {
   clearStoredSigner,
   loadOrCreateSigner,
@@ -160,8 +161,19 @@ Hooks.once("ready", () => {
   // pushed — no-op on standalone tables and tables that never use the feature.
   startDisplayListener();
   // Response signing: only GM clients hold a key (only the elected responder
-  // ever signs). Players never sign, so they never generate one.
-  if (channel && game.user?.isGM) void initResponseSigner(channel);
+  // ever signs). Players never sign, so they never generate one. Both it and
+  // every agent envelope need WebCrypto Ed25519, which plain http withholds.
+  void checkSignatureSupport().then((support) => {
+    if (support !== "ok") {
+      // The channel stays up (election, hello, presence need no crypto); the
+      // setup panel names the cause instead of a silent "Waiting".
+      log.error(`cannot verify the backend's signatures here (${support})`);
+      if (game.user?.isGM)
+        ui.notifications?.error(localize("setup.notify.insecureContext"));
+      return;
+    }
+    if (channel && game.user?.isGM) void initResponseSigner(channel);
+  });
   // Who has the Table Companion app open, for the setup panel. The backend
   // sends this to Gamemasters only.
   if (channel && game.user?.isGM) channel.onEvent(appPresence.onEvent);
