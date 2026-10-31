@@ -19,6 +19,7 @@ import {
 } from "../setup/identity.js";
 import {
   foundryHooks,
+  gameActors,
   gameSettings,
   gameSocket,
   uiNotifications,
@@ -30,6 +31,7 @@ import { ProcedureRegistry, RpcContext } from "./registry.js";
 import { RpcError } from "./errors.js";
 import { fingerprint, parseSignedMessage, verifySignature } from "./signing.js";
 import type { ModuleResponseSigner } from "./responseSigning.js";
+import { contentsOf, OWNERSHIP_OWNER } from "../procedures/upsertShared.js";
 
 /** Best-effort access to Foundry's toast notifications, tolerant of the harness
  * where the `ui` global is absent. */
@@ -106,6 +108,9 @@ export class Channel {
   // A pairing request from a user other than the module-created service user,
   // held until the GM clicks Trust or Ignore in the setup dialog.
   private pending: (PendingPairing & { pubKey: string }) | null = null;
+  /** Pairing refusals already toasted (`reason:userId`), so a backend that
+   * re-sends its hello does not repeat the notice every few seconds. */
+  private pairingNotices = new Set<string>();
   // Whether this client was the elected responder at the last check, so a
   // responder change can re-announce the capabilities (see start()).
   private wasResponder = false;
@@ -302,6 +307,7 @@ export class Channel {
     const req = this.pending;
     if (!req) return;
     this.pending = null;
+    this.pairingNotices.clear();
     await this.pin(req.pubKey, req.userId);
     this.sendHello();
   }
@@ -309,6 +315,7 @@ export class Channel {
   /** The GM declines the held pairing request. */
   ignorePendingPairing(): void {
     this.pending = null;
+    this.pairingNotices.clear();
   }
 
   private async pin(pubKey: string, userId: string): Promise<void> {
@@ -327,6 +334,7 @@ export class Channel {
    * when this browser has no signing key and the rotation sent nothing. */
   async resetPairing(): Promise<void> {
     this.pending = null;
+    this.pairingNotices.clear();
     await this.setPinnedKey("");
     await setPairedAgentUserId("");
     if (this.responseKeyResetter) {
@@ -563,6 +571,22 @@ export class Channel {
       await this.pin(env.peer.pubKey, sender);
       return this.notReplayed(env) ? env : null;
     }
+    // The backend's service user owns no Actor; a player account does. A
+    // player-owned key is refused outright, never offered to the GM to trust.
+    const ownsActor = contentsOf(gameActors()).some(
+      (actor) => actor.ownership?.[sender] === OWNERSHIP_OWNER,
+    );
+    if (ownsActor) {
+      this.warnDrop("pairing request from a user who owns an Actor");
+      this.noticeOnce("OwnsActor", sender, user.name ?? sender);
+      return null;
+    }
+    // One request is held at a time: another user's request never replaces it.
+    if (this.pending && this.pending.userId !== sender) {
+      this.warnDrop("second pairing request while one is pending");
+      this.noticeOnce("OtherPending", sender, user.name ?? sender);
+      return null;
+    }
     // Any other user is held until the GM decides in the setup dialog.
     const fp = await fingerprint(env.peer.pubKey);
     const isNew =
@@ -584,6 +608,24 @@ export class Channel {
       );
     }
     return null;
+  }
+
+  private noticeOnce(
+    reason: "OwnsActor" | "OtherPending",
+    userId: string,
+    name: string,
+  ): void {
+    const key = `${reason}:${userId}`;
+    if (this.pairingNotices.has(key)) return;
+    this.pairingNotices.add(key);
+    const pendingName = this.pending?.userName ?? "";
+    notify(
+      "warn",
+      localize(`setup.notify.pairingRefused${reason}`, {
+        name,
+        pending: pendingName,
+      }),
+    );
   }
 
   /** Anti-replay (2/2): true unless this envelope's `id` was already accepted.

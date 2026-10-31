@@ -66,6 +66,7 @@ interface FakeChannel {
 function fakeChannel(
   status: Partial<LinkStatus> = {},
   caps: string[] = [],
+  pending: Pairing["pending"] = null,
 ): FakeChannel {
   const fake: FakeChannel = {
     open: false,
@@ -82,7 +83,7 @@ function fakeChannel(
     paired: true,
     fingerprint: "ab:cd",
     agentUserName: "Companion",
-    pending: null,
+    pending,
   };
   fake.channel = {
     getStatus: () => fake.status,
@@ -138,6 +139,28 @@ describe("openSetupApp", () => {
     await FakeDialog.instances[1].close();
     await vi.advanceTimersByTimeAsync(4000);
     expect(fake.open).toBe(false); // the open dialog's own teardown still closes it
+  });
+
+  it("shows a pending request's fingerprint with the sentence to compare it", async () => {
+    vi.stubGlobal("game", {
+      user: { id: "gm1", isGM: true },
+      users: { find: () => undefined },
+      settings: { get: () => "" },
+      i18n: {
+        localize: (k: string) => k,
+        format: (k: string, d: Record<string, string>) =>
+          `${k}(${Object.values(d).join("|")})`,
+      },
+    });
+    const fake = fakeChannel({}, [], {
+      userId: "agentUser0000001",
+      userName: "Companion",
+      fingerprint: "56:47:5a:a7:54:63:47:4c",
+    });
+    await openSetupApp(fake.channel);
+    const { content } = FakeDialog.instances[0];
+    expect(content).toContain("56:47:5a:a7:54:63:47:4c");
+    expect(content).toContain("setup.pendingCompare");
   });
 
   it("shows the key-mismatch verdict with what to do", async () => {

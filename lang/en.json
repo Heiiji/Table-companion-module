@@ -55,6 +55,8 @@
         "keyStoreFallback": "Table Companion: this browser could not store its signing key securely, so it is kept in browser settings instead. Pairing still works.",
         "paired": "Table Companion: paired with the app service (key {fingerprint}).",
         "pairingRequest": "Table Companion: the Foundry user \"{name}\" is asking to pair as the app service (key {fingerprint}). Trust or ignore it in Table Companion setup.",
+        "pairingRefusedOwnsActor": "Table Companion: refused a pairing request from the Foundry user \"{name}\": that user owns an Actor, and the app's service user owns none. A player account cannot pair as the app.",
+        "pairingRefusedOtherPending": "Table Companion: ignored a pairing request from the Foundry user \"{name}\" because the request from \"{pending}\" is still waiting. Trust or ignore that one first in Table Companion setup.",
         "noSigner": "Table Companion: this browser could not create a signing key, so the app's backend cannot trust this world's replies. Use a current browser over https.",
         "insecureContext": "Table Companion needs a secure connection (HTTPS, or localhost) and a current browser: this browser cannot check signatures, which plain http blocks, so the app cannot connect. See Table Companion setup."
       },
@@ -91,6 +93,7 @@
         "shared": "Player characters shared with {name}: {count}.",
         "shareFailed": "Could not share the player characters with {name}."
       },
+      "pendingCompare": "Compare it with the pairing fingerprint shown in Table Companion's Foundry connection screen before you trust it.",
       "pendingHint": "Only trust this if {name} is the user you linked in the Table Companion app. A player could otherwise pose as the app.",
       "hint": {
         "keyMismatch": "Open Foundry from the browser the app paired with, or tap Re-pair in the Table Companion app, then click Refresh here.",

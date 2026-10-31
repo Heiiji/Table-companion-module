@@ -55,6 +55,8 @@
         "keyStoreFallback": "Table Companion : ce navigateur n'a pas pu stocker sa clé de signature de façon sécurisée ; elle est conservée dans les réglages du navigateur. L'appairage fonctionne toujours.",
         "paired": "Table Companion : appairé avec le service de l'application (clé {fingerprint}).",
         "pairingRequest": "Table Companion : l'utilisateur Foundry « {name} » demande à s'appairer comme service de l'application (clé {fingerprint}). Acceptez ou ignorez la demande dans la configuration de Table Companion.",
+        "pairingRefusedOwnsActor": "Table Companion : demande d'appairage refusée pour l'utilisateur Foundry « {name} » : cet utilisateur possède un acteur, et l'utilisateur de service de l'application n'en possède aucun. Un compte joueur ne peut pas s'appairer comme l'application.",
+        "pairingRefusedOtherPending": "Table Companion : demande d'appairage de l'utilisateur Foundry « {name} » ignorée, car celle de « {pending} » attend encore. Acceptez ou ignorez d'abord celle-ci dans la configuration de Table Companion.",
         "noSigner": "Table Companion : ce navigateur n'a pas pu créer de clé de signature, le service de l'application ne peut donc pas se fier aux réponses de ce monde. Utilisez un navigateur récent en https.",
         "insecureContext": "Table Companion a besoin d'une connexion sécurisée (HTTPS, ou localhost) et d'un navigateur récent : ce navigateur ne peut pas vérifier les signatures, ce que le http simple bloque, l'application ne peut donc pas se connecter. Voir la configuration de Table Companion."
       },
@@ -91,6 +93,7 @@
         "shared": "Personnages joueurs partagés avec {name} : {count}.",
         "shareFailed": "Impossible de partager les personnages joueurs avec {name}."
       },
+      "pendingCompare": "Comparez-la avec l'empreinte d'appairage affichée dans l'écran de connexion Foundry de Table Companion avant de l'accepter.",
       "pendingHint": "N'acceptez que si {name} est bien l'utilisateur lié dans l'application Table Companion : sinon, un joueur pourrait se faire passer pour l'application.",
       "hint": {
         "keyMismatch": "Ouvrez Foundry depuis le navigateur appairé à l'application, ou touchez « Réappairer » dans l'application Table Companion, puis cliquez sur « Actualiser ».",

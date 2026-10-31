@@ -35,6 +35,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   maximum, with a `resource_clamped` warning, as `actor.resources.v1` already did; `npc.upsert.v1`
   clamps each pool's current to its maximum the same way.
 
+### Security
+- Pairing refuses a request from a Foundry user who owns an Actor (a player account) and tells the
+  Gamemaster why; while one request waits, another user's request is dropped with a notice instead of
+  replacing it. Setup shows the waiting request's key fingerprint, to compare with the one Table
+  Companion shows before trusting it.
+
 ## [0.15.1] - 2026-10-29
 
 ### Changed

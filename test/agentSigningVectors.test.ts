@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -8,7 +9,7 @@ import {
 import { Channel } from "../src/rpc/channel.js";
 import { parseEnvelope } from "../src/rpc/envelope.js";
 import { ProcedureRegistry } from "../src/rpc/registry.js";
-import { verifySignature } from "../src/rpc/signing.js";
+import { fingerprint, verifySignature } from "../src/rpc/signing.js";
 
 // These vectors are byte-identical to the backend's own copy, produced by the
 // very code path the backend sends with. They fence the wire shape of a signed
@@ -19,6 +20,8 @@ interface AgentVector {
   name: string;
   body: string;
   sig: string;
+  /** The pairing fingerprint of `publicKeyB64`, as both sides display it. */
+  fingerprint: string;
   expect: {
     type: string;
     worldId: string;
@@ -52,6 +55,22 @@ describe("agent signing vectors", () => {
         body: v.body.replace("vector-world", "other-world"),
       };
       expect(await verifySignature(file.publicKeyB64, tampered)).toBe(false);
+    },
+  );
+
+  it.each(file.vectors.map((v) => [v.name, v] as const))(
+    "%s names the key's pairing fingerprint, recomputed here",
+    async (_name, v) => {
+      // The one definition: SHA-256 of the raw key bytes, first 8 bytes,
+      // lowercase hex joined by ":" — recomputed independently, then by the
+      // module's own function.
+      const raw = Buffer.from(file.publicKeyB64, "base64");
+      const expected = [...createHash("sha256").update(raw).digest()]
+        .slice(0, 8)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join(":");
+      expect(v.fingerprint).toBe(expected);
+      expect(await fingerprint(file.publicKeyB64)).toBe(v.fingerprint);
     },
   );
 

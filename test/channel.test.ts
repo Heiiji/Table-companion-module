@@ -121,6 +121,8 @@ function stubGame(
     pinnedUser?: string;
     anchor?: string;
     responder?: boolean;
+    /** `game.actors` documents, by their ownership maps. */
+    actors?: Array<{ ownership: Record<string, number> }>;
   } = {},
 ): void {
   const responder = opts.responder ?? true;
@@ -147,6 +149,7 @@ function stubGame(
   vi.stubGlobal("game", {
     user: me,
     world: { id: "test-world" },
+    actors: { contents: opts.actors ?? [] },
     users: {
       // activeGM is `me` only when this client should be the responder.
       activeGM: responder ? me : other,
@@ -420,6 +423,91 @@ describe("Channel.onMessage", () => {
     await deliver(await sign(env), PLAYER);
     expect(setSpy).not.toHaveBeenCalled();
     expect((await channel.getPairing()).pending?.userName).toBe("Alice");
+  });
+
+  it("refuses a pairing request from a user who owns an Actor, with a notice", async () => {
+    stubGame({
+      pinned: "",
+      responder: true,
+      actors: [{ ownership: { default: 0, [PLAYER]: 3 } }],
+    });
+    const warnSpy = vi.fn();
+    vi.stubGlobal("ui", { notifications: { warn: warnSpy } });
+    const channel = startChannel();
+    channel.openPairingWindow();
+    const env = agentEnv("hello", {}, true);
+    (env.peer as Fields).userId = PLAYER;
+    await deliver(await sign(env), PLAYER);
+    await deliver(await sign(env), PLAYER); // a re-sent hello: no second toast
+    expect(setSpy).not.toHaveBeenCalled();
+    expect((await channel.getPairing()).pending).toBeNull();
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(String(warnSpy.mock.calls[0][0])).toContain(
+      "pairingRefusedOwnsActor",
+    );
+  });
+
+  it("still holds a request from a user with only OBSERVER on an Actor", async () => {
+    stubGame({
+      pinned: "",
+      responder: true,
+      actors: [{ ownership: { default: 0, [AGENT_USER]: 2, [PLAYER]: 3 } }],
+    });
+    vi.stubGlobal("ui", { notifications: { warn: vi.fn() } });
+    const channel = startChannel();
+    channel.openPairingWindow();
+    await deliver(await sign(agentEnv("hello", {}, true)));
+    expect((await channel.getPairing()).pending?.userId).toBe(AGENT_USER);
+  });
+
+  it("drops another user's request while one is pending, never overwriting it", async () => {
+    stubGame({ pinned: "", responder: true });
+    const warnSpy = vi.fn();
+    vi.stubGlobal("ui", { notifications: { warn: warnSpy } });
+    const channel = startChannel();
+    channel.openPairingWindow();
+    await deliver(await sign(agentEnv("hello", {}, true)));
+    const first = await channel.getPairing();
+
+    const env = agentEnv("hello", {}, true);
+    (env.peer as Fields).userId = PLAYER;
+    await deliver(await sign(env), PLAYER);
+
+    expect((await channel.getPairing()).pending).toEqual(first.pending);
+    expect(warnSpy).toHaveBeenCalledTimes(2); // the request, then the drop
+    expect(String(warnSpy.mock.calls[1][0])).toContain(
+      "pairingRefusedOtherPending",
+    );
+  });
+
+  it("replaces the pending request when the same user re-sends a new key", async () => {
+    stubGame({ pinned: "", responder: true });
+    const warnSpy = vi.fn();
+    vi.stubGlobal("ui", { notifications: { warn: warnSpy } });
+    const channel = startChannel();
+    channel.openPairingWindow();
+    await deliver(await sign(agentEnv("hello", {}, true)));
+    const before = (await channel.getPairing()).pending!;
+
+    const rotated = (await crypto.subtle.generateKey(
+      { name: "Ed25519" },
+      true,
+      ["sign", "verify"],
+    )) as CryptoKeyPair;
+    const env = agentEnv("hello", {}, true);
+    (env.peer as Fields).pubKey = toB64(
+      await crypto.subtle.exportKey("raw", rotated.publicKey),
+    );
+    await deliver(await sign(env, rotated.privateKey));
+
+    const after = (await channel.getPairing()).pending!;
+    expect(after.userId).toBe(AGENT_USER);
+    expect(after.fingerprint).not.toBe(before.fingerprint);
+    expect(warnSpy).toHaveBeenCalledTimes(2); // a new key is a new request
+    await channel.trustPendingPairing();
+    expect(store[`${MODULE_ID}:${SETTING_AGENT_KEY}`]).toBe(
+      (env.peer as Fields).pubKey,
+    );
   });
 
   it("does NOT pin an unknown key when the pairing window is closed", async () => {

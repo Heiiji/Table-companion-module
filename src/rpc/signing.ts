@@ -102,9 +102,10 @@ export async function verifySignature(
   }
 }
 
-/** A short, human-comparable fingerprint of a public key (first 8 bytes of its
- * SHA-256, hex). Shown in the setup UI so a GM can cross-check the paired agent
- * against what the app reports. */
+/** The pairing fingerprint of a public key — the one definition, shared with
+ * the backend: SHA-256 of the raw key bytes (base64-decoded), first 8 bytes,
+ * lowercase hex joined by ":". Shown in the setup UI so a GM can compare the
+ * requesting key with the one the app displays. The signing vectors pin it. */
 export async function fingerprint(publicKeyB64: string): Promise<string> {
   try {
     const digest = await crypto.subtle.digest(

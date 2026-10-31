@@ -88,6 +88,7 @@ async function statusHtml(channel: Channel): Promise<string> {
         }),
         false,
       ) +
+      `<p class="tca-hint">${escapeHtml(localize("setup.pendingCompare"))}</p>` +
       `<p class="tca-hint">${escapeHtml(
         localize("setup.pendingHint", { name: pairing.pending.userName }),
       )}</p>` +

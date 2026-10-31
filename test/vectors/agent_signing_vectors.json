@@ -12,7 +12,8 @@
         "worldId": "vector-world",
         "peerUserId": "vectorAgentUsr01",
         "peerRole": "agent"
-      }
+      },
+      "fingerprint": "56:47:5a:a7:54:63:47:4c"
     },
     {
       "name": "rpc.request",
@@ -23,7 +24,8 @@
         "worldId": "vector-world",
         "peerUserId": "vectorAgentUsr01",
         "peerRole": "agent"
-      }
+      },
+      "fingerprint": "56:47:5a:a7:54:63:47:4c"
     }
   ]
 }
