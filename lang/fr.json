@@ -12,7 +12,6 @@
     },
     "setup": {
       "title": "Table Companion — Configuration",
-      "openButton": "Table Companion",
       "menu": {
         "name": "Table Companion",
         "label": "Ouvrir la configuration",

@@ -61,8 +61,11 @@ as. After that it only listens to that key, from that user.
   automatic.
 - If it logs in as any other user (for example one you created by hand), setup
   shows a **pairing request** naming that user and a key fingerprint. Click
-  **Trust** only if that is the user you linked in the app; otherwise **Ignore**.
-  A Gamemaster account can never pair.
+  **Trust** only if that is the user you linked in the app and the fingerprint
+  matches the one Table Companion shows on its Foundry connection screen;
+  otherwise **Ignore**. A Gamemaster account, or a user who owns an Actor (a
+  player account), can never pair, and one request waits at a time: another
+  user's request is dropped with a notice until you decide.
 - **Reset pairing** forgets the backend's key in this world, rotates this
   browser's reply key, then announces the module again, so a connected backend
   pairs again right away (keep setup open while it does). The backend keeps its
@@ -82,9 +85,13 @@ Gamemaster can open setup from the console with
 ## Compatibility
 
 - **Foundry VTT:** v13 and later (verified on v14; newer versions are accepted, not refused)
-- **Game systems:** system-agnostic baseline; Knight v3.58.33 to v3.58.35 on Foundry 13 or later
-  has an additive, constrained actor-provisioning integration (other Knight versions refuse it). Exact equipment materialization optionally
+- **Game systems:** system-agnostic baseline; Knight 3.58.33 or later on Foundry 13 or later has an
+  additive, constrained actor-provisioning integration. Exact equipment materialization optionally
   uses Knight Compendium 14.0.1; other/missing versions remain safely partial.
+- **Live resources:** on Knight, the current resources a character spends in the app (health, armour,
+  energy and the like) are written to its linked Foundry Actor as they change (`actor.resources.v1`).
+- **Combat mirror:** on every system, the app's combat (combatants, initiative, current turn) is
+  mirrored one way into a Foundry Combat (`combat.sync.v1`).
 - **Languages:** English, Français
 - **Connection:** Foundry must be served over HTTPS (or opened on localhost): the module verifies the
   backend's signatures with the browser's WebCrypto, which plain http does not provide.
