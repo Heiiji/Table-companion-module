@@ -16,6 +16,7 @@ import {
   catalogDigest,
   catalogId,
   CHARACTERISTIC_KEYS,
+  MAX_RESOURCE_VALUE,
   UPSERT_RESOURCE_KEYS,
   type AIV1,
   type CharacterCreationV1,
@@ -242,7 +243,7 @@ function parseResources(value: unknown): CurrentResourcesV1 {
   const out: CurrentResourcesV1 = {};
   for (const key of UPSERT_RESOURCE_KEYS) {
     if (p[key] !== undefined)
-      out[key] = integer(p[key], `resources.${key}`, 0, 100_000);
+      out[key] = integer(p[key], `resources.${key}`, 0, MAX_RESOURCE_VALUE);
   }
   return out;
 }

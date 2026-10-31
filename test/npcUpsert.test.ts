@@ -380,6 +380,30 @@ describe("npc.upsert.v1", () => {
     expect(sync.appliedRevision).toBe(1_755_555_556_000);
   });
 
+  it("clamps a pool's current to its max and warns", async () => {
+    const actors: FakeActor[] = [];
+    stubFoundry(actors);
+    const result = (await npcUpsertV1(
+      request({
+        resources: {
+          health: { max: 30, current: 31 },
+          armour: { max: 20, current: 20 },
+          energy: { max: 0, current: 5 },
+        },
+      }) as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+    expect(result.warnings).toEqual([
+      "resource_clamped:health",
+      "resource_clamped:energy",
+    ]);
+    expect(actors[0].system).toMatchObject({
+      sante: { base: 30, value: 30 },
+      armure: { base: 20, value: 20 },
+      energie: { base: 0, value: 0 },
+    });
+  });
+
   it("rejects a stale revision and a same-revision different-content resend", async () => {
     const actors: FakeActor[] = [];
     stubFoundry(actors);

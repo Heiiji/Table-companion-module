@@ -5,6 +5,21 @@ import { approved } from "./support/actorUpsertHarness.js";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("actor.upsert.v1 request validation", () => {
+  it("bounds every current resource to 0-9999, as actor.resources.v1 does", () => {
+    const at = (health: number) =>
+      validateKnightActorUpsertV1({
+        ...approved(),
+        resources: { ...approved().resources!, health },
+      });
+    expect(at(9999).resources?.health).toBe(9999);
+    expect(() => at(10_000)).toThrow(
+      expect.objectContaining({
+        code: "invalid_args",
+        message: expect.stringMatching(/resources\.health/),
+      }),
+    );
+  });
+
   it("rejects unknown secret/derived/max/ownership fields at every request boundary", () => {
     for (const extra of [
       { secretTarot: "Le Pendu" },

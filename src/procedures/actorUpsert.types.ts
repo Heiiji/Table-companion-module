@@ -66,6 +66,9 @@ export const RESOURCE_KEYS = [
 ] as const;
 export type ResourceKey = (typeof RESOURCE_KEYS)[number];
 
+/** The upper bound of every current resource value on both PC lanes. */
+export const MAX_RESOURCE_VALUE = 9999;
+
 /** The five `actor.upsert.v1` carries: heroism is not provisioned. */
 export const UPSERT_RESOURCE_KEYS = [
   "health",

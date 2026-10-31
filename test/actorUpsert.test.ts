@@ -29,7 +29,11 @@ describe("actor.upsert.v1", () => {
         expect(fixture.knightSystemVersion).toBe("3.58.33");
         expect(fixture.actorCreateAPI).toBe("Actor.implementation.create");
         const actor = fakeActor();
-        actor.system = structuredClone(fixture.actor.system);
+        // The capture omits `wear`: this PC is in its armour.
+        actor.system = {
+          ...structuredClone(fixture.actor.system),
+          wear: "armure",
+        };
         stubFoundry(
           [actor],
           undefined,
@@ -374,6 +378,75 @@ describe("actor.upsert.v1", () => {
     expect(keys).not.toContain("system.equipements.armure.armure.value");
     expect(keys).not.toContain("system.equipements.armure.energie.value");
     expect(result.warnings).toContain("resource_unavailable:energy");
+  });
+
+  it("writes armour and energy on the armour Foundry wears, not on a stale wear", async () => {
+    const upsertOn = async (generation: number | undefined, wear?: string) => {
+      const actor = fakeActor();
+      if (wear === undefined) delete actor.system.wear;
+      else actor.system.wear = wear;
+      (actor.system.equipements as Record<string, unknown>).tenueCivile = {
+        armure: { value: 0 },
+        energie: { value: 0 },
+      };
+      if (generation !== undefined)
+        actor.items.contents = [
+          ...actor.items.contents,
+          { type: "armure", system: { generation } },
+        ];
+      stubFoundry([actor]);
+      await actorUpsertV1(
+        approved({ assignedActorId: actor.id, equipment: undefined }),
+        {} as never,
+      );
+      return actor.updates
+        .flatMap((update) => Object.keys(update))
+        .filter((key) =>
+          /^system\.equipements\.\w+\.(armure|energie)\./.test(key),
+        );
+    };
+    expect(await upsertOn(4, "tenueCivile")).toEqual([
+      "system.equipements.armure.armure.value",
+      "system.equipements.armure.energie.value",
+    ]);
+    expect(await upsertOn(3, "tenueCivile")).toEqual([
+      "system.equipements.tenueCivile.armure.value",
+      "system.equipements.tenueCivile.energie.value",
+    ]);
+    expect(await upsertOn(undefined, undefined)).toEqual([
+      "system.equipements.tenueCivile.armure.value",
+      "system.equipements.tenueCivile.energie.value",
+    ]);
+  });
+
+  it("clamps a current over the prepared maximum and warns", async () => {
+    const actor = fakeActor();
+    Object.assign(actor.system, {
+      armure: { max: 10 },
+      energie: { max: Number.NaN },
+    });
+    (actor.system.sante as Record<string, unknown>).max = 30;
+    stubFoundry([actor]);
+    const result = (await actorUpsertV1(
+      approved({
+        assignedActorId: actor.id,
+        equipment: undefined,
+        resources: { health: 40, hope: 10, armour: 25, energy: 15, contact: 2 },
+      }),
+      {} as never,
+    )) as ActorUpsertResultV1;
+    expect(result.warnings).toEqual([
+      "resource_clamped:health",
+      "resource_clamped:armour",
+    ]);
+    expect(actor.system).toMatchObject({
+      sante: { value: 30 },
+      espoir: { value: 10 },
+      contacts: { actuel: 2 },
+      equipements: {
+        armure: { armure: { value: 10 }, energie: { value: 15 } },
+      },
+    });
   });
 
   it("keeps an unassigned Actor GM-only and returns an actionable assignment warning", async () => {

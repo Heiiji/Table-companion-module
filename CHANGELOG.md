@@ -14,6 +14,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Knight character provisioning and resource sync accept Knight 3.58.33 or any later release (was
   3.58.33 to 3.58.35); later releases change only data preparation the module does not touch.
 - The setup panel lists each procedure withheld on this world, with the reason.
+- Knight character provisioning (`actor.upsert.v1`) accepts current resource values from 0 to 9 999,
+  the same range as `actor.resources.v1` (was up to 100 000).
 
 ### Fixed
 - On a Foundry served over plain http, the module no longer waits silently: it reports once to the
@@ -24,6 +26,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   join or leave: the turn is cleared quietly first, then set once.
 - On a plain-http world (no Web Locks), two browser tabs of the same Gamemaster no longer both answer
   a request: the first tab to claim it in `localStorage` answers, the others stay silent.
+- Knight Armour and Energy now land where Foundry reads them: a generation-4 or later armour is always
+  worn in Foundry, whatever the sheet's worn-gear selector stores, and a missing selector reads as the
+  civilian outfit (the Knight default), no longer as the armour.
+- Knight character provisioning (`actor.upsert.v1`) clamps a current resource to the sheet's prepared
+  maximum, with a `resource_clamped` warning, as `actor.resources.v1` already did; `npc.upsert.v1`
+  clamps each pool's current to its maximum the same way.
 
 ## [0.15.1] - 2026-10-29
 

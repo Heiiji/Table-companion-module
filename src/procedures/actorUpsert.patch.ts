@@ -3,6 +3,7 @@ import { pairedAgentUserId } from "../setup/identity.js";
 import {
   ASPECT_KEYS,
   FLAG_KEYS,
+  contentsOf,
   OWNERSHIP_NONE,
   OWNERSHIP_OBSERVER,
   OWNERSHIP_OWNER,
@@ -132,22 +133,26 @@ export function hasPath(root: unknown, path: string): boolean {
   return true;
 }
 
-/** The gear subtree the Actor currently wears: Knight keeps the equipped
- * armour's (or Guardian's, or civilian outfit's) armour and energy under
- * `system.equipements.<system.wear>`. An absent or malformed selector reads as
- * the default `armure`, so the path checks below still decide. */
+/** The gear subtree Foundry reads the worn armour and energy from:
+ * `system.equipements.<system.wear>`. As the Knight system prepares a PC, the
+ * first embedded `armure` Item of generation 4 or later is always worn,
+ * whatever `wear` stores, so writes go where Foundry reads. An absent or
+ * malformed selector reads as the schema's initial `tenueCivile`. */
 function wornGear(actor: ActorLike): string {
+  const armour = contentsOf(actor.items).find((item) => item.type === "armure");
+  const generation = Number((armour?.system as Dict | undefined)?.generation);
+  if (generation >= 4) return "armure";
   const wear = (actor.system as Dict | undefined)?.wear;
   return typeof wear === "string" && /^[A-Za-z0-9_]{1,64}$/.test(wear)
     ? wear
-    : "armure";
+    : "tenueCivile";
 }
 
 /** Stored current path and prepared-maximum path of each Knight resource (PC
  * model, 3.58.33 or later), relative to `system`. Armour and energy live on the
  * worn gear; their prepared maxima are the top-level `armure.max` /
- * `energie.max`. Contact has no max. Shared by `actor.upsert.v1` (current
- * values only) and `actor.resources.v1` (which also clamps to the max). */
+ * `energie.max`. Contact has no max. Shared by `actor.upsert.v1` and
+ * `actor.resources.v1`, which both clamp a current to the prepared max. */
 export function resourcePaths(
   actor: ActorLike,
 ): Record<ResourceKey, [string, string?]> {
@@ -162,6 +167,34 @@ export function resourcePaths(
   };
 }
 
+/** The value at a dotted path, or undefined. */
+export function valueAt(root: unknown, path: string): unknown {
+  let current = root;
+  for (const key of path.split(".")) {
+    if (typeof current !== "object" || current === null) return undefined;
+    current = (current as Dict)[key];
+  }
+  return current;
+}
+
+/** A current over the prepared maximum, when the Actor exposes a finite one,
+ * lands on that maximum with a `resource_clamped:<key>` warning. */
+export function clampToPrepared(
+  actor: ActorLike,
+  key: ResourceKey,
+  value: number,
+  maxPath: string | undefined,
+  warnings: string[],
+): number {
+  const max = maxPath ? valueAt(actor.system, maxPath) : undefined;
+  if (typeof max !== "number" || !Number.isFinite(max) || value <= max)
+    return value;
+  warnings.push(`resource_clamped:${key}`);
+  return Math.max(0, Math.floor(max));
+}
+
+/** Current values after Foundry has prepared the Actor: each lands on its
+ * stored field, clamped to the prepared maximum when the Actor exposes one. */
 export async function applyCurrentResources(
   actor: ActorLike,
   resources: CurrentResourcesV1 | undefined,
@@ -171,13 +204,14 @@ export async function applyCurrentResources(
   const patch: Dict = {};
   const warnings: string[] = [];
   for (const key of UPSERT_RESOURCE_KEYS) {
-    const value = resources[key];
+    let value = resources[key];
     if (value === undefined) continue;
-    const [path] = paths[key];
+    const [path, maxPath] = paths[key];
     if (!hasPath(actor.system, path)) {
       warnings.push(`resource_unavailable:${key}`);
       continue;
     }
+    value = clampToPrepared(actor, key, value, maxPath, warnings);
     patch[`system.${path}`] = value;
   }
   if (Object.keys(patch).length > 0) await actor.update(patch);

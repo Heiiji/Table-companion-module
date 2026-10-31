@@ -1,8 +1,17 @@
 import { MODULE_ID } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
-import { hasPath, resourcePaths } from "./actorUpsert.patch.js";
-import { RESOURCE_KEYS, type ResourceKey } from "./actorUpsert.types.js";
+import {
+  clampToPrepared,
+  hasPath,
+  resourcePaths,
+  valueAt,
+} from "./actorUpsert.patch.js";
+import {
+  MAX_RESOURCE_VALUE,
+  RESOURCE_KEYS,
+  type ResourceKey,
+} from "./actorUpsert.types.js";
 import {
   SCHEMA_VERSION,
   actorCollection,
@@ -72,7 +81,12 @@ export function validateKnightActorResourcesV1(
   const resources: Partial<Record<ResourceKey, number>> = {};
   for (const key of RESOURCE_KEYS) {
     if (r[key] !== undefined)
-      resources[key] = integer(r[key], `resources.${key}`, 0, 9999);
+      resources[key] = integer(
+        r[key],
+        `resources.${key}`,
+        0,
+        MAX_RESOURCE_VALUE,
+      );
   }
   if (Object.keys(resources).length === 0)
     invalid("resources needs at least one value");
@@ -90,15 +104,6 @@ export function validateKnightActorResourcesV1(
     sequence: integer(p.sequence, "sequence", 1, Number.MAX_SAFE_INTEGER),
     resources,
   };
-}
-
-function valueAt(root: unknown, path: string): unknown {
-  let current = root;
-  for (const key of path.split(".")) {
-    if (typeof current !== "object" || current === null) return undefined;
-    current = (current as Dict)[key];
-  }
-  return current;
 }
 
 export const actorResourcesV1: Procedure = async (payload) => {
@@ -144,11 +149,7 @@ export const actorResourcesV1: Procedure = async (payload) => {
       warnings.push(`resource_unavailable:${key}`);
       continue;
     }
-    const max = maxPath ? valueAt(actor.system, maxPath) : undefined;
-    if (typeof max === "number" && Number.isFinite(max) && value > max) {
-      value = Math.max(0, Math.floor(max));
-      warnings.push(`resource_clamped:${key}`);
-    }
+    value = clampToPrepared(actor, key, value, maxPath, warnings);
     // A value Foundry already holds is not re-written: a capped re-send
     // changes nothing on the Actor but the result flag below.
     if (valueAt(actor.system, path) !== value) patch[`system.${path}`] = value;

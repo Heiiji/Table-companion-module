@@ -96,6 +96,14 @@ async function rpcCode(promise: Promise<unknown>): Promise<string> {
 }
 
 describe("validateKnightActorResourcesV1", () => {
+  it("refuses 10000 with the lane's invalid-args error", () => {
+    expect(() =>
+      validateKnightActorResourcesV1(
+        request({ resources: { health: 10_000 } }),
+      ),
+    ).toThrow(expect.objectContaining({ code: "invalid_args" }));
+  });
+
   it("accepts every resource and the full sequence range", () => {
     const req = request({
       sequence: Number.MAX_SAFE_INTEGER,
@@ -201,6 +209,38 @@ describe("actor.resources.v1", () => {
     expect(
       Object.keys(civilian.updates[0]).filter((k) => k.startsWith("system.")),
     ).toEqual(["system.sante.value"]);
+  });
+
+  it("writes on the armour Foundry wears: generation 4 or later whatever wear stores", async () => {
+    const armour = (generation: number) => ({
+      type: "armure",
+      system: { generation },
+    });
+    const modern = boundActor();
+    modern.system.wear = "tenueCivile";
+    modern.items.contents = [armour(4)];
+    stubFoundry([modern]);
+    expect(
+      (await apply(request({ resources: { armour: 4 } }))).warnings,
+    ).toEqual([]);
+    expect(modern.updates[0]).toMatchObject({
+      "system.equipements.armure.armure.value": 4,
+    });
+
+    const older = boundActor();
+    older.system.wear = "tenueCivile";
+    older.items.contents = [armour(3)];
+    stubFoundry([older]);
+    expect(
+      (await apply(request({ resources: { armour: 4 } }))).warnings,
+    ).toEqual(["resource_unavailable:armour"]);
+
+    const unset = boundActor();
+    delete unset.system.wear;
+    stubFoundry([unset]);
+    expect(
+      (await apply(request({ resources: { armour: 4 } }))).warnings,
+    ).toEqual(["resource_unavailable:armour"]);
   });
 
   it("clamps to the prepared maximum and warns", async () => {
@@ -318,7 +358,11 @@ describe("actor.resources.v1", () => {
   it("accepts the captured Knight actor shape", async () => {
     for (const fixture of KNIGHT_SCHEMA_FIXTURES) {
       const actor = boundActor();
-      actor.system = structuredClone(fixture.actor.system);
+      // The capture omits `wear`: this PC is in its armour.
+      actor.system = {
+        ...structuredClone(fixture.actor.system),
+        wear: "armure",
+      };
       stubFoundry([actor], undefined, fixture.foundryGeneration);
       const result = await apply(
         request({

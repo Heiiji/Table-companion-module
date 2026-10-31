@@ -160,6 +160,7 @@ export function fakeActor(id = ACTOR_ID, name = "Existing"): FakeActor {
     flags: {},
     ownership: {},
     system: {
+      wear: "armure",
       sante: { value: 1 },
       espoir: { value: 1 },
       contacts: { actuel: 1, value: 1 },

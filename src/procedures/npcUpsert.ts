@@ -220,6 +220,14 @@ function createNpcActor(
   });
 }
 
+/** Each pool's `system` field: its max lands on `.base`, its current on
+ * `.value`, never above that max. */
+const NPC_POOL_FIELDS = [
+  ["health", "sante"],
+  ["armour", "armure"],
+  ["energy", "energie"],
+] as const;
+
 /** The complete authored write allowlist. Every `system.` path below exists in
  * the pnj fixtures; aspects exceptionnels, bouclier, resilience, descriptions,
  * origin/type, option toggles, Items and img are deliberately absent so the
@@ -228,6 +236,7 @@ function authoredNpcPatch(
   actor: ActorLike,
   req: KnightNpcUpsertV1,
   binding: BindingV1,
+  warnings: string[],
 ): Dict {
   const patch: Dict = {
     name: req.name,
@@ -239,17 +248,12 @@ function authoredNpcPatch(
     patch[`system.aspects.${key}.value`] = req.aspects[key];
   }
   const resources = req.resources;
-  if (resources?.health) {
-    patch["system.sante.base"] = resources.health.max;
-    patch["system.sante.value"] = resources.health.current;
-  }
-  if (resources?.armour) {
-    patch["system.armure.base"] = resources.armour.max;
-    patch["system.armure.value"] = resources.armour.current;
-  }
-  if (resources?.energy) {
-    patch["system.energie.base"] = resources.energy.max;
-    patch["system.energie.value"] = resources.energy.current;
+  for (const [key, field] of NPC_POOL_FIELDS) {
+    const pool = resources?.[key];
+    if (!pool) continue;
+    patch[`system.${field}.base`] = pool.max;
+    patch[`system.${field}.value`] = Math.min(pool.current, pool.max);
+    if (pool.current > pool.max) warnings.push(`resource_clamped:${key}`);
   }
   if (resources?.forceField !== undefined) {
     patch["system.champDeForce.base"] = resources.forceField;
@@ -311,14 +315,15 @@ export const npcUpsertV1: Procedure = async (payload) => {
     } satisfies NpcUpsertResultV1;
   }
 
-  await actor.update(authoredNpcPatch(actor, req, binding));
+  const warnings: string[] = [];
+  await actor.update(authoredNpcPatch(actor, req, binding, warnings));
   const result: NpcUpsertResultV1 = {
     schemaVersion: 1,
     resultDocId: id,
     outcome,
     appliedRevision: req.contentRevision,
     appliedDigest: digest,
-    warnings: [],
+    warnings,
   };
   await actor.update({ [`flags.${MODULE_ID}.${FLAG_KEYS.npcUpsert}`]: result });
   return result;
