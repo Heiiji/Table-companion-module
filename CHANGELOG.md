@@ -18,6 +18,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the same range as `actor.resources.v1` (was up to 100 000).
 
 ### Fixed
+- Knight NPC provisioning (`npc.upsert.v1`) sets the token disposition only when it creates the
+  Actor: a GM's token disposition set in Foundry is kept on every later update.
 - On a Foundry served over plain http, the module no longer waits silently: it reports once to the
   Gamemaster, and in setup, that a secure connection (HTTPS, or localhost) is required to verify the
   backend's signatures.

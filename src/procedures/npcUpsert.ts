@@ -241,7 +241,8 @@ function authoredNpcPatch(
   const patch: Dict = {
     name: req.name,
     ownership: npcOwnershipUpdate(actor, req.visibility),
-    "prototypeToken.disposition": tokenDisposition(req.visibility),
+    // No prototypeToken.disposition: it is set once at creation, then the GM
+    // owns it in Foundry (a HOSTILE set there survives every re-send).
     [`flags.${MODULE_ID}.${FLAG_KEYS.binding}`]: binding,
   };
   for (const key of ASPECT_KEYS) {
@@ -276,8 +277,8 @@ function authoredNpcPatch(
 /**
  * Durable Knight NPC provisioning. Lookup is exclusively the shared Table
  * Companion binding (names are never a key); a missing binding creates a new
- * `pnj` Actor. Visibility maps fail-closed onto ownership + prototype token
- * disposition. Re-sends converge by revision/digest exactly like the PC lane.
+ * `pnj` Actor. Visibility maps fail-closed onto ownership on every write; the
+ * prototype token disposition is written at creation only. Re-sends converge by revision/digest exactly like the PC lane.
  */
 export const npcUpsertV1: Procedure = async (payload) => {
   const req = validateKnightNpcUpsertV1(payload);

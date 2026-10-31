@@ -314,7 +314,29 @@ describe("npc.upsert.v1", () => {
 
     expect(result.outcome).toBe("updated");
     expect(actor.ownership).toEqual({ default: 0 });
-    expect(actor.prototypeToken.disposition).toBe(-2);
+    // The disposition is a creation-time default only; the GM owns it after.
+    expect(actor.prototypeToken.disposition).toBe(0);
+  });
+
+  it("keeps a HOSTILE token disposition set in Foundry on the next upsert", async () => {
+    const req = request({ contentRevision: 2_000_000_000_000 });
+    const actor = fakeActor();
+    binding(actor, req);
+    actor.prototypeToken = { disposition: -1 }; // CONST.TOKEN_DISPOSITIONS.HOSTILE
+    stubFoundry([actor]);
+
+    const result = (await npcUpsertV1(
+      req as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+
+    expect(result.outcome).toBe("updated");
+    expect(actor.prototypeToken.disposition).toBe(-1);
+    for (const update of actor.updates) {
+      expect(
+        Object.keys(update).some((k) => k.startsWith("prototypeToken")),
+      ).toBe(false);
+    }
   });
 
   it("never adopts by name: an unbound same-name pnj Actor is left alone", async () => {
