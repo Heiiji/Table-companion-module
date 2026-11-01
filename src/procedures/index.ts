@@ -7,6 +7,7 @@ import { displayShow, displayClear } from "./display.js";
 import { actorUpsertV1 } from "./actorUpsert.js";
 import { npcUpsertV1 } from "./npcUpsert.js";
 import { actorResourcesV1 } from "./actorResources.js";
+import { dnd5eResourcesV1 } from "./dnd5eResources.js";
 import {
   MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION,
   combatSyncV1,
@@ -14,8 +15,10 @@ import {
   combatSyncRefusedSystem,
 } from "./combatSync.js";
 import {
+  DND5E_RESOURCES_REQUIREMENT,
   KNIGHT_UPSERT_SYSTEM_VERSION_LABEL,
   MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION,
+  supportsDnd5eResourcesV1Runtime,
   supportsKnightActorUpsertV1Runtime,
 } from "./upsertShared.js";
 import {
@@ -100,5 +103,19 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
     registry.markUnsupported("actor.upsert.v1", reason);
     registry.markUnsupported("npc.upsert.v1", reason);
     registry.markUnsupported("actor.resources.v1", reason);
+  }
+  // Live counters of a Fifth Edition character (hit points, temporary hit
+  // points, spell slots, exhaustion, conditions): bound or named Actor only,
+  // signed-only, on the dnd5e release the write paths were derived from.
+  if (supportsDnd5eResourcesV1Runtime()) {
+    registry.register("dnd5e.resources.v1", dnd5eResourcesV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
+  } else if (systemId() === "dnd5e") {
+    registry.markUnsupported(
+      "dnd5e.resources.v1",
+      `dnd5e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${DND5E_RESOURCES_REQUIREMENT}`,
+    );
   }
 }

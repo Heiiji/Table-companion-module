@@ -90,6 +90,9 @@ Gamemaster can open setup from the console with
   uses Knight Compendium 14.0.1; other/missing versions remain safely partial.
 - **Live resources:** on Knight, the current resources a character spends in the app (health, armour,
   energy and the like) are written to its linked Foundry Actor as they change (`actor.resources.v1`).
+- **Fifth Edition live counters:** on dnd5e 6.1.0 or later on Foundry 14 or later, a linked
+  character's hit points, temporary hit points, spell slots, exhaustion and conditions are written
+  from the app (`dnd5e.resources.v1`).
 - **Combat mirror:** on every system, the app's combat (combatants, initiative, current turn) is
   mirrored one way into a Foundry Combat (`combat.sync.v1`).
 - **Languages:** English, Français

@@ -170,12 +170,20 @@ const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 export function isAdmittedKnightSystemVersion(
   version: unknown,
 ): version is string {
+  return isAtLeastVersion(version, MINIMUM_KNIGHT_UPSERT_SYSTEM_VERSION);
+}
+
+/** True only for a plain `major.minor.patch` string at or above `floor`,
+ * compared numerically (no prefix, no pre-release suffix). */
+export function isAtLeastVersion(
+  version: unknown,
+  floor: string,
+): version is string {
   if (typeof version !== "string" || !STRICT_VERSION.test(version))
     return false;
   const have = version.split(".").map(Number);
-  const floor = MINIMUM_KNIGHT_UPSERT_SYSTEM_VERSION.split(".").map(Number);
-  for (let i = 0; i < 3; i++)
-    if (have[i] !== floor[i]) return have[i] > floor[i];
+  const min = floor.split(".").map(Number);
+  for (let i = 0; i < 3; i++) if (have[i] !== min[i]) return have[i] > min[i];
   return true;
 }
 
@@ -190,6 +198,29 @@ export function supportsKnightActorUpsertV1Runtime(): boolean {
     systemId() === "knight" &&
     isAdmittedKnightSystemVersion(systemVersion()) &&
     foundryGeneration() >= MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION
+  );
+}
+
+/** Oldest dnd5e system release the Fifth Edition live-resources lane writes
+ * to: 6.1.0, the release whose source the write paths were derived from. A
+ * floor, not a list; a later release that proves breaking is handled when it
+ * happens. */
+export const MINIMUM_DND5E_RESOURCES_SYSTEM_VERSION = "6.1.0";
+
+/** dnd5e 6.x itself requires Foundry 14. */
+export const MINIMUM_DND5E_RESOURCES_FOUNDRY_GENERATION = 14;
+
+/** The « requires … » wording of the Fifth Edition lane's refusals. */
+export const DND5E_RESOURCES_REQUIREMENT = `dnd5e ${MINIMUM_DND5E_RESOURCES_SYSTEM_VERSION} or later on Foundry ${MINIMUM_DND5E_RESOURCES_FOUNDRY_GENERATION} or later`;
+
+/** Runtime gate for `dnd5e.resources.v1`: the dnd5e system at or above the
+ * floor, on Foundry 14 or later. It decides registration, and the handler
+ * repeats it before touching the world. */
+export function supportsDnd5eResourcesV1Runtime(): boolean {
+  return (
+    systemId() === "dnd5e" &&
+    isAtLeastVersion(systemVersion(), MINIMUM_DND5E_RESOURCES_SYSTEM_VERSION) &&
+    foundryGeneration() >= MINIMUM_DND5E_RESOURCES_FOUNDRY_GENERATION
   );
 }
 
@@ -251,6 +282,7 @@ export const FLAG_KEYS = {
   binding: "binding",
   actorUpsert: "actorUpsertV1",
   actorResources: "actorResourcesV1",
+  dnd5eResources: "dnd5eResourcesV1",
   npcUpsert: "npcUpsertV1",
   characterCreation: "characterCreationV1",
   minorMotivation: "actorUpsertMinorMotivationV1",

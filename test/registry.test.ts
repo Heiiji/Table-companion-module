@@ -158,10 +158,64 @@ describe("ProcedureRegistry", () => {
       "Knight 3.58.32 on Foundry 14; requires Knight 3.58.33 or later on Foundry 13 or later",
     );
 
+    // A dnd5e world withholds only its own lane, never the Knight ones.
     vi.stubGlobal("game", { system: { id: "dnd5e" } });
     const dnd = new ProcedureRegistry();
     registerBuiltinProcedures(dnd);
-    expect(dnd.unsupported()).toEqual({});
+    expect(dnd.unsupported()).toEqual({
+      "dnd5e.resources.v1":
+        "dnd5e unknown on Foundry unknown; requires dnd5e 6.1.0 or later on Foundry 14 or later",
+    });
+  });
+
+  it("registers dnd5e.resources.v1 only on dnd5e 6.1.0 or later on Foundry 14 or later", () => {
+    for (const version of ["6.1.0", "6.1.1", "6.2.0", "7.0.0"]) {
+      vi.stubGlobal("game", {
+        system: { id: "dnd5e", version },
+        release: { generation: 14 },
+      });
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      expect(registry.capabilities(), version).toEqual(
+        ["dnd5e.resources.v1", ...MODERN_CAPABILITIES].sort(),
+      );
+      expect(registry.isSignedOnly("dnd5e.resources.v1"), version).toBe(true);
+      expect(registry.mutations(), version).toEqual([
+        "combat.sync.v1",
+        "dnd5e.resources.v1",
+      ]);
+      expect(registry.unsupported(), version).toEqual({});
+    }
+    for (const [version, generation] of [
+      ["6.0.9", 14],
+      ["5.2.0", 14],
+      ["v6.1.0", 14],
+      ["6.1.0-beta", 14],
+      ["6.1", 14],
+      ["6.1.0", 13],
+    ] as const) {
+      vi.stubGlobal("game", {
+        system: { id: "dnd5e", version },
+        release: { generation },
+      });
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      expect(registry.capabilities(), version).not.toContain(
+        "dnd5e.resources.v1",
+      );
+      expect(registry.unsupported()["dnd5e.resources.v1"], version).toBe(
+        `dnd5e ${version} on Foundry ${generation}; requires dnd5e 6.1.0 or later on Foundry 14 or later`,
+      );
+    }
+    // Another system on an admitted version string never gets the lane.
+    vi.stubGlobal("game", {
+      system: { id: "knight", version: "6.1.0" },
+      release: { generation: 14 },
+    });
+    const knight = new ProcedureRegistry();
+    registerBuiltinProcedures(knight);
+    expect(knight.capabilities()).not.toContain("dnd5e.resources.v1");
+    expect(knight.unsupported()).not.toHaveProperty("dnd5e.resources.v1");
   });
 
   it("registers actor.upsert.v1 only for Knight", () => {
@@ -363,9 +417,9 @@ describe("ProcedureRegistry", () => {
     const old = new ProcedureRegistry();
     registerBuiltinProcedures(old);
     expect(old.capabilities()).not.toContain("combat.sync.v1");
-    expect(old.unsupported()).toEqual({
-      "combat.sync.v1": "Foundry 12; requires Foundry 13 or later",
-    });
+    expect(old.unsupported()["combat.sync.v1"]).toBe(
+      "Foundry 12; requires Foundry 13 or later",
+    );
   });
 
   it("never advertises combat.sync.v1 on a system the backend does not write to", () => {

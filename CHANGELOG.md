@@ -7,6 +7,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- Fifth Edition: the companion app can write hit points, temporary hit points, spell slots,
+  exhaustion and conditions to a linked character (dnd5e 6.1 or later on Foundry 14), through the
+  new signed-only `dnd5e.resources.v1`.
 - `actor.resources.v1` may carry the character's `name`, alone or with resource values; an optional
   `previousName` makes it a compare-and-set, refused with `name_conflict` (nothing written) when the
   Actor was renamed in Foundry first. The module advertises `actorResourcesNameV1` alongside

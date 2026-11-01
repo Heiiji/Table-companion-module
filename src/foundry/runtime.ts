@@ -62,6 +62,21 @@ export interface ActorLike {
   prepareData?(): void;
   createEmbeddedDocuments?(type: "Item", data: Dict[]): Promise<unknown>;
   deleteEmbeddedDocuments?(type: "Item", ids: string[]): Promise<unknown>;
+  /** Embedded ActiveEffects (read by the Fifth Edition lane). */
+  effects?: { contents?: ActiveEffectLike[] } | Iterable<ActiveEffectLike>;
+  /** Foundry's status toggle (create or delete the status's effect). */
+  toggleStatusEffect?(
+    statusId: string,
+    options: { active: boolean },
+  ): Promise<unknown>;
+}
+
+/** An ActiveEffect embedded in an Actor. */
+export interface ActiveEffectLike {
+  id?: string;
+  _id?: string;
+  type?: string;
+  system?: unknown;
 }
 
 /** `game.actors`: exposes `contents`, is iterable, or both, depending on the
