@@ -1,4 +1,5 @@
 import {
+  CAP_ACTOR_RESOURCES_NAME,
   CAP_RESPONSE_SIG,
   CHANNEL,
   DISPLAY_TAG,
@@ -167,7 +168,8 @@ export class Channel {
   }
 
   /** Capabilities advertised in hello / hello.ack: the registered procedures,
-   * plus the response-signing token when this client signs.
+   * plus the response-signing token when this client signs, and the
+   * resources-name token whenever `actor.resources.v1` is advertised.
    *
    * Public because this — not the raw registry — is what the agent actually
    * sees, so it is the only honest answer to "what does this module offer?".
@@ -181,6 +183,9 @@ export class Channel {
       .capabilities()
       .filter((name) => !this.registry.isSignedOnly(name) || this.canSign());
     if (this.canSign()) caps.push(CAP_RESPONSE_SIG);
+    // The name fields ride the resources lane: advertised only with it.
+    if (caps.includes("actor.resources.v1"))
+      caps.push(CAP_ACTOR_RESOURCES_NAME);
     return caps.sort();
   }
 

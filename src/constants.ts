@@ -79,6 +79,12 @@ export const SETTING_MODULE_KEYPAIR = "moduleResponseKeypair";
  * capModuleResponseSignatureV1. NOT a procedure name — it has no handler. */
 export const CAP_RESPONSE_SIG = "moduleResponseSignatureV1";
 
+/** Capability token advertised alongside `actor.resources.v1`: this build
+ * accepts the optional `name` / `previousName` fields on that procedure. Apps
+ * send a name only when the world advertises it. NOT a procedure name — it has
+ * no handler. */
+export const CAP_ACTOR_RESOURCES_NAME = "actorResourcesNameV1";
+
 /** Version tag prefixed to the canonical response-signing string (independent of
  * ENVELOPE_VERSION — it versions the signing scheme, not the envelope shape).
  *

@@ -8,6 +8,7 @@ import {
   responseSigningString,
 } from "../src/rpc/responseSigning.js";
 import {
+  CAP_ACTOR_RESOURCES_NAME,
   CAP_RESPONSE_SIG,
   ENVELOPE_VERSION,
   MAX_ENVELOPE_BYTES,
@@ -937,6 +938,7 @@ describe("Channel response signing", () => {
     expect(unsigned).not.toContain("actor.upsert.v1");
     expect(unsigned).not.toContain("npc.upsert.v1");
     expect(unsigned).not.toContain("actor.resources.v1");
+    expect(unsigned).not.toContain(CAP_ACTOR_RESOURCES_NAME);
     expect(unsigned).not.toContain("combat.sync.v1");
 
     const { signer } = await ModuleResponseSigner.generate();
@@ -946,8 +948,10 @@ describe("Channel response signing", () => {
     expect(capabilities).toContain("actor.upsert.v1");
     expect(capabilities).toContain("npc.upsert.v1");
     expect(capabilities).toContain("actor.resources.v1");
+    expect(capabilities).toContain(CAP_ACTOR_RESOURCES_NAME);
     expect(capabilities).toContain("combat.sync.v1");
     expect(capabilities).toContain(CAP_RESPONSE_SIG);
+    expect(capabilities).toEqual([...capabilities].sort());
   });
 
   it("advertises the combat mirror while withholding the Knight author lanes", async () => {
@@ -978,6 +982,8 @@ describe("Channel response signing", () => {
     const capabilities = mixed.capabilities as string[];
     expect(capabilities).toContain("combat.sync.v1");
     for (const lane of AUTHOR_LANES) expect(capabilities).not.toContain(lane);
+    // The name token rides the resources lane: withheld with it.
+    expect(capabilities).not.toContain(CAP_ACTOR_RESOURCES_NAME);
     expect(Object.keys(mixed.unsupported as object).sort()).toEqual(
       AUTHOR_LANES,
     );
@@ -986,6 +992,9 @@ describe("Channel response signing", () => {
     const admitted = helloOn("3.58.36");
     for (const lane of [...AUTHOR_LANES, "combat.sync.v1"])
       expect(admitted.capabilities as string[]).toContain(lane);
+    expect(admitted.capabilities as string[]).toContain(
+      CAP_ACTOR_RESOURCES_NAME,
+    );
     expect(admitted.unsupported).toBeUndefined();
   });
 

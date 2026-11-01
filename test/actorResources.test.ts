@@ -135,10 +135,124 @@ describe("validateKnightActorResourcesV1", () => {
     ["zero sequence", { sequence: 0 }],
     ["unsafe sequence", { sequence: Number.MAX_SAFE_INTEGER + 1 }],
     ["bad character id", { characterId: "a b" }],
+    ["no resource and no name", { resources: undefined }],
+    ["blank name", { name: "  " }],
+    ["name with NUL", { name: "A\0B" }],
+    ["name over 200 code points", { name: "é".repeat(201) }],
+    ["non-string name", { name: 7 }],
+    ["previousName without a name", { previousName: "Old" }],
+    ["blank previousName", { name: "New", previousName: "" }],
   ])("refuses %s", (_name, overrides) => {
     expect(() =>
       validateKnightActorResourcesV1({ ...request(), ...overrides }),
     ).toThrow(RpcError);
+  });
+});
+
+function withoutResources(): Omit<KnightActorResourcesV1, "resources"> {
+  const base: Partial<KnightActorResourcesV1> = request();
+  delete base.resources;
+  return base as Omit<KnightActorResourcesV1, "resources">;
+}
+
+describe("validateKnightActorResourcesV1 name", () => {
+  it("accepts a name alone, with or without previousName", () => {
+    const base = withoutResources();
+    expect(
+      validateKnightActorResourcesV1({ ...base, name: "é".repeat(200) }),
+    ).toEqual({ ...base, resources: {}, name: "é".repeat(200) });
+    expect(
+      validateKnightActorResourcesV1({
+        ...base,
+        name: "New",
+        previousName: "Old",
+      }),
+    ).toEqual({ ...base, resources: {}, name: "New", previousName: "Old" });
+  });
+});
+
+describe("actor.resources.v1 name", () => {
+  const nameOnly = (overrides: Record<string, unknown> = {}) => {
+    return { ...withoutResources(), name: "Renamed", ...overrides };
+  };
+
+  it("renames the bound Actor in one update with the result flag", async () => {
+    const actor = boundActor();
+    stubFoundry([actor]);
+    const result = await apply(nameOnly());
+    expect(actor.name).toBe("Renamed");
+    expect(actor.updates).toEqual([
+      {
+        name: "Renamed",
+        [`flags.${MODULE_ID}.actorResourcesV1`]: {
+          ...result,
+          contentDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+        },
+      },
+    ]);
+    expect(result).not.toHaveProperty("name");
+  });
+
+  it("applies when previousName matches the Actor's name", async () => {
+    const actor = boundActor();
+    stubFoundry([actor]);
+    await apply(
+      nameOnly({ previousName: "Existing", resources: { health: 12 } }),
+    );
+    expect(actor.updates[0]).toMatchObject({
+      name: "Renamed",
+      "system.sante.value": 12,
+    });
+  });
+
+  it("refuses with name_conflict and writes nothing when Foundry renamed first", async () => {
+    const actor = boundActor();
+    actor.name = "Renamed in Foundry";
+    stubFoundry([actor]);
+    expect(
+      await rpcCode(
+        apply(
+          nameOnly({ previousName: "Existing", resources: { health: 12 } }),
+        ),
+      ),
+    ).toBe("name_conflict");
+    expect(actor.updates).toHaveLength(0);
+    expect(actor.name).toBe("Renamed in Foundry");
+  });
+
+  it("replays the same sequence and digest after the rename", async () => {
+    const actor = boundActor();
+    stubFoundry([actor]);
+    const first = await apply(nameOnly({ previousName: "Existing" }));
+    const again = await apply(nameOnly({ previousName: "Existing" }));
+    expect(again).toEqual(first);
+    expect(actor.updates).toHaveLength(1);
+  });
+
+  it("writes nothing when a new sequence re-sends the recorded name and values", async () => {
+    const actor = boundActor();
+    stubFoundry([actor]);
+    await apply(
+      request({ sequence: 7, name: "Renamed", previousName: "Existing" }),
+    );
+    await apply(
+      request({ sequence: 8, name: "Renamed", previousName: "Existing" }),
+    );
+    expect(actor.updates).toHaveLength(1);
+    // Another name under a new sequence is a change.
+    await apply(
+      request({ sequence: 9, name: "Again", previousName: "Renamed" }),
+    );
+    expect(actor.updates).toHaveLength(2);
+    expect(actor.updates[1]).toMatchObject({ name: "Again" });
+  });
+
+  it("writes no name the Actor already carries", async () => {
+    const actor = boundActor();
+    stubFoundry([actor]);
+    await apply(nameOnly({ name: "Existing" }));
+    expect(actor.updates).toHaveLength(1);
+    expect(actor.updates[0]).not.toHaveProperty("name");
   });
 });
 

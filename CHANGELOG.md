@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- `actor.resources.v1` may carry the character's `name`, alone or with resource values; an optional
+  `previousName` makes it a compare-and-set, refused with `name_conflict` (nothing written) when the
+  Actor was renamed in Foundry first. The module advertises `actorResourcesNameV1` alongside
+  `actor.resources.v1`.
+
 ### Changed
 - `actor.resources.v1` no longer re-writes a value the Actor already holds (a capped re-send included);
   only its result record is updated.
