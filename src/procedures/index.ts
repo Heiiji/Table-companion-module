@@ -9,6 +9,7 @@ import { npcUpsertV1 } from "./npcUpsert.js";
 import { actorResourcesV1 } from "./actorResources.js";
 import { dnd5eResourcesV1 } from "./dnd5eResources.js";
 import { pf2eActorUpsertV1 } from "./pf2eActorUpsert.js";
+import { pf2eActorCompleteV1 } from "./pf2eActorComplete.js";
 import {
   MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION,
   combatSyncV1,
@@ -129,10 +130,15 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
       kind: "mutation",
       signedOnly: true,
     });
+    // The player's completion of that draft (boosts, skills, feats, spells,
+    // equipment, lores, additive only): same gate, same signed-only posture.
+    registry.register("pf2e.actor.complete.v1", pf2eActorCompleteV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
   } else if (systemId() === "pf2e") {
-    registry.markUnsupported(
-      "pf2e.actor.upsert.v1",
-      `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_REQUIREMENT}`,
-    );
+    const reason = `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_REQUIREMENT}`;
+    registry.markUnsupported("pf2e.actor.upsert.v1", reason);
+    registry.markUnsupported("pf2e.actor.complete.v1", reason);
   }
 }

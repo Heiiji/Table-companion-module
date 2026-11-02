@@ -97,6 +97,11 @@ Gamemaster can open setup from the console with
   app can be created in Foundry as a draft — name, ownership, level, and the ancestry, heritage,
   background and class found by slug in the system's compendiums — for the GM to complete there
   (`pf2e.actor.upsert.v1`).
+- **Pathfinder 2e character completion:** on the same releases, the character's player completes that
+  draft from the app — attribute boosts, skill ranks, lores, feats, spells and equipment found by slug
+  in the system's compendiums (`pf2e.actor.complete.v1`). It only adds: nothing already on the Actor is
+  removed or rewritten, the level is never changed, an item that would open a choice dialog is skipped
+  with a warning, and the completing user must own the Actor in Foundry at the time it applies.
 - **Combat mirror:** on every system, the app's combat (combatants, initiative, current turn) is
   mirrored one way into a Foundry Combat (`combat.sync.v1`).
 - **Languages:** English, Français

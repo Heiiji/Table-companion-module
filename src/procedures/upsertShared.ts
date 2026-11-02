@@ -311,6 +311,7 @@ export const FLAG_KEYS = {
   dnd5eResources: "dnd5eResourcesV1",
   pf2eUpsert: "pf2eUpsertV1",
   pf2eCreated: "pf2eUpsertCreatedV1",
+  pf2eComplete: "pf2eCompleteV1",
   npcUpsert: "npcUpsertV1",
   characterCreation: "characterCreationV1",
   minorMotivation: "actorUpsertMinorMotivationV1",
