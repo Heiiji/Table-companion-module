@@ -155,13 +155,14 @@ describe("pf2e.actor.complete.v1 shared vectors", () => {
       )
     );
   }
-  // Only the backend caps warnings at 580; the module may emit up to 594.
-  const moduleAccepts = new Set(["warnings-581"]);
+  // The backend caps warnings at 600; the module itself emits at most 594, so it
+  // refuses the 600-warning sample the backend still accepts.
+  const moduleRefuses = new Set(["warnings-600"]);
   it.each(file.result.samples.map((s) => [s.id, s] as const))(
     "result sample %s",
     (id, s) => {
       expect(decodes(s.result)).toBe(
-        s.expect === "valid" || moduleAccepts.has(id),
+        s.expect === "valid" && !moduleRefuses.has(id),
       );
     },
   );
