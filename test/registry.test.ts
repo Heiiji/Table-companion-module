@@ -67,6 +67,13 @@ const RETIRED_PF2_PROCEDURES = [
 
 afterEach(() => vi.unstubAllGlobals());
 
+/** The Pathfinder 2e lanes: character draft, completion, live counters. */
+const PF2E_LANES = [
+  "pf2e.actor.upsert.v1",
+  "pf2e.actor.complete.v1",
+  "pf2e.resources.v1",
+] as const;
+
 describe("ProcedureRegistry", () => {
   it("registers, gets, and reports has()", () => {
     const r = new ProcedureRegistry();
@@ -122,14 +129,14 @@ describe("ProcedureRegistry", () => {
     for (const procedure of RETIRED_PF2_PROCEDURES) {
       expect(registry.get(procedure), procedure).toBeUndefined();
     }
-    for (const lane of ["pf2e.actor.upsert.v1", "pf2e.actor.complete.v1"])
+    for (const lane of PF2E_LANES)
       expect(registry.unsupported()[lane], lane).toBe(
         "pf2e 8.3.0 on Foundry 14; requires pf2e 8.6.1 or later on Foundry 14",
       );
     expect(actorLookup).not.toHaveBeenCalled();
   });
 
-  it("registers pf2e.actor.upsert.v1 and pf2e.actor.complete.v1 only on pf2e 8.6.1 or later on Foundry 14 or later", () => {
+  it("registers the three pf2e lanes only on pf2e 8.6.1 or later on Foundry 14 or later", () => {
     for (const version of ["8.6.1", "8.6.2", "8.7.0", "9.0.0"]) {
       vi.stubGlobal("game", {
         system: { id: "pf2e", version },
@@ -140,20 +147,14 @@ describe("ProcedureRegistry", () => {
       // Still no combat mirror: only the draft and completion lanes join the
       // floor.
       expect(registry.capabilities(), version).toEqual(
-        [
-          "pf2e.actor.complete.v1",
-          "pf2e.actor.upsert.v1",
-          ...BASE_CAPABILITIES,
-        ].sort(),
+        [...PF2E_LANES, ...BASE_CAPABILITIES].sort(),
       );
+      expect(registry.isSignedOnly("pf2e.resources.v1"), version).toBe(true);
       expect(registry.isSignedOnly("pf2e.actor.upsert.v1"), version).toBe(true);
       expect(registry.isSignedOnly("pf2e.actor.complete.v1"), version).toBe(
         true,
       );
-      expect(registry.mutations(), version).toEqual([
-        "pf2e.actor.complete.v1",
-        "pf2e.actor.upsert.v1",
-      ]);
+      expect(registry.mutations(), version).toEqual([...PF2E_LANES].sort());
       expect(registry.unsupported(), version).toEqual({
         "combat.sync.v1": "combat mirroring is not available on pf2e",
       });
@@ -173,7 +174,7 @@ describe("ProcedureRegistry", () => {
       const registry = new ProcedureRegistry();
       registerBuiltinProcedures(registry);
       expect(registry.capabilities(), version).toEqual(BASE_CAPABILITIES);
-      for (const lane of ["pf2e.actor.upsert.v1", "pf2e.actor.complete.v1"])
+      for (const lane of PF2E_LANES)
         expect(registry.unsupported()[lane], version).toBe(
           `pf2e ${version} on Foundry ${generation}; requires pf2e 8.6.1 or later on Foundry 14`,
         );
@@ -187,7 +188,7 @@ describe("ProcedureRegistry", () => {
       });
       const other = new ProcedureRegistry();
       registerBuiltinProcedures(other);
-      for (const lane of ["pf2e.actor.upsert.v1", "pf2e.actor.complete.v1"]) {
+      for (const lane of PF2E_LANES) {
         expect(other.capabilities(), id).not.toContain(lane);
         expect(other.unsupported(), id).not.toHaveProperty(lane);
       }
@@ -368,8 +369,8 @@ describe("ProcedureRegistry", () => {
     registerBuiltinProcedures(knight);
     expect(knight.mutations()).toEqual([...MUTATION_PROCEDURES].sort());
 
-    // pf2e from the floor: the character-draft and completion lanes only (no
-    // combat mirror).
+    // pf2e from the floor: the character-draft, completion and live-counters
+    // lanes only (no combat mirror).
     vi.stubGlobal("game", {
       system: { id: "pf2e", version: "8.6.1" },
       release: { generation: 14 },
@@ -379,6 +380,7 @@ describe("ProcedureRegistry", () => {
     expect(pf2e.mutations()).toEqual([
       "pf2e.actor.complete.v1",
       "pf2e.actor.upsert.v1",
+      "pf2e.resources.v1",
     ]);
 
     // Any other system exposes only the core-document combat mirror, and no

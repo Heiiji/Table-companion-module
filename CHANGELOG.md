@@ -18,6 +18,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   boosts, skill ranks, lores, feats, spells and equipment found by slug in the system's compendiums —
   through the new signed-only `pf2e.actor.complete.v1` (same pf2e and Foundry floor). Additive only;
   refused unless the completing user owns the Actor and the build's level matches the Actor's.
+- Pathfinder 2e: the companion app can write hit points, temporary hit points, hero points,
+  conditions and inventory (item quantities, removals, and items added by slug from the system's
+  equipment compendium) to a linked character, through the new signed-only `pf2e.resources.v1`
+  (pf2e 8.6.1 or later on Foundry 14). Conditions granted or locked by another item are never touched.
 - `test/vectors/pf2e-actor-complete-vectors.json`, shared byte for byte with the backend, pins the
   `pf2e.actor.complete.v1` contract: accepted and refused requests, thrown error words, result shape.
 - `actor.resources.v1` may carry the character's `name`, alone or with resource values; an optional

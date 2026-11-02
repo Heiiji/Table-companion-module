@@ -69,6 +69,11 @@ export interface ActorLike {
     statusId: string,
     options: { active: boolean },
   ): Promise<unknown>;
+  /** pf2e: raise a valued condition, or create it when absent. */
+  increaseCondition?(
+    slug: string,
+    options: { value: number },
+  ): Promise<unknown>;
 }
 
 /** An ActiveEffect embedded in an Actor. */
@@ -227,6 +232,17 @@ interface GameLike {
   version?: string;
   settings?: SettingsLike;
   socket?: SocketLike;
+  /** pf2e's system namespace (the Pathfinder 2e live-counters lane). */
+  pf2e?: { ConditionManager?: Pf2eConditionManagerLike };
+}
+
+/** `game.pf2e.ConditionManager`: set a condition item's value by id (0 deletes). */
+export interface Pf2eConditionManagerLike {
+  updateConditionValue?(
+    itemId: string,
+    actor: unknown,
+    value: number,
+  ): Promise<unknown>;
 }
 
 interface FoundryGlobals {
@@ -306,6 +322,10 @@ export function gameSettings(): SettingsLike | undefined {
 
 export function gameSocket(): SocketLike | undefined {
   return foundryGame()?.socket;
+}
+
+export function pf2eConditionManager(): Pf2eConditionManagerLike | undefined {
+  return foundryGame()?.pf2e?.ConditionManager;
 }
 
 export function gameCombats(): CombatsLike | undefined {

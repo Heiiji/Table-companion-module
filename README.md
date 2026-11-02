@@ -102,6 +102,11 @@ Gamemaster can open setup from the console with
   in the system's compendiums (`pf2e.actor.complete.v1`). It only adds: nothing already on the Actor is
   removed or rewritten, the level is never changed, an item that would open a choice dialog is skipped
   with a warning, and the completing user must own the Actor in Foundry at the time it applies.
+- **Pathfinder 2e live counters:** on the same releases, a linked character's hit points, temporary
+  hit points, hero points, conditions and inventory are written from the app (`pf2e.resources.v1`):
+  quantities of the items the app mirrors (0 deletes), and items added in the app found by slug in the
+  system's equipment compendium, never stacked onto another item. A condition another item grants or
+  locks, coins, the level and the attributes are never touched.
 - **Combat mirror:** on every system, the app's combat (combatants, initiative, current turn) is
   mirrored one way into a Foundry Combat (`combat.sync.v1`).
 - **Languages:** English, Français

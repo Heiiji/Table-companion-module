@@ -250,6 +250,14 @@ export function supportsPf2eActorUpsertV1Runtime(): boolean {
   );
 }
 
+/** Runtime gate for `pf2e.resources.v1`: the same pf2e floor as the draft
+ * lane, kept as its own gate so the live-counters lane can move alone. The
+ * handler repeats it and then probes, at call time, the pf2e APIs it writes
+ * through (they fail closed when absent). */
+export function supportsPf2eResourcesV1Runtime(): boolean {
+  return supportsPf2eActorUpsertV1Runtime();
+}
+
 /** Every world-writing procedure runs only in a GM responder's browser. */
 export function assertGMResponder(procedure: string): void {
   if (!foundryGame()?.user?.isGM)
@@ -312,6 +320,7 @@ export const FLAG_KEYS = {
   pf2eUpsert: "pf2eUpsertV1",
   pf2eCreated: "pf2eUpsertCreatedV1",
   pf2eComplete: "pf2eCompleteV1",
+  pf2eResources: "pf2eResourcesV1",
   npcUpsert: "npcUpsertV1",
   characterCreation: "characterCreationV1",
   minorMotivation: "actorUpsertMinorMotivationV1",

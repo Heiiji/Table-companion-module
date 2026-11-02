@@ -204,7 +204,7 @@ function indexSlug(entry: Dict): unknown {
 /** True when an Item source carries a ChoiceSet rule with no stored
  * selection. Source-derived (pf2e 8.6.1): embedding such an Item opens a
  * blocking choice dialog in this GM's browser, which no one answers. */
-function hasUnresolvedChoice(source: Dict): boolean {
+export function hasUnresolvedChoice(source: Dict): boolean {
   const rules = (source.system as Dict | undefined)?.rules;
   return (
     Array.isArray(rules) &&

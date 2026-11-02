@@ -438,7 +438,7 @@ function preselect(source: Dict, choices: Record<string, string>): boolean {
   return true;
 }
 
-class PackLookup {
+export class PackLookup {
   #indexes = new Map<string, Map<string, string> | null>();
 
   async source(packId: string, wanted: string): Promise<Dict | "missing"> {

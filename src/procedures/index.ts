@@ -10,6 +10,7 @@ import { actorResourcesV1 } from "./actorResources.js";
 import { dnd5eResourcesV1 } from "./dnd5eResources.js";
 import { pf2eActorUpsertV1 } from "./pf2eActorUpsert.js";
 import { pf2eActorCompleteV1 } from "./pf2eActorComplete.js";
+import { pf2eResourcesV1 } from "./pf2eResources.js";
 import {
   MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION,
   combatSyncV1,
@@ -23,6 +24,7 @@ import {
   PF2E_REQUIREMENT,
   supportsDnd5eResourcesV1Runtime,
   supportsPf2eActorUpsertV1Runtime,
+  supportsPf2eResourcesV1Runtime,
   supportsKnightActorUpsertV1Runtime,
 } from "./upsertShared.js";
 import {
@@ -140,5 +142,19 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
     const reason = `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_REQUIREMENT}`;
     registry.markUnsupported("pf2e.actor.upsert.v1", reason);
     registry.markUnsupported("pf2e.actor.complete.v1", reason);
+  }
+  // Live counters of a Pathfinder 2e character (hit points, temporary hit
+  // points, hero points, conditions, inventory quantities and catalog adds):
+  // bound or named Actor only, signed-only, its own gate on the pf2e floor.
+  if (supportsPf2eResourcesV1Runtime()) {
+    registry.register("pf2e.resources.v1", pf2eResourcesV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
+  } else if (systemId() === "pf2e") {
+    registry.markUnsupported(
+      "pf2e.resources.v1",
+      `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_REQUIREMENT}`,
+    );
   }
 }
