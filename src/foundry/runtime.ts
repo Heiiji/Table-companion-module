@@ -96,7 +96,8 @@ interface ActorFactoryLike {
 export interface CompendiumPackLike {
   collection: string;
   metadata: { id?: string; label?: string; type?: string; system?: string };
-  getIndex(): Promise<Iterable<Dict>>;
+  /** `fields` adds those (dotted) source paths to each index entry. */
+  getIndex(options?: { fields?: string[] }): Promise<Iterable<Dict>>;
   getDocument(id: string): Promise<{ toObject(): unknown } | null | undefined>;
   testUserPermission?(user: unknown, permission: string): boolean;
 }
@@ -104,6 +105,12 @@ export interface CompendiumPackLike {
 export interface CompendiumPacksLike {
   [Symbol.iterator](): Iterator<CompendiumPackLike>;
   get(collection: string): CompendiumPackLike | undefined;
+}
+
+/** `game.items`, as far as cloning a compendium document into a source
+ * (`fromCompendium` stamps `_stats.compendiumSource`). */
+interface ItemsLike {
+  fromCompendium?(document: unknown, options?: Dict): Dict;
 }
 
 interface ModuleLike {
@@ -212,6 +219,7 @@ interface GameLike {
   combats?: CombatsLike;
   scenes?: { viewed?: SceneLike | null };
   packs?: CompendiumPacksLike;
+  items?: ItemsLike;
   modules?: ModulesLike;
   system?: { id?: string; version?: string };
   world?: { id?: string };
@@ -282,6 +290,10 @@ export function gameActors(): ActorsLike | undefined {
 
 export function gamePacks(): CompendiumPacksLike | undefined {
   return foundryGame()?.packs;
+}
+
+export function gameItems(): ItemsLike | undefined {
+  return foundryGame()?.items;
 }
 
 export function gameModules(): ModulesLike | undefined {

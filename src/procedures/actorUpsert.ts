@@ -13,6 +13,7 @@ import {
   createActorDocument,
   foundryId,
   invalid,
+  normalizedOwnership,
   parseStoredResult,
   uniqueBoundActor,
   type ActorLike,
@@ -29,11 +30,7 @@ import {
   type SyncV1,
 } from "./actorUpsert.types.js";
 import { validateKnightActorUpsertV1 } from "./actorUpsert.validate.js";
-import {
-  applyCurrentResources,
-  authoredPatch,
-  normalizedOwnership,
-} from "./actorUpsert.patch.js";
+import { applyCurrentResources, authoredPatch } from "./actorUpsert.patch.js";
 import { applyMinorMotivations } from "./actorUpsert.motivations.js";
 import { applyEquipment } from "./actorUpsert.equipment.js";
 

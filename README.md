@@ -93,6 +93,10 @@ Gamemaster can open setup from the console with
 - **Fifth Edition live counters:** on dnd5e 6.1.0 or later on Foundry 14 or later, a linked
   character's hit points, temporary hit points, spell slots, exhaustion and conditions are written
   from the app (`dnd5e.resources.v1`).
+- **Pathfinder 2e character drafts:** on pf2e 8.6.1 or later on Foundry 14, a character made in the
+  app can be created in Foundry as a draft — name, ownership, level, and the ancestry, heritage,
+  background and class found by slug in the system's compendiums — for the GM to complete there
+  (`pf2e.actor.upsert.v1`).
 - **Combat mirror:** on every system, the app's combat (combatants, initiative, current turn) is
   mirrored one way into a Foundry Combat (`combat.sync.v1`).
 - **Languages:** English, Français

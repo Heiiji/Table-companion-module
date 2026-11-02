@@ -8,6 +8,7 @@ import { actorUpsertV1 } from "./actorUpsert.js";
 import { npcUpsertV1 } from "./npcUpsert.js";
 import { actorResourcesV1 } from "./actorResources.js";
 import { dnd5eResourcesV1 } from "./dnd5eResources.js";
+import { pf2eActorUpsertV1 } from "./pf2eActorUpsert.js";
 import {
   MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION,
   combatSyncV1,
@@ -18,7 +19,9 @@ import {
   DND5E_RESOURCES_REQUIREMENT,
   KNIGHT_UPSERT_SYSTEM_VERSION_LABEL,
   MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION,
+  PF2E_REQUIREMENT,
   supportsDnd5eResourcesV1Runtime,
+  supportsPf2eActorUpsertV1Runtime,
   supportsKnightActorUpsertV1Runtime,
 } from "./upsertShared.js";
 import {
@@ -116,6 +119,20 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
     registry.markUnsupported(
       "dnd5e.resources.v1",
       `dnd5e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${DND5E_RESOURCES_REQUIREMENT}`,
+    );
+  }
+  // A Pathfinder 2e character draft made from the apps: name, ownership,
+  // level and the ancestry/heritage/background/class Items named by slug.
+  // Signed-only, on the pf2e release the create path was derived from.
+  if (supportsPf2eActorUpsertV1Runtime()) {
+    registry.register("pf2e.actor.upsert.v1", pf2eActorUpsertV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
+  } else if (systemId() === "pf2e") {
+    registry.markUnsupported(
+      "pf2e.actor.upsert.v1",
+      `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_REQUIREMENT}`,
     );
   }
 }

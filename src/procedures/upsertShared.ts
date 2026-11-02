@@ -11,6 +11,7 @@ import {
   type Dict,
 } from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
+import { pairedAgentUserId } from "../setup/identity.js";
 import { canonicalize } from "../util/canonicalJson.js";
 
 /**
@@ -224,6 +225,31 @@ export function supportsDnd5eResourcesV1Runtime(): boolean {
   );
 }
 
+/** Oldest pf2e system release the Pathfinder 2e character-draft lane writes
+ * to: 8.6.1, the release whose source the create path was derived from
+ * (source-derived (pf2e 8.6.1), never confirmed against a live world). A floor,
+ * not a list; a later release that proves breaking is handled when it
+ * happens. */
+export const MINIMUM_PF2E_SYSTEM_VERSION = "8.6.1";
+
+/** pf2e 8.x itself runs on Foundry 14 only. */
+export const MINIMUM_PF2E_FOUNDRY_GENERATION = 14;
+
+/** The « requires … » wording of the Pathfinder 2e lane's refusals. */
+export const PF2E_REQUIREMENT = `pf2e ${MINIMUM_PF2E_SYSTEM_VERSION} or later on Foundry ${MINIMUM_PF2E_FOUNDRY_GENERATION}`;
+
+/** Runtime gate for `pf2e.actor.upsert.v1`: the pf2e system (not a sibling
+ * built from the same tree, such as sf2e) at or above the floor, on Foundry 14
+ * or later. It decides registration, and the handler repeats it before
+ * touching the world. */
+export function supportsPf2eActorUpsertV1Runtime(): boolean {
+  return (
+    systemId() === "pf2e" &&
+    isAtLeastVersion(systemVersion(), MINIMUM_PF2E_SYSTEM_VERSION) &&
+    foundryGeneration() >= MINIMUM_PF2E_FOUNDRY_GENERATION
+  );
+}
+
 /** Every world-writing procedure runs only in a GM responder's browser. */
 export function assertGMResponder(procedure: string): void {
   if (!foundryGame()?.user?.isGM)
@@ -283,6 +309,8 @@ export const FLAG_KEYS = {
   actorUpsert: "actorUpsertV1",
   actorResources: "actorResourcesV1",
   dnd5eResources: "dnd5eResourcesV1",
+  pf2eUpsert: "pf2eUpsertV1",
+  pf2eCreated: "pf2eUpsertCreatedV1",
   npcUpsert: "npcUpsertV1",
   characterCreation: "characterCreationV1",
   minorMotivation: "actorUpsertMinorMotivationV1",
@@ -439,7 +467,7 @@ export function alreadyApplied(
   previous: { appliedRevision: number; appliedDigest: string } | null,
   revision: number,
   digest: string,
-  revisionKind: "approved" | "content" | "sequence",
+  revisionKind: "approved" | "content" | "sequence" | "draft",
 ): boolean {
   if (!previous) return false;
   if (previous.appliedRevision > revision) {
@@ -495,6 +523,46 @@ export function ownershipReplacement(
     if (key !== "default" && key !== owner) update[`-=${key}`] = null;
   }
   if (owner) update[owner] = OWNERSHIP_OWNER;
+  return update;
+}
+
+/** The paired Companion user, which the backend reads the world as, unless it
+ * is the character's own player (who keeps OWNER). "" before pairing. */
+function companionUserId(foundryUserId: string | undefined): string {
+  const id = pairedAgentUserId();
+  return id && id !== foundryUserId ? id : "";
+}
+
+/** The ownership map a provisioning lane creates an Actor with: default NONE,
+ * the player OWNER when given, the Companion user OBSERVER (without it the
+ * backend never sees the Actor). */
+export function normalizedOwnership(foundryUserId: string | undefined): Dict {
+  const ownership: Dict = { default: OWNERSHIP_NONE };
+  if (foundryUserId) ownership[foundryUserId] = OWNERSHIP_OWNER;
+  const companion = companionUserId(foundryUserId);
+  if (companion) ownership[companion] = OWNERSHIP_OBSERVER;
+  return ownership;
+}
+
+// Actor.create receives the plain normalized map; Actor.update receives the
+// merge-safe replacement, which ends with exactly default:NONE, one OWNER when
+// supplied, and the Companion user at its existing level but at least OBSERVER
+// — whatever other grants an adopted or bound Actor carried. The Companion
+// grant is never deleted or lowered, so setup's « Share » survives a revision.
+export function normalizedOwnershipUpdate(
+  actor: ActorLike,
+  foundryUserId: string | undefined,
+): Dict {
+  const update = ownershipReplacement(actor, OWNERSHIP_NONE, foundryUserId);
+  const companion = companionUserId(foundryUserId);
+  if (companion) {
+    delete update[`-=${companion}`];
+    const current = Number(actor.ownership?.[companion]);
+    update[companion] = Math.max(
+      OWNERSHIP_OBSERVER,
+      Number.isFinite(current) ? current : OWNERSHIP_NONE,
+    );
+  }
   return update;
 }
 

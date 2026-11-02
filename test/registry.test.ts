@@ -106,7 +106,7 @@ describe("ProcedureRegistry", () => {
     warn.mockRestore();
   });
 
-  it("advertises only class-neutral and transient procedures for PF2e", () => {
+  it("advertises only class-neutral and transient procedures on a pf2e below the floor", () => {
     const actorLookup = vi.fn();
     vi.stubGlobal("game", {
       system: { id: "pf2e", version: "8.3.0" },
@@ -122,7 +122,63 @@ describe("ProcedureRegistry", () => {
     for (const procedure of RETIRED_PF2_PROCEDURES) {
       expect(registry.get(procedure), procedure).toBeUndefined();
     }
+    expect(registry.unsupported()["pf2e.actor.upsert.v1"]).toBe(
+      "pf2e 8.3.0 on Foundry 14; requires pf2e 8.6.1 or later on Foundry 14",
+    );
     expect(actorLookup).not.toHaveBeenCalled();
+  });
+
+  it("registers pf2e.actor.upsert.v1 only on pf2e 8.6.1 or later on Foundry 14 or later", () => {
+    for (const version of ["8.6.1", "8.6.2", "8.7.0", "9.0.0"]) {
+      vi.stubGlobal("game", {
+        system: { id: "pf2e", version },
+        release: { generation: 14 },
+      });
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      // Still no combat mirror: only the draft lane joins the floor.
+      expect(registry.capabilities(), version).toEqual(
+        ["pf2e.actor.upsert.v1", ...BASE_CAPABILITIES].sort(),
+      );
+      expect(registry.isSignedOnly("pf2e.actor.upsert.v1"), version).toBe(true);
+      expect(registry.mutations(), version).toEqual(["pf2e.actor.upsert.v1"]);
+      expect(registry.unsupported(), version).toEqual({
+        "combat.sync.v1": "combat mirroring is not available on pf2e",
+      });
+    }
+    for (const [version, generation] of [
+      ["8.6.0", 14],
+      ["8.5.9", 14],
+      ["v8.6.1", 14],
+      ["8.6.1-beta", 14],
+      ["8.6", 14],
+      ["8.6.1", 13],
+    ] as const) {
+      vi.stubGlobal("game", {
+        system: { id: "pf2e", version },
+        release: { generation },
+      });
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      expect(registry.capabilities(), version).toEqual(BASE_CAPABILITIES);
+      expect(registry.unsupported()["pf2e.actor.upsert.v1"], version).toBe(
+        `pf2e ${version} on Foundry ${generation}; requires pf2e 8.6.1 or later on Foundry 14`,
+      );
+    }
+    // Another system on an admitted version string never gets the lane,
+    // nor a sibling built from the same tree.
+    for (const id of ["sf2e", "dnd5e"]) {
+      vi.stubGlobal("game", {
+        system: { id, version: "8.6.1" },
+        release: { generation: 14 },
+      });
+      const other = new ProcedureRegistry();
+      registerBuiltinProcedures(other);
+      expect(other.capabilities(), id).not.toContain("pf2e.actor.upsert.v1");
+      expect(other.unsupported(), id).not.toHaveProperty(
+        "pf2e.actor.upsert.v1",
+      );
+    }
   });
 
   // Every system that is not the fixture-pinned Knight runtime gets exactly the
@@ -233,6 +289,10 @@ describe("ProcedureRegistry", () => {
   // sets (the floor and Knight's superset) rather than trusting one fixture.
   it.each([
     ["pf2e", { system: { id: "pf2e", version: "8.3.0" }, version: "14.364" }],
+    [
+      "pf2e 8.6.1",
+      { system: { id: "pf2e", version: "8.6.1" }, release: { generation: 14 } },
+    ],
     ["dnd5e", { system: { id: "dnd5e" } }],
     ["custom-system", { system: { id: "custom-system" } }],
     [
@@ -260,6 +320,10 @@ describe("ProcedureRegistry", () => {
   // hand-written roster here would only prove the two literals match.
   it.each([
     ["pf2e", { system: { id: "pf2e", version: "8.3.0" }, version: "14.364" }],
+    [
+      "pf2e 8.6.1",
+      { system: { id: "pf2e", version: "8.6.1" }, release: { generation: 14 } },
+    ],
     ["dnd5e", { system: { id: "dnd5e" } }],
     [
       "knight",
@@ -282,7 +346,7 @@ describe("ProcedureRegistry", () => {
     }
   });
 
-  it("declares exactly the known mutations, and only on Knight", () => {
+  it("declares exactly the known mutations", () => {
     vi.stubGlobal("game", {
       system: { id: "knight", version: "3.58.33" },
       release: { generation: 14 },
@@ -290,6 +354,15 @@ describe("ProcedureRegistry", () => {
     const knight = new ProcedureRegistry();
     registerBuiltinProcedures(knight);
     expect(knight.mutations()).toEqual([...MUTATION_PROCEDURES].sort());
+
+    // pf2e from the floor: the character-draft lane only (no combat mirror).
+    vi.stubGlobal("game", {
+      system: { id: "pf2e", version: "8.6.1" },
+      release: { generation: 14 },
+    });
+    const pf2e = new ProcedureRegistry();
+    registerBuiltinProcedures(pf2e);
+    expect(pf2e.mutations()).toEqual(["pf2e.actor.upsert.v1"]);
 
     // Any other system exposes only the core-document combat mirror, and no
     // mutation at all before Foundry 13.
