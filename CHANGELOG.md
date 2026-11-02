@@ -18,6 +18,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   boosts, skill ranks, lores, feats, spells and equipment found by slug in the system's compendiums —
   through the new signed-only `pf2e.actor.complete.v1` (same pf2e and Foundry floor). Additive only;
   refused unless the completing user owns the Actor and the build's level matches the Actor's.
+- `test/vectors/pf2e-actor-complete-vectors.json`, shared byte for byte with the backend, pins the
+  `pf2e.actor.complete.v1` contract: accepted and refused requests, thrown error words, result shape.
 - `actor.resources.v1` may carry the character's `name`, alone or with resource values; an optional
   `previousName` makes it a compare-and-set, refused with `name_conflict` (nothing written) when the
   Actor was renamed in Foundry first. The module advertises `actorResourcesNameV1` alongside
