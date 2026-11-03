@@ -113,6 +113,12 @@ export interface Dnd5eActorResourcesV1 {
   inspiration?: boolean;
 }
 
+/** The lane's result: the common stored fields plus the prepared maximum hit
+ * points read after the write, when the Actor exposes a finite one. */
+export interface Dnd5eResourcesResultV1 extends StoredResultV1 {
+  hpEffectiveMax?: number;
+}
+
 /** Foundry's randomID(16) shape. */
 const actorDocumentId = /^[A-Za-z0-9]{16}$/;
 
@@ -218,6 +224,24 @@ function currentConditions(actor: ActorLike): Set<string> {
 function finiteAt(root: unknown, path: string): number | undefined {
   const v = valueAt(root, path);
   return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+/** source-derived (dnd5e 6.1.0, data/actor/templates/attributes.mjs L473):
+ * the PREPARED `attributes.hp.effectiveMax` (`max + tempmax`, floored at 0) —
+ * the stored `hp.max` is only an override, null unless the GM typed one. */
+function effectiveMaxOf(actor: ActorLike): { hpEffectiveMax?: number } {
+  const max = finiteAt(actor.system, "attributes.hp.effectiveMax");
+  return max === undefined
+    ? {}
+    : { hpEffectiveMax: Math.max(0, Math.floor(max)) };
+}
+
+/** The `hpEffectiveMax` a stored flag recorded, when well-formed. */
+function storedEffectiveMax(flag: Dict): { hpEffectiveMax?: number } {
+  const max = flag.hpEffectiveMax;
+  return Number.isSafeInteger(max) && (max as number) >= 0
+    ? { hpEffectiveMax: max as number }
+    : {};
 }
 
 /** The `actor.update` keys whose value differs from the prepared Actor. */
@@ -327,7 +351,11 @@ export const dnd5eResourcesV1: Procedure = async (payload) => {
   const stored = parseStoredResult(actor, FLAG_KEYS.dnd5eResources);
   const previous = stored?.result ?? null;
   if (previous && alreadyApplied(previous, req.sequence, digest, "sequence"))
-    return { ...previous, warnings: [...previous.warnings] };
+    return {
+      ...previous,
+      warnings: [...previous.warnings],
+      ...storedEffectiveMax(stored!.flag),
+    } satisfies Dnd5eResourcesResultV1;
 
   const warnings: string[] = [];
   const patch = counterPatch(actor, req, warnings);
@@ -361,19 +389,22 @@ export const dnd5eResourcesV1: Procedure = async (payload) => {
     toggles.length === 0 &&
     stored?.flag.contentDigest === contentDigest
   )
-    return result;
+    return { ...result, ...effectiveMaxOf(actor) };
 
-  // Conditions first, then ONE update carrying the counters and the result
-  // flag: a failure part-way leaves the sequence unrecorded, so the retry
-  // recomputes and finishes (an explicit `active` toggle is idempotent).
+  // Conditions first, then ONE update carrying the counters, then the result
+  // flag with the prepared maximum read after that update: a failure part-way
+  // leaves the sequence unrecorded, so the retry recomputes and finishes (an
+  // explicit `active` toggle is idempotent, a written counter no longer
+  // differs).
   for (const [cid, active] of toggles)
     await actor.toggleStatusEffect!(cid, { active });
+  if (Object.keys(patch).length > 0) await actor.update(patch);
+  const final: Dnd5eResourcesResultV1 = { ...result, ...effectiveMaxOf(actor) };
   await actor.update({
-    ...patch,
     [`flags.${MODULE_ID}.${FLAG_KEYS.dnd5eResources}`]: {
-      ...result,
+      ...final,
       contentDigest,
     },
   });
-  return result;
+  return final;
 };

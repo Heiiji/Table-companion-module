@@ -292,7 +292,7 @@ describe("dnd5e.resources.v1 counters", () => {
   it("clamps hit points to the prepared effective maximum", async () => {
     const actor = fakeCharacter();
     const result = await run(actor, request({ hp: 99 }));
-    expect(actor.updates).toHaveLength(1);
+    expect(actor.updates).toHaveLength(2);
     expect(actor.updates[0]["system.attributes.hp.value"]).toBe(20);
     expect(result).toMatchObject({
       outcome: "updated",
@@ -320,11 +320,14 @@ describe("dnd5e.resources.v1 counters", () => {
   it("writes only the values that differ, in one update", async () => {
     const actor = fakeCharacter();
     await run(actor, request({ hp: 12, hpTemp: 2, exhaustion: 0 }));
-    expect(actor.update).toHaveBeenCalledTimes(1);
-    const keys = Object.keys(actor.updates[0]).filter(
-      (k) => !k.startsWith("flags."),
-    );
-    expect(keys).toEqual(["system.attributes.hp.temp"]);
+    // The counters, then the result flag.
+    expect(actor.update).toHaveBeenCalledTimes(2);
+    expect(Object.keys(actor.updates[0])).toEqual([
+      "system.attributes.hp.temp",
+    ]);
+    expect(Object.keys(actor.updates[1])).toEqual([
+      `flags.${MODULE_ID}.dnd5eResourcesV1`,
+    ]);
   });
 
   it("clamps a slot to its prepared max and skips a slot level the character lacks", async () => {
@@ -387,16 +390,13 @@ describe("dnd5e.resources.v1 death saves and inspiration", () => {
         inspiration: true,
       }),
     );
-    expect(actor.update).toHaveBeenCalledTimes(1);
-    expect(actor.updates[0]).toMatchObject({
+    expect(actor.update).toHaveBeenCalledTimes(2);
+    expect(actor.updates[0]).toEqual({
       "system.attributes.hp.value": 0,
       "system.attributes.death.success": 2,
       "system.attributes.death.failure": 1,
       "system.attributes.inspiration": true,
     });
-    expect(actor.updates[0]).toHaveProperty(
-      `flags.${MODULE_ID}.dnd5eResourcesV1`,
-    );
   });
 
   it("writes only the death counter and inspiration that differ", async () => {
@@ -532,7 +532,7 @@ describe("dnd5e.resources.v1 convergence", () => {
     const first = await run(actor, req);
     const second = await run(actor, req);
     expect(second).toEqual(first);
-    expect(actor.update).toHaveBeenCalledTimes(1);
+    expect(actor.update).toHaveBeenCalledTimes(2);
     expect(actor.toggleStatusEffect).toHaveBeenCalledTimes(1);
   });
 
@@ -553,6 +553,61 @@ describe("dnd5e.resources.v1 convergence", () => {
     const actor = fakeCharacter();
     await run(actor, request({ sequence: 1, hp: 5 }));
     await run(actor, request({ sequence: 2, hp: 5 }));
-    expect(actor.update).toHaveBeenCalledTimes(1);
+    expect(actor.update).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("dnd5e.resources.v1 hpEffectiveMax", () => {
+  const flagOf = (actor: FakeCharacter) =>
+    (actor.flags[MODULE_ID] as Record<string, Record<string, unknown>>)
+      .dnd5eResourcesV1;
+
+  it("reads the prepared effective maximum after the update, into the result and the flag", async () => {
+    const actor = fakeCharacter();
+    const write = actor.update.getMockImplementation()!;
+    // Foundry prepares the Actor again after an update: here the exhaustion
+    // write halves the maximum (exhaustion 4, legacy rules).
+    actor.update.mockImplementation(async (changes) => {
+      await write(changes);
+      if ("system.attributes.exhaustion" in changes)
+        (
+          actor.system.attributes as { hp: Record<string, unknown> }
+        ).hp.effectiveMax = 10;
+    });
+    const result = await run(actor, request({ exhaustion: 4 }));
+    expect(result).toMatchObject({ hpEffectiveMax: 10 });
+    expect(flagOf(actor)).toMatchObject({
+      schemaVersion: 1,
+      outcome: "updated",
+      appliedRevision: 3,
+      warnings: [],
+      hpEffectiveMax: 10,
+    });
+    expect(flagOf(actor).contentDigest).toEqual(expect.any(String));
+  });
+
+  it("replays the stored value, and reports the current one when nothing is written", async () => {
+    const actor = fakeCharacter();
+    const req = request({ sequence: 1, hp: 5 });
+    expect(await run(actor, req)).toMatchObject({ hpEffectiveMax: 20 });
+    const hp = (actor.system.attributes as { hp: Record<string, unknown> }).hp;
+    hp.effectiveMax = 18;
+    expect(await run(actor, req)).toMatchObject({ hpEffectiveMax: 20 });
+    expect(await run(actor, request({ sequence: 2, hp: 5 }))).toMatchObject({
+      hpEffectiveMax: 18,
+    });
+  });
+
+  it("floors at 0 and is absent without a finite prepared maximum", async () => {
+    const actor = fakeCharacter();
+    const hp = (actor.system.attributes as { hp: Record<string, unknown> }).hp;
+    hp.effectiveMax = -3.5;
+    expect(await run(actor, request({ sequence: 1, hp: 0 }))).toMatchObject({
+      hpEffectiveMax: 0,
+    });
+    hp.effectiveMax = undefined;
+    const result = await run(actor, request({ sequence: 2, hpTemp: 4 }));
+    expect(result).not.toHaveProperty("hpEffectiveMax");
+    expect(flagOf(actor)).not.toHaveProperty("hpEffectiveMax");
   });
 });

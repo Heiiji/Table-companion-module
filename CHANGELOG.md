@@ -9,7 +9,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Fifth Edition: the companion app can write hit points, temporary hit points, spell slots,
   exhaustion, conditions, death saves and inspiration to a linked character (dnd5e 6.1 or later on
-  Foundry 14), through the new signed-only `dnd5e.resources.v1`.
+  Foundry 14), through the new signed-only `dnd5e.resources.v1`. Its result reports the character's
+  prepared maximum hit points (`hpEffectiveMax`), which the stored actor does not hold.
 - Pathfinder 2e: a character draft created from the apps — name, ownership, level, and the
   ancestry, heritage, background and class found by slug in the system's compendiums (an item that
   would open a choice dialog is skipped with a warning) — through the new signed-only
