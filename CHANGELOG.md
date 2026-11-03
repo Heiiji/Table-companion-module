@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-03
+
 ### Added
 - Fifth Edition: the companion app can write hit points, temporary hit points, spell slots,
   exhaustion, conditions, death saves and inspiration to a linked character (dnd5e 6.1 or later on
