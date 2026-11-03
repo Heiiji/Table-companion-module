@@ -93,6 +93,10 @@ const MAX_EXHAUSTION = 6;
  * them to 3; the schema itself has no max). */
 const MAX_DEATH_SAVES = 3;
 
+/** Bound of the temporary maximum hit points the lane accepts. dnd5e 6.1.0's
+ * `hp.tempmax` is an integer with no min (a negative value lowers the max). */
+const MAX_HP_TEMP_MAX = 9999;
+
 export interface Dnd5eActorResourcesV1 {
   schemaVersion: 1;
   actorType: "character";
@@ -103,6 +107,8 @@ export interface Dnd5eActorResourcesV1 {
   sequence: number;
   hp?: number;
   hpTemp?: number;
+  /** Temporary maximum hit points (`hp.tempmax`), -9999..9999. */
+  hpTempMax?: number;
   /** Slots REMAINING per key; all ten keys when present. */
   slots?: Record<SlotKey, number>;
   exhaustion?: number;
@@ -139,6 +145,7 @@ export function validateDnd5eActorResourcesV1(
     "sequence",
     "hp",
     "hpTemp",
+    "hpTempMax",
     "slots",
     "exhaustion",
     "conditions",
@@ -162,6 +169,13 @@ export function validateDnd5eActorResourcesV1(
   };
   if (p.hp !== undefined) req.hp = count(p.hp, "hp");
   if (p.hpTemp !== undefined) req.hpTemp = count(p.hpTemp, "hpTemp");
+  if (p.hpTempMax !== undefined)
+    req.hpTempMax = integer(
+      p.hpTempMax,
+      "hpTempMax",
+      -MAX_HP_TEMP_MAX,
+      MAX_HP_TEMP_MAX,
+    );
   if (p.slots !== undefined) {
     const s = record(p.slots, "slots", DND5E_SLOT_KEYS);
     const slots = {} as Record<SlotKey, number>;
@@ -197,6 +211,7 @@ export function validateDnd5eActorResourcesV1(
   if (
     req.hp === undefined &&
     req.hpTemp === undefined &&
+    req.hpTempMax === undefined &&
     req.slots === undefined &&
     req.exhaustion === undefined &&
     req.conditions === undefined &&
@@ -255,6 +270,21 @@ function counterPatch(
   const set = (path: string, value: number | boolean) => {
     if (valueAt(actor.system, path) !== value) patch[`system.${path}`] = value;
   };
+  // source-derived (dnd5e 6.1.0): `attributes.hp.tempmax`, written in the same
+  // update; the hit point ceiling below is the effective maximum after it
+  // (`max + tempmax`, floored at 0, templates/attributes.mjs L473), computed
+  // from the prepared `hp.max` rather than read back.
+  let effectiveMax = finiteAt(actor.system, "attributes.hp.effectiveMax");
+  if (req.hpTempMax !== undefined) {
+    if (!hasPath(actor.system, "attributes.hp")) {
+      warnings.push("resource_unavailable:hpTempMax");
+    } else {
+      set("attributes.hp.tempmax", req.hpTempMax);
+      const max = finiteAt(actor.system, "attributes.hp.max");
+      effectiveMax =
+        max === undefined ? undefined : Math.max(max + req.hpTempMax, 0);
+    }
+  }
   // source-derived (dnd5e 6.1.0): `attributes.hp.value` has min 0 and no
   // schema max; the prepared `hp.effectiveMax` is the ceiling dnd5e displays.
   if (req.hp !== undefined) {
@@ -262,7 +292,7 @@ function counterPatch(
       warnings.push("resource_unavailable:hp");
     } else {
       let hp = req.hp;
-      const max = finiteAt(actor.system, "attributes.hp.effectiveMax");
+      const max = effectiveMax;
       if (max !== undefined && hp > max) {
         hp = Math.max(0, Math.floor(max));
         warnings.push("resource_clamped:hp");

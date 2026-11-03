@@ -220,6 +220,9 @@ describe("dnd5e.resources.v1 validation", () => {
     ["death successes above 3", { deathSaves: { success: 4, failure: 0 } }],
     ["negative death failures", { deathSaves: { success: 0, failure: -1 } }],
     ["fractional death failures", { deathSaves: { success: 0, failure: 1.5 } }],
+    ["a fractional hpTempMax", { hpTempMax: 1.5 }],
+    ["a string hpTempMax", { hpTempMax: "-2" }],
+    ["an hpTempMax below -9999", { hpTempMax: -10000 }],
     ["a numeric inspiration", { inspiration: 1 }],
     ["a string inspiration", { inspiration: "true" }],
   ])("refuses %s", (_label, overrides) => {
@@ -322,6 +325,42 @@ describe("dnd5e.resources.v1 counters", () => {
     ).hp.effectiveMax = undefined;
     await run(actor, request({ hp: 99 }));
     expect(actor.updates[0]["system.attributes.hp.value"]).toBe(99);
+  });
+
+  it("resets the temporary maximum and clamps hit points to the new maximum, in one update", async () => {
+    const actor = fakeCharacter();
+    const hp = (actor.system.attributes as { hp: Record<string, unknown> }).hp;
+    Object.assign(hp, { value: 25, tempmax: 5, effectiveMax: 25 });
+    const result = await run(actor, request({ hp: 25, hpTempMax: 0 }));
+    expect(actor.updates[0]).toEqual({
+      "system.attributes.hp.tempmax": 0,
+      "system.attributes.hp.value": 20,
+    });
+    expect((result as { warnings: string[] }).warnings).toEqual([
+      "resource_clamped:hp",
+    ]);
+  });
+
+  it("raises the ceiling with a positive temporary maximum, and accepts a negative one", async () => {
+    const raised = fakeCharacter();
+    await run(raised, request({ hp: 24, hpTempMax: 4 }));
+    expect(raised.updates[0]).toEqual({
+      "system.attributes.hp.tempmax": 4,
+      "system.attributes.hp.value": 24,
+    });
+    const lowered = fakeCharacter();
+    await run(lowered, request({ hp: 12, hpTempMax: -10 }));
+    expect(lowered.updates[0]).toEqual({
+      "system.attributes.hp.tempmax": -10,
+      "system.attributes.hp.value": 10,
+    });
+  });
+
+  it("refuses a fractional hpTempMax with invalid_args", async () => {
+    await rejects(
+      run(fakeCharacter(), request({ hpTempMax: 0.5 })),
+      "invalid_args",
+    );
   });
 
   it("writes temporary hit points as an absolute value", async () => {

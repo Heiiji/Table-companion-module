@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Fifth Edition: `dnd5e.resources.v1` accepts `hpTempMax`, written to the character's temporary
+  maximum hit points (a long rest in the app resets it to 0).
+
 ### Changed
 - Fifth Edition: on a world playing the 2014 rules, the exhaustion level is left to Foundry (warning
   `exhaustion_unavailable:legacy_rules`); the module advertises `dnd5eRulesModern` on a 2024-rules
