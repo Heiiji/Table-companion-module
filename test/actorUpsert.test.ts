@@ -5,6 +5,7 @@ import {
 } from "../src/procedures/actorUpsert.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
+import { ownershipReplacement } from "../src/procedures/upsertShared.js";
 import {
   ACTOR_ID,
   KNIGHT_SCHEMA_FIXTURES,
@@ -679,6 +680,27 @@ describe("actor.upsert.v1", () => {
         default: 0,
         [USER_ID]: 3,
       });
+    });
+  });
+});
+
+describe("ownership deletion entries", () => {
+  const actor = { ownership: { default: 2, stale: 3 }, update: vi.fn() };
+
+  it("uses Foundry 14's ForcedDeletion operator when the runtime has it", () => {
+    class ForcedDeletion {}
+    vi.stubGlobal("foundry", { data: { operators: { ForcedDeletion } } });
+    const update = ownershipReplacement(actor, 0, USER_ID);
+    expect(update.stale).toBeInstanceOf(ForcedDeletion);
+    expect(update).not.toHaveProperty("-=stale");
+    expect(update[USER_ID]).toBe(3);
+  });
+
+  it("falls back to the -=key syntax without it", () => {
+    vi.stubGlobal("foundry", { data: {} });
+    expect(ownershipReplacement(actor, 0)).toEqual({
+      default: 0,
+      "-=stale": null,
     });
   });
 });

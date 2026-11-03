@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- Property removals use Foundry 14's replacement for the deprecated `-=` syntax when it is
+  available.
+
 ### Fixed
 - Pathfinder 2e: completing a character twice no longer duplicates its spellcasting entry and spells
   when the request carries no entry slug; the entry is keyed on its tradition and kind.

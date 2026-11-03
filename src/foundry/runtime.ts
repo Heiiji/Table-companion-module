@@ -252,6 +252,8 @@ interface FoundryGlobals {
   Hooks?: HooksLike;
   ui?: { notifications?: NotificationsLike };
   foundry?: {
+    /** Foundry 14+: update operators (`ForcedDeletion` replaces `-=key`). */
+    data?: { operators?: { ForcedDeletion?: new () => unknown } };
     applications?: {
       api?: {
         DialogV2?: DialogV2Class;
@@ -263,6 +265,16 @@ interface FoundryGlobals {
 
 function globals(): FoundryGlobals {
   return globalThis as unknown as FoundryGlobals;
+}
+
+/** The update entry that deletes `key` from an object field: Foundry 14's
+ * `foundry.data.operators.ForcedDeletion` when the runtime has it, otherwise
+ * the `{"-=key": null}` syntax it deprecates (the only form before 14). */
+export function deletionEntry(key: string): [string, unknown] {
+  const ForcedDeletion = globals().foundry?.data?.operators?.ForcedDeletion;
+  return typeof ForcedDeletion !== "undefined"
+    ? [key, new ForcedDeletion()]
+    : [`-=${key}`, null];
 }
 
 /** `game`, or undefined outside Foundry. */

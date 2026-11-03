@@ -1,6 +1,7 @@
 import { MODULE_ID } from "../constants.js";
 import {
   actorImplementation,
+  deletionEntry,
   foundryGame,
   foundryGeneration,
   gameActors,
@@ -521,7 +522,7 @@ export async function createActorDocument(data: Dict): Promise<ActorLike> {
  * An `ownership` update that REPLACES the Actor's whole ownership map with
  * `default` plus, when given, one OWNER grant. Foundry merges object updates
  * recursively, so sending only the desired map would leave stale grants behind;
- * every other explicit key therefore gets a `-=key` deletion directive.
+ * every other explicit key therefore gets a deletion entry (`deletionEntry`).
  */
 export function ownershipReplacement(
   actor: ActorLike,
@@ -530,7 +531,10 @@ export function ownershipReplacement(
 ): Dict {
   const update: Dict = { default: defaultLevel };
   for (const key of Object.keys(actor.ownership ?? {})) {
-    if (key !== "default" && key !== owner) update[`-=${key}`] = null;
+    if (key !== "default" && key !== owner) {
+      const [k, v] = deletionEntry(key);
+      update[k] = v;
+    }
   }
   if (owner) update[owner] = OWNERSHIP_OWNER;
   return update;
@@ -566,7 +570,9 @@ export function normalizedOwnershipUpdate(
   const update = ownershipReplacement(actor, OWNERSHIP_NONE, foundryUserId);
   const companion = companionUserId(foundryUserId);
   if (companion) {
-    delete update[`-=${companion}`];
+    // Drop the companion's deletion entry (under Foundry 14's operator the
+    // key is the user id itself, which the grant below overwrites anyway).
+    delete update[deletionEntry(companion)[0]];
     const current = Number(actor.ownership?.[companion]);
     update[companion] = Math.max(
       OWNERSHIP_OBSERVER,
