@@ -689,6 +689,60 @@ describe("Channel.onMessage", () => {
     expect((errs[0].error as Fields).code).toBe("procedure_timeout");
   });
 
+  it("runs a second request on the same actor after the first, other actors beside it", async () => {
+    stubGame({ pinned: agentPubB64 });
+    const order: string[] = [];
+    const release: Record<string, Array<() => void>> = { A: [], B: [] };
+    const registry = new ProcedureRegistry();
+    registry.register(
+      "pf2e.actor.complete.v1",
+      async (payload) => {
+        const { actorId } = payload as { actorId: string };
+        order.push(`start:${actorId}`);
+        await new Promise<void>((resolve) => release[actorId].push(resolve));
+        order.push(`end:${actorId}`);
+        return {};
+      },
+      { kind: "read" },
+    );
+    new Channel(registry, "0.0.0-test").start();
+    emitSpy.mockClear();
+    const envs = await Promise.all(
+      [
+        ["c1", "A"],
+        ["c2", "A"],
+        ["c3", "B"],
+      ].map(([id, actorId]) =>
+        sign(
+          agentEnv("rpc.request", {
+            id,
+            proc: "pf2e.actor.complete.v1",
+            payload: { actorId },
+          }),
+        ),
+      ),
+    );
+    const all = Promise.all(envs.map((env) => deliver(env)));
+    // The other actor runs at once; the retry on A waits for the first.
+    await vi.waitFor(() =>
+      expect([...order].sort()).toEqual(["start:A", "start:B"]),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(order.filter((e) => e === "start:A")).toHaveLength(1);
+    release.A.shift()!();
+    await vi.waitFor(() =>
+      expect(order.filter((e) => e.endsWith(":A"))).toEqual([
+        "start:A",
+        "end:A",
+        "start:A",
+      ]),
+    );
+    release.A.shift()!();
+    release.B.shift()!();
+    await all;
+    expect(emitted("rpc.response")).toHaveLength(3);
+  });
+
   it("answers ping only when responder, to the agent only", async () => {
     stubGame({ pinned: agentPubB64, responder: true });
     startChannel();

@@ -101,6 +101,11 @@ export class Channel {
   // Entries expire once the envelope could no longer pass the freshness window,
   // and the map is size-capped as a memory bound.
   private readonly seenIds = new Map<string, number>();
+  /** The handler still running per procedure + character/actor/combat id. The
+   * deadline answers the caller but does not stop a handler: a retry under a new
+   * id waits for the one still writing instead of writing the same documents
+   * beside it. */
+  private readonly inFlight = new Map<string, Promise<unknown>>();
   // Pairing gate: a new agent key is considered ONLY while the GM has the setup
   // dialog open (an explicit "I am pairing now" window). Outside it, a
   // validly-signed envelope from an unknown key is dropped rather than pinned, so
@@ -698,11 +703,26 @@ export class Channel {
     const ctx: RpcContext = { request: env };
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
+      const key = serialKey(proc, env.payload);
+      const previous = key ? this.inFlight.get(key) : undefined;
+      const run = previous
+        ? previous.then(() => handler(env.payload, ctx))
+        : Promise.resolve(handler(env.payload, ctx));
+      if (key) {
+        const done: Promise<unknown> = run
+          .catch(() => undefined)
+          .finally(() => {
+            if (this.inFlight.get(key) === done) this.inFlight.delete(key);
+          });
+        this.inFlight.set(key, done);
+      }
       // Bound the handler: a wedged procedure (a stuck system API, a never-settling
       // await) must not hang the channel. Whichever settles first wins the race, so
       // exactly one response/error is emitted; a late handler resolution is ignored.
+      // ponytail: a handler that never settles holds its key until reload; the
+      // retries behind it still answer procedure_timeout.
       const result = await Promise.race([
-        Promise.resolve(handler(env.payload, ctx)),
+        run,
         new Promise<never>((_resolve, reject) => {
           timer = setTimeout(
             () =>
@@ -818,4 +838,14 @@ export function claimRequest(id: string, now = Date.now()): boolean {
   } catch {
     return true;
   }
+}
+
+/** The serialization key of a request: its procedure and the character, actor or
+ * combat it names; none when the payload names none. */
+function serialKey(proc: string, payload: unknown): string | undefined {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const id = [p.characterId, p.actorId, p.combatId].find(
+    (v) => typeof v === "string" && v !== "",
+  );
+  return id === undefined ? undefined : `${proc}:${String(id)}`;
 }

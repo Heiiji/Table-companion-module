@@ -9,6 +9,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 - Pathfinder 2e: completing a character twice no longer duplicates its spellcasting entry and spells
   when the request carries no entry slug; the entry is keyed on its tradition and kind.
+- Two requests of the same procedure on the same character, Actor or combat no longer run at the
+  same time; the second (such as a retry after a timeout) waits for the first to finish.
 
 ## [0.16.0] - 2026-11-03
 
