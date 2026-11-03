@@ -91,8 +91,8 @@ Gamemaster can open setup from the console with
 - **Live resources:** on Knight, the current resources a character spends in the app (health, armour,
   energy and the like) are written to its linked Foundry Actor as they change (`actor.resources.v1`).
 - **Fifth Edition live counters:** on dnd5e 6.1.0 or later on Foundry 14 or later, a linked
-  character's hit points, temporary hit points, spell slots, exhaustion and conditions are written
-  from the app (`dnd5e.resources.v1`).
+  character's hit points, temporary hit points, spell slots, exhaustion, conditions, death saves
+  and inspiration are written from the app (`dnd5e.resources.v1`).
 - **Pathfinder 2e character drafts:** on pf2e 8.6.1 or later on Foundry 14, a character made in the
   app can be created in Foundry as a draft — name, ownership, level, and the ancestry, heritage,
   background and class found by slug in the system's compendiums — for the GM to complete there

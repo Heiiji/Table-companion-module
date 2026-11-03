@@ -30,7 +30,8 @@ import {
 /**
  * Live counters of a Fifth Edition (dnd5e) player character
  * (`dnd5e.resources.v1`): hit points, temporary hit points, spell slots
- * remaining, exhaustion and the standard conditions. Like `actor.resources.v1`
+ * remaining, exhaustion, the standard conditions, death saves and inspiration.
+ * Like `actor.resources.v1`
  * it touches ONLY the Actor bound to the character or, for a character
  * imported from Foundry, the unbound Actor the app names by id; re-sends
  * converge by sequence/digest.
@@ -87,6 +88,10 @@ const KNOWN_CONDITIONS: ReadonlySet<string> = new Set(DND5E_CONDITION_IDS);
 /** dnd5e's exhaustion levels (source-derived, dnd5e 6.1.0: `levels: 6`). */
 const MAX_EXHAUSTION = 6;
 
+/** Three successes or three failures end the death saves (dnd5e 6.1.0 rolls
+ * them to 3; the schema itself has no max). */
+const MAX_DEATH_SAVES = 3;
+
 export interface Dnd5eActorResourcesV1 {
   schemaVersion: 1;
   actorType: "character";
@@ -103,6 +108,9 @@ export interface Dnd5eActorResourcesV1 {
   /** The FULL set of standard conditions the sheet holds; absent leaves
    * Foundry's conditions alone, empty clears them. */
   conditions?: string[];
+  /** Death save successes and failures, both 0..3. */
+  deathSaves?: { success: number; failure: number };
+  inspiration?: boolean;
 }
 
 /** Foundry's randomID(16) shape. */
@@ -127,6 +135,8 @@ export function validateDnd5eActorResourcesV1(
     "slots",
     "exhaustion",
     "conditions",
+    "deathSaves",
+    "inspiration",
   ]);
   if (p.schemaVersion !== SCHEMA_VERSION) invalid("schemaVersion must be 1");
   if (p.actorType !== ACTOR_TYPE) invalid("actorType must be character");
@@ -165,12 +175,26 @@ export function validateDnd5eActorResourcesV1(
     }
     req.conditions = [...seen];
   }
+  if (p.deathSaves !== undefined) {
+    const d = record(p.deathSaves, "deathSaves", ["success", "failure"]);
+    req.deathSaves = {
+      success: integer(d.success, "deathSaves.success", 0, MAX_DEATH_SAVES),
+      failure: integer(d.failure, "deathSaves.failure", 0, MAX_DEATH_SAVES),
+    };
+  }
+  if (p.inspiration !== undefined) {
+    if (typeof p.inspiration !== "boolean")
+      invalid("inspiration must be a boolean");
+    req.inspiration = p.inspiration;
+  }
   if (
     req.hp === undefined &&
     req.hpTemp === undefined &&
     req.slots === undefined &&
     req.exhaustion === undefined &&
-    req.conditions === undefined
+    req.conditions === undefined &&
+    req.deathSaves === undefined &&
+    req.inspiration === undefined
   )
     invalid("dnd5eResources needs at least one value");
   return req;
@@ -203,7 +227,7 @@ function counterPatch(
   warnings: string[],
 ): Dict {
   const patch: Dict = {};
-  const set = (path: string, value: number) => {
+  const set = (path: string, value: number | boolean) => {
     if (valueAt(actor.system, path) !== value) patch[`system.${path}`] = value;
   };
   // source-derived (dnd5e 6.1.0): `attributes.hp.value` has min 0 and no
@@ -249,6 +273,24 @@ function counterPatch(
   // condition and ADDS a level.
   if (req.exhaustion !== undefined)
     set("attributes.exhaustion", req.exhaustion);
+  // source-derived (dnd5e 6.1.0, data/actor/character.mjs L73-83): stored
+  // `attributes.death.success` / `.failure` (integers, min 0) and the boolean
+  // `attributes.inspiration`. dnd5e's preUpdateHP (templates/attributes.mjs
+  // L664-669) still zeroes both death counters when the same update heals a
+  // character up from 0 hit points.
+  if (req.deathSaves) {
+    if (!hasPath(actor.system, "attributes.death")) {
+      warnings.push("resource_unavailable:deathSaves");
+    } else {
+      set("attributes.death.success", req.deathSaves.success);
+      set("attributes.death.failure", req.deathSaves.failure);
+    }
+  }
+  if (req.inspiration !== undefined) {
+    if (!hasPath(actor.system, "attributes"))
+      warnings.push("resource_unavailable:inspiration");
+    else set("attributes.inspiration", req.inspiration);
+  }
   return patch;
 }
 

@@ -68,6 +68,8 @@ function fakeCharacter(effects: FakeEffect[] = []) {
       attributes: {
         hp: { value: 12, max: 20, temp: 0, tempmax: 0, effectiveMax: 20 },
         exhaustion: 0,
+        death: { success: 0, failure: 0 },
+        inspiration: false,
       },
       spells: {
         spell1: { value: 4, max: 4 },
@@ -194,6 +196,18 @@ describe("dnd5e.resources.v1 validation", () => {
     ["a duplicate condition id", { conditions: ["prone", "prone"] }],
     ["a malformed actor id", { expectedActorId: "short", hp: 1 }],
     ["sequence 0", { sequence: 0, hp: 1 }],
+    ["death saves that are not an object", { deathSaves: 1 }],
+    ["death saves missing failure", { deathSaves: { success: 1 } }],
+    ["death saves missing success", { deathSaves: { failure: 1 } }],
+    [
+      "death saves with an extra key",
+      { deathSaves: { success: 0, failure: 0, stable: true } },
+    ],
+    ["death successes above 3", { deathSaves: { success: 4, failure: 0 } }],
+    ["negative death failures", { deathSaves: { success: 0, failure: -1 } }],
+    ["fractional death failures", { deathSaves: { success: 0, failure: 1.5 } }],
+    ["a numeric inspiration", { inspiration: 1 }],
+    ["a string inspiration", { inspiration: "true" }],
   ])("refuses %s", (_label, overrides) => {
     expect(() =>
       validateDnd5eActorResourcesV1(request(overrides as never)),
@@ -208,9 +222,13 @@ describe("dnd5e.resources.v1 validation", () => {
         slots: ALL_SLOTS,
         exhaustion: 6,
         conditions: [],
+        deathSaves: { success: 3, failure: 0 },
+        inspiration: false,
       }),
     );
     expect(req.conditions).toEqual([]);
+    expect(req.deathSaves).toEqual({ success: 3, failure: 0 });
+    expect(req.inspiration).toBe(false);
     expect(req.slots).toEqual(ALL_SLOTS);
   });
 });
@@ -344,6 +362,75 @@ describe("dnd5e.resources.v1 counters", () => {
     expect(actor.toggleStatusEffect).not.toHaveBeenCalled();
     // The exhaustion effect is dnd5e's to move, from its own update hook.
     expect(held(actor)).toEqual(["exhaustion"]);
+  });
+});
+
+describe("dnd5e.resources.v1 death saves and inspiration", () => {
+  it("accepts either group alone", () => {
+    expect(
+      validateDnd5eActorResourcesV1(
+        request({ deathSaves: { success: 0, failure: 3 } }),
+      ).deathSaves,
+    ).toEqual({ success: 0, failure: 3 });
+    expect(
+      validateDnd5eActorResourcesV1(request({ inspiration: true })).inspiration,
+    ).toBe(true);
+  });
+
+  it("writes both counters and inspiration with the other counters in one update", async () => {
+    const actor = fakeCharacter();
+    await run(
+      actor,
+      request({
+        hp: 0,
+        deathSaves: { success: 2, failure: 1 },
+        inspiration: true,
+      }),
+    );
+    expect(actor.update).toHaveBeenCalledTimes(1);
+    expect(actor.updates[0]).toMatchObject({
+      "system.attributes.hp.value": 0,
+      "system.attributes.death.success": 2,
+      "system.attributes.death.failure": 1,
+      "system.attributes.inspiration": true,
+    });
+    expect(actor.updates[0]).toHaveProperty(
+      `flags.${MODULE_ID}.dnd5eResourcesV1`,
+    );
+  });
+
+  it("writes only the death counter and inspiration that differ", async () => {
+    const actor = fakeCharacter();
+    const attributes = actor.system.attributes as Record<string, unknown>;
+    attributes.death = { success: 1, failure: 2 };
+    attributes.inspiration = true;
+    await run(
+      actor,
+      request({ deathSaves: { success: 1, failure: 0 }, inspiration: false }),
+    );
+    const keys = Object.keys(actor.updates[0]).filter(
+      (k) => !k.startsWith("flags."),
+    );
+    expect(keys).toEqual([
+      "system.attributes.death.failure",
+      "system.attributes.inspiration",
+    ]);
+  });
+
+  it("warns instead of writing when the Actor has no death save field", async () => {
+    const actor = fakeCharacter();
+    delete (actor.system.attributes as Record<string, unknown>).death;
+    const result = await run(
+      actor,
+      request({ deathSaves: { success: 1, failure: 1 }, inspiration: true }),
+    );
+    expect((result as { warnings: string[] }).warnings).toEqual([
+      "resource_unavailable:deathSaves",
+    ]);
+    expect(actor.updates[0]).not.toHaveProperty(
+      "system.attributes.death.success",
+    );
+    expect(actor.updates[0]["system.attributes.inspiration"]).toBe(true);
   });
 });
 
