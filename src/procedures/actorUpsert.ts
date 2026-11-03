@@ -152,11 +152,6 @@ export const actorUpsertV1: Procedure = async (payload) => {
     req.state === "approved"
       ? await applyMinorMotivations(actor, req.profile!.minorMotivations)
       : [];
-  actor.prepareData?.();
-  const resourceWarnings =
-    req.state === "approved"
-      ? await applyCurrentResources(actor, req.resources)
-      : [];
   const equipment =
     req.state === "approved"
       ? await applyEquipment(actor, req.equipment?.selections)
@@ -166,6 +161,13 @@ export const actorUpsertV1: Procedure = async (payload) => {
             ? ["equipment_deferred_until_approved"]
             : [],
         };
+  // After the equipment: the worn gear (and the armour maxima) follow the
+  // `armure` Item this call may have just imported or removed.
+  actor.prepareData?.();
+  const resourceWarnings =
+    req.state === "approved"
+      ? await applyCurrentResources(actor, req.resources)
+      : [];
   const result: ActorUpsertResultV1 = {
     schemaVersion: 1,
     resultDocId: id,

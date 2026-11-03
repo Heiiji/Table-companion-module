@@ -95,13 +95,17 @@ export function hasPath(root: unknown, path: string): boolean {
 /** The gear subtree Foundry reads the worn armour and energy from:
  * `system.equipements.<system.wear>`. As the Knight system prepares a PC, the
  * first embedded `armure` Item of generation 4 or later is always worn,
- * whatever `wear` stores, so writes go where Foundry reads. An absent or
- * malformed selector reads as the schema's initial `tenueCivile`. */
+ * whatever `wear` stores; with no `armure` Item, a stored `armure` or
+ * `ascension` reads as `tenueCivile` (the system's `whatWear`), so writes go
+ * where Foundry reads. An absent or malformed selector reads as the schema's
+ * initial `tenueCivile`. */
 function wornGear(actor: ActorLike): string {
   const armour = contentsOf(actor.items).find((item) => item.type === "armure");
   const generation = Number((armour?.system as Dict | undefined)?.generation);
   if (generation >= 4) return "armure";
   const wear = (actor.system as Dict | undefined)?.wear;
+  if (!armour && (wear === "armure" || wear === "ascension"))
+    return "tenueCivile";
   return typeof wear === "string" && /^[A-Za-z0-9_]{1,64}$/.test(wear)
     ? wear
     : "tenueCivile";

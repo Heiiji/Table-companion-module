@@ -152,6 +152,17 @@ export interface FakeActor {
   deleteEmbeddedDocuments: ReturnType<typeof vi.fn>;
 }
 
+/** Gives the Actor an `armure` Item below generation 4: without one, Foundry
+ * reads a stored `wear` of `armure` or `ascension` as `tenueCivile`. */
+export function wearingArmour(actor: FakeActor): FakeActor {
+  actor.items.contents.push({
+    type: "armure",
+    name: "Worn armour",
+    system: { generation: 1 },
+  });
+  return actor;
+}
+
 export function fakeActor(id = ACTOR_ID, name = "Existing"): FakeActor {
   const actor: FakeActor = {
     id,

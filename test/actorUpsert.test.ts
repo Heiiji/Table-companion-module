@@ -15,6 +15,7 @@ import {
   hasFixturePath,
   pairCompanion,
   stubFoundry,
+  wearingArmour,
   type FakeActor,
 } from "./support/actorUpsertHarness.js";
 
@@ -28,7 +29,7 @@ describe("actor.upsert.v1", () => {
       it(`maps only schema-backed Knight fields under Knight ${knightVersion} on Foundry ${fixture.foundryGeneration}`, async () => {
         expect(fixture.knightSystemVersion).toBe("3.58.33");
         expect(fixture.actorCreateAPI).toBe("Actor.implementation.create");
-        const actor = fakeActor();
+        const actor = wearingArmour(fakeActor());
         // The capture omits `wear`: this PC is in its armour.
         actor.system = {
           ...structuredClone(fixture.actor.system),
@@ -69,7 +70,7 @@ describe("actor.upsert.v1", () => {
     const actors: FakeActor[] = [];
     let createdActor: FakeActor | undefined;
     const create = vi.fn(async (data: Record<string, unknown>) => {
-      createdActor = fakeActor();
+      createdActor = wearingArmour(fakeActor());
       createdActor.name = String(data.name);
       createdActor.flags = data.flags as Record<string, unknown>;
       createdActor.ownership = data.ownership as Record<string, unknown>;
@@ -419,8 +420,40 @@ describe("actor.upsert.v1", () => {
     ]);
   });
 
+  it("writes armour and energy on the civilian gear when no armour Item backs an armour wear", async () => {
+    for (const [wear, armoured, gear] of [
+      ["armure", false, "tenueCivile"],
+      ["ascension", false, "tenueCivile"],
+      ["armure", true, "armure"],
+      ["ascension", true, "ascension"],
+    ] as const) {
+      const actor = fakeActor();
+      actor.system.wear = wear;
+      if (armoured) wearingArmour(actor);
+      for (const subtree of ["armure", "ascension", "tenueCivile"])
+        (actor.system.equipements as Record<string, unknown>)[subtree] = {
+          armure: { value: 0 },
+          energie: { value: 0 },
+        };
+      stubFoundry([actor]);
+      await actorUpsertV1(
+        approved({ assignedActorId: actor.id, equipment: undefined }),
+        {} as never,
+      );
+      const written = actor.updates
+        .flatMap((update) => Object.keys(update))
+        .filter((key) =>
+          /^system\.equipements\.\w+\.(armure|energie)\./.test(key),
+        );
+      expect(written, `${wear} armoured=${armoured}`).toEqual([
+        `system.equipements.${gear}.armure.value`,
+        `system.equipements.${gear}.energie.value`,
+      ]);
+    }
+  });
+
   it("clamps a current over the prepared maximum and warns", async () => {
-    const actor = fakeActor();
+    const actor = wearingArmour(fakeActor());
     Object.assign(actor.system, {
       armure: { max: 10 },
       energie: { max: Number.NaN },

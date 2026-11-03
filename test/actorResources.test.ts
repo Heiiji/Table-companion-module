@@ -12,6 +12,7 @@ import {
   KNIGHT_SCHEMA_FIXTURES,
   fakeActor,
   stubFoundry,
+  wearingArmour,
   type FakeActor,
   type KnightSchemaFixture,
 } from "./support/actorUpsertHarness.js";
@@ -36,7 +37,7 @@ function request(
 
 /** A bound Knight PC with every resource path and prepared maxima. */
 function boundActor(id = ACTOR_ID): FakeActor {
-  const actor = fakeActor(id);
+  const actor = wearingArmour(fakeActor(id));
   actor.flags[MODULE_ID] = {
     binding: {
       schemaVersion: 1,

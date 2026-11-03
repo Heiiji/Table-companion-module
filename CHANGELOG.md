@@ -53,7 +53,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a request: the first tab to claim it in `localStorage` answers, the others stay silent.
 - Knight Armour and Energy now land where Foundry reads them: a generation-4 or later armour is always
   worn in Foundry, whatever the sheet's worn-gear selector stores, and a missing selector reads as the
-  civilian outfit (the Knight default), no longer as the armour.
+  civilian outfit (the Knight default), no longer as the armour. A selector of armour or ascension
+  with no armour item on the Actor also reads as the civilian outfit, as Foundry reads it; and
+  `actor.upsert.v1` writes current resources after its equipment import, on the gear that import
+  leaves worn.
 - Knight character provisioning (`actor.upsert.v1`) clamps a current resource to the sheet's prepared
   maximum, with a `resource_clamped` warning, as `actor.resources.v1` already did; `npc.upsert.v1`
   clamps each pool's current to its maximum the same way.
