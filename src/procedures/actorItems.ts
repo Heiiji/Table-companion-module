@@ -867,6 +867,13 @@ export const actorItemsV1: Procedure = async (payload) => {
   if (!found) throw new RpcError("item_missing", "the Item no longer exists");
   const item = ofKind(found, kind);
   const current = readFields(item, kind) as Dict;
+  // An update that already landed (a re-send after a timeout) is applied, not
+  // a conflict: only the entry stamp, if still missing, is written.
+  if (Object.entries(fields).every(([key, v]) => sameValue(current[key], v))) {
+    if (entryId !== undefined && flagValue(item, FLAG_KEYS.entryId) !== entryId)
+      await applyPatch(item, { [entryFlagPath]: entryId });
+    return result(itemId);
+  }
   for (const [key, value] of Object.entries(expected))
     if (!sameValue(current[key], value))
       throw new RpcError("item_conflict", `the Item's ${key} moved in Foundry`);

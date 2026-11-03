@@ -632,6 +632,39 @@ describe("actor.items.v1 update and remove", () => {
     );
   });
 
+  it("answers applied when the update already landed, before comparing expected", async () => {
+    const item = ownModule(ID, {
+      flags: { [MODULE_ID]: { entryId: ENTRY } },
+    });
+    const landed = {
+      update: {
+        itemId: ID,
+        kind: "module",
+        item: { name: "Saut", active: false },
+        expected: { name: "Ancien", active: true },
+        entryId: ENTRY,
+      },
+    };
+    expect(await run(landed)).toMatchObject({ itemId: ID, warnings: [] });
+    expect(item.update).not.toHaveBeenCalled();
+    // One field still to move: the stale expected value is a conflict.
+    await refused(
+      {
+        update: {
+          ...landed.update,
+          item: { name: "Saut", active: true },
+        },
+      },
+      "item_conflict",
+    );
+    // Landed fields with a missing stamp: only the stamp is written.
+    (item.flags as Record<string, unknown>)[MODULE_ID] = {};
+    await run(landed);
+    expect(item.update).toHaveBeenCalledWith({
+      [`flags.${MODULE_ID}.entryId`]: ENTRY,
+    });
+  });
+
   it("adopts a linked Item by stamping only its entry id", async () => {
     const item = ownModule(ID);
     const result = await run({
