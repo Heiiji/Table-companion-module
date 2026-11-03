@@ -9,6 +9,7 @@ import {
 } from "../src/rpc/responseSigning.js";
 import {
   CAP_ACTOR_RESOURCES_NAME,
+  CAP_DND5E_RULES_MODERN,
   CAP_RESPONSE_SIG,
   ENVELOPE_VERSION,
   MAX_ENVELOPE_BYTES,
@@ -1050,6 +1051,34 @@ describe("Channel response signing", () => {
       CAP_ACTOR_RESOURCES_NAME,
     );
     expect(admitted.unsupported).toBeUndefined();
+  });
+
+  it("advertises the 2024-rules token with the Fifth Edition lane on a modern world only", async () => {
+    const { signer } = await ModuleResponseSigner.generate();
+    const capsOn = (rulesVersion: string | undefined) => {
+      stubGame({ pinned: agentPubB64, responder: true });
+      if (rulesVersion !== undefined)
+        store["dnd5e:rulesVersion"] = rulesVersion;
+      vi.stubGlobal("game", {
+        ...(globalThis as unknown as { game: object }).game,
+        system: { id: "dnd5e", version: "6.1.0" },
+        release: { generation: 14 },
+      });
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      const channel = new Channel(registry, "0.0.0-test");
+      channel.start();
+      emitSpy.mockClear();
+      channel.setResponseSigner(signer);
+      return emitted("hello").at(-1)!.capabilities as string[];
+    };
+    const modern = capsOn("modern");
+    expect(modern).toContain("dnd5e.resources.v1");
+    expect(modern).toContain(CAP_DND5E_RULES_MODERN);
+    const legacy = capsOn("legacy");
+    expect(legacy).toContain("dnd5e.resources.v1");
+    expect(legacy).not.toContain(CAP_DND5E_RULES_MODERN);
+    expect(capsOn(undefined)).not.toContain(CAP_DND5E_RULES_MODERN);
   });
 
   it("does not advertise/sign when a signer is set but this client is NOT the responder", async () => {

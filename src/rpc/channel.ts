@@ -1,5 +1,6 @@
 import {
   CAP_ACTOR_RESOURCES_NAME,
+  CAP_DND5E_RULES_MODERN,
   CAP_RESPONSE_SIG,
   CHANNEL,
   DISPLAY_TAG,
@@ -19,6 +20,7 @@ import {
   userById,
 } from "../setup/identity.js";
 import {
+  dnd5eRulesVersion,
   foundryHooks,
   gameActors,
   gameSettings,
@@ -174,7 +176,8 @@ export class Channel {
 
   /** Capabilities advertised in hello / hello.ack: the registered procedures,
    * plus the response-signing token when this client signs, and the
-   * resources-name token whenever `actor.resources.v1` is advertised.
+   * resources-name token whenever `actor.resources.v1` is advertised, and the
+   * 2024-rules token with `dnd5e.resources.v1` on a world playing them.
    *
    * Public because this — not the raw registry — is what the agent actually
    * sees, so it is the only honest answer to "what does this module offer?".
@@ -191,6 +194,9 @@ export class Channel {
     // The name fields ride the resources lane: advertised only with it.
     if (caps.includes("actor.resources.v1"))
       caps.push(CAP_ACTOR_RESOURCES_NAME);
+    // The rules generation rides the Fifth Edition lane the same way.
+    if (caps.includes("dnd5e.resources.v1") && dnd5eRulesVersion() === "modern")
+      caps.push(CAP_DND5E_RULES_MODERN);
     return caps.sort();
   }
 

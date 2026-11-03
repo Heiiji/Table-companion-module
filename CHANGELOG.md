@@ -7,6 +7,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Changed
+- Fifth Edition: on a world playing the 2014 rules, the exhaustion level is left to Foundry (warning
+  `exhaustion_unavailable:legacy_rules`); the module advertises `dnd5eRulesModern` on a 2024-rules
+  world.
 - Property removals use Foundry 14's replacement for the deprecated `-=` syntax when it is
   available.
 

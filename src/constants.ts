@@ -85,6 +85,12 @@ export const CAP_RESPONSE_SIG = "moduleResponseSignatureV1";
  * no handler. */
 export const CAP_ACTOR_RESOURCES_NAME = "actorResourcesNameV1";
 
+/** Capability token advertised alongside `dnd5e.resources.v1` when the world
+ * plays dnd5e's 2024 rules (`rulesVersion` "modern"). On a 2014-rules world
+ * the lane leaves exhaustion to Foundry. NOT a procedure name — it has no
+ * handler. */
+export const CAP_DND5E_RULES_MODERN = "dnd5eRulesModern";
+
 /** Version tag prefixed to the canonical response-signing string (independent of
  * ENVELOPE_VERSION — it versions the signing scheme, not the envelope shape).
  *

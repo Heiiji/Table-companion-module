@@ -1,4 +1,5 @@
 import { MODULE_ID } from "../constants.js";
+import { dnd5eRulesVersion } from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import { hasPath, valueAt } from "./actorUpsert.patch.js";
@@ -294,9 +295,13 @@ function counterPatch(
   // source-derived (dnd5e 6.1.0): exhaustion is the number
   // `attributes.exhaustion`; dnd5e's own update hook moves the exhaustion
   // effect. Never toggled as a status: dnd5e ignores `active` for a levelled
-  // condition and ADDS a level.
-  if (req.exhaustion !== undefined)
-    set("attributes.exhaustion", req.exhaustion);
+  // condition and ADDS a level. The app counts the 2024 levels; a world on the
+  // 2014 rules (`rulesVersion` "legacy") keeps its own: left to Foundry.
+  if (req.exhaustion !== undefined) {
+    if (dnd5eRulesVersion() === "legacy")
+      warnings.push("exhaustion_unavailable:legacy_rules");
+    else set("attributes.exhaustion", req.exhaustion);
+  }
   // source-derived (dnd5e 6.1.0, data/actor/character.mjs L73-83): stored
   // `attributes.death.success` / `.failure` (integers, min 0) and the boolean
   // `attributes.inspiration`. dnd5e's preUpdateHP (templates/attributes.mjs

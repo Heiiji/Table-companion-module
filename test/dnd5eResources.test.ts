@@ -119,10 +119,20 @@ type FakeCharacter = ReturnType<typeof fakeCharacter>;
 
 function stubWorld(
   actors: FakeCharacter[],
-  { id = "dnd5e", version = "6.1.0", generation = 14, isGM = true } = {},
+  {
+    id = "dnd5e",
+    version = "6.1.0",
+    generation = 14,
+    isGM = true,
+    rulesVersion = "modern",
+  } = {},
 ) {
   vi.stubGlobal("game", {
     user: { id: "gm", isGM },
+    settings: {
+      get: (ns: string, key: string) =>
+        ns === "dnd5e" && key === "rulesVersion" ? rulesVersion : undefined,
+    },
     actors: {
       contents: actors,
       get: (actorId: string) => actors.find((a) => a.id === actorId),
@@ -160,8 +170,12 @@ const ALL_SLOTS = {
   pact: 1,
 };
 
-async function run(actor: FakeCharacter, req: unknown) {
-  stubWorld([actor]);
+async function run(
+  actor: FakeCharacter,
+  req: unknown,
+  world: Parameters<typeof stubWorld>[1] = {},
+) {
+  stubWorld([actor], world);
   return dnd5eResourcesV1(req, {} as never);
 }
 
@@ -365,6 +379,31 @@ describe("dnd5e.resources.v1 counters", () => {
     expect(actor.toggleStatusEffect).not.toHaveBeenCalled();
     // The exhaustion effect is dnd5e's to move, from its own update hook.
     expect(held(actor)).toEqual(["exhaustion"]);
+  });
+});
+
+describe("dnd5e.resources.v1 rules version", () => {
+  it("leaves exhaustion to Foundry on a 2014-rules world, and writes the rest", async () => {
+    const actor = fakeCharacter();
+    const result = await run(actor, request({ exhaustion: 3, hpTemp: 4 }), {
+      rulesVersion: "legacy",
+    });
+    expect(actor.updates[0]).toEqual({ "system.attributes.hp.temp": 4 });
+    expect(
+      (actor.system.attributes as Record<string, unknown>).exhaustion,
+    ).toBe(0);
+    expect((result as { warnings: string[] }).warnings).toEqual([
+      "exhaustion_unavailable:legacy_rules",
+    ]);
+  });
+
+  it("writes exhaustion on a 2024-rules world", async () => {
+    const actor = fakeCharacter();
+    const result = await run(actor, request({ exhaustion: 3 }), {
+      rulesVersion: "modern",
+    });
+    expect(actor.updates[0]).toEqual({ "system.attributes.exhaustion": 3 });
+    expect((result as { warnings: string[] }).warnings).toEqual([]);
   });
 });
 

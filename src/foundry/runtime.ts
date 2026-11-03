@@ -332,6 +332,17 @@ export function gameSettings(): SettingsLike | undefined {
   return foundryGame()?.settings;
 }
 
+/** dnd5e's world setting `rulesVersion` ("modern" for the 2024 rules, its
+ * default, or "legacy" for 2014), or "" when it is not registered. */
+export function dnd5eRulesVersion(): string {
+  try {
+    const value = gameSettings()?.get("dnd5e", "rulesVersion");
+    return typeof value === "string" ? value : "";
+  } catch {
+    return ""; // Foundry throws on an unregistered setting
+  }
+}
+
 export function gameSocket(): SocketLike | undefined {
   return foundryGame()?.socket;
 }
