@@ -328,6 +328,7 @@ export const FLAG_KEYS = {
   equipmentCatalogId: "equipmentCatalogId",
   equipmentCatalogVariant: "equipmentCatalogVariantV1",
   equipmentCatalogSource: "equipmentCatalogSourceV1",
+  entryId: "entryId",
   combatSync: "combatSync",
   combatantKey: "key",
 } as const;

@@ -274,7 +274,7 @@ function managedEquipmentKey(item: ActorItemLike): string | null {
   ].join("|");
 }
 
-function compendiumAvailabilityWarning(): string | null {
+export function compendiumAvailabilityWarning(): string | null {
   const module = gameModules()?.get(KNIGHT_COMPENDIUM_MODULE_ID);
   if (!module?.active) return "equipment_compendium_missing";
   if (module.version !== KNIGHT_COMPENDIUM_VERSION)

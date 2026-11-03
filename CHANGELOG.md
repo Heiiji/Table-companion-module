@@ -6,6 +6,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Knight: the companion app can add, update and remove the modules and weapons of a linked character
+  (name, level, energy, slots, activation, a single magazine's charges, weapon attack profiles), one
+  operation per request, through the new signed-only `actor.items.v1`. An Item is copied from the
+  world, a compendium or Knight Compendium 14.0.1 when it can be, and built from the app's fields
+  otherwise (warning `item_built`); an edit Foundry made first answers `item_conflict` and overwrites
+  nothing. Items it creates carry an `entryId` flag and are left alone by `actor.upsert.v1`.
+
 ## [0.17.0] - 2026-11-03
 
 ### Added

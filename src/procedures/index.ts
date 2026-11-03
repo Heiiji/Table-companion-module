@@ -7,6 +7,7 @@ import { displayShow, displayClear } from "./display.js";
 import { actorUpsertV1 } from "./actorUpsert.js";
 import { npcUpsertV1 } from "./npcUpsert.js";
 import { actorResourcesV1 } from "./actorResources.js";
+import { actorItemsV1 } from "./actorItems.js";
 import { dnd5eResourcesV1 } from "./dnd5eResources.js";
 import { pf2eActorUpsertV1 } from "./pf2eActorUpsert.js";
 import { pf2eActorCompleteV1 } from "./pf2eActorComplete.js";
@@ -98,6 +99,12 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
       kind: "mutation",
       signedOnly: true,
     });
+    // Modules and weapons of that PC, one op per request: same gate, same
+    // signed-only posture, same targeting.
+    registry.register("actor.items.v1", actorItemsV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
   } else if (systemId() === "knight") {
     // A Knight release below the floor, an unparsable version, or an older
     // Foundry generation: the lanes stay unregistered, and the
@@ -109,6 +116,7 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
     registry.markUnsupported("actor.upsert.v1", reason);
     registry.markUnsupported("npc.upsert.v1", reason);
     registry.markUnsupported("actor.resources.v1", reason);
+    registry.markUnsupported("actor.items.v1", reason);
   }
   // Live counters of a Fifth Edition character (hit points, temporary hit
   // points, spell slots, exhaustion, conditions): bound or named Actor only,

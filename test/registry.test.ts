@@ -36,6 +36,7 @@ const NEVER_ADVERTISED = [
 const MODERN_CAPABILITIES = ["combat.sync.v1", ...BASE_CAPABILITIES].sort();
 
 const KNIGHT_ONLY_MUTATIONS = [
+  "actor.items.v1",
   "actor.resources.v1",
   "actor.upsert.v1",
   "npc.upsert.v1",
@@ -50,6 +51,7 @@ const KNIGHT_CAPABILITIES = [
 // and routes its fallback on it: a read that times out may fall back silently
 // to the app's local engine, a mutation with an unknown outcome may NOT.
 const MUTATION_PROCEDURES = [
+  "actor.items.v1",
   "actor.resources.v1",
   "actor.upsert.v1",
   "combat.sync.v1",

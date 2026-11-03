@@ -116,6 +116,7 @@ export interface CompendiumPacksLike {
  * (`fromCompendium` stamps `_stats.compendiumSource`). */
 interface ItemsLike {
   fromCompendium?(document: unknown, options?: Dict): Dict;
+  get?(id: string): { toObject(): unknown } | undefined;
 }
 
 interface ModuleLike {

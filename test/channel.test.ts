@@ -1011,6 +1011,7 @@ describe("Channel response signing", () => {
 
   it("advertises the combat mirror while withholding the Knight author lanes", async () => {
     const AUTHOR_LANES = [
+      "actor.items.v1",
       "actor.resources.v1",
       "actor.upsert.v1",
       "npc.upsert.v1",

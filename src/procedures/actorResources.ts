@@ -29,6 +29,7 @@ import {
   record,
   text,
   uniqueBoundActor,
+  type ActorLike,
   type Dict,
   type StoredResultV1,
   FLAG_KEYS,
@@ -71,7 +72,7 @@ const MAX_NAME = 200;
 export type ActorResourcesResultV1 = StoredResultV1;
 
 /** Foundry's randomID(16) shape. */
-const actorDocumentId = /^[A-Za-z0-9]{16}$/;
+export const actorDocumentId = /^[A-Za-z0-9]{16}$/;
 
 export function validateKnightActorResourcesV1(
   payload: unknown,
@@ -132,10 +133,16 @@ export function validateKnightActorResourcesV1(
   };
 }
 
-export const actorResourcesV1: Procedure = async (payload) => {
-  const req = validateKnightActorResourcesV1(payload);
-  assertKnightUpsertAuthority("actor.resources.v1");
-  const digest = await canonicalDigest(req);
+/** The Knight PC a live lane writes: the Actor bound to the character (which
+ * must be the one the app expects) or, for a character imported from Foundry,
+ * the unbound Knight Actor the app names. Never created, bound or matched by
+ * name. */
+export function linkedKnightActor(req: {
+  worldId: string;
+  tableId: string;
+  characterId: string;
+  expectedActorId: string;
+}): ActorLike {
   const collection = actorCollection();
   let actor = uniqueBoundActor(collection, bindingFor(req));
   if (!actor) {
@@ -151,12 +158,20 @@ export const actorResourcesV1: Procedure = async (payload) => {
         "the Actor is bound to another character",
       );
   }
-  const id = docId(actor);
-  if (actor.type !== ACTOR_TYPE || id !== req.expectedActorId)
+  if (actor.type !== ACTOR_TYPE || docId(actor) !== req.expectedActorId)
     throw new RpcError(
       "binding_conflict",
       "the binding points at a different Actor",
     );
+  return actor;
+}
+
+export const actorResourcesV1: Procedure = async (payload) => {
+  const req = validateKnightActorResourcesV1(payload);
+  assertKnightUpsertAuthority("actor.resources.v1");
+  const digest = await canonicalDigest(req);
+  const actor = linkedKnightActor(req);
+  const id = docId(actor);
 
   const stored = parseStoredResult(actor, FLAG_KEYS.actorResources);
   const previous = stored?.result ?? null;
