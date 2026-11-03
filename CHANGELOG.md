@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-03
+
 ### Added
 - Fifth Edition: `dnd5e.resources.v1` accepts `hpTempMax`, written to the character's temporary
   maximum hit points (a long rest in the app resets it to 0).
