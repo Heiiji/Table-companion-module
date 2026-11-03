@@ -739,6 +739,63 @@ describe("pf2e.actor.complete.v1 writes", () => {
     });
   });
 
+  const unslugged = {
+    spellcasting: [
+      {
+        tradition: "primal" as const,
+        kind: "innate" as const,
+        spells: [
+          { slug: "tanglefoot", rank: 1 },
+          { slug: "heal", rank: 2 },
+        ],
+      },
+    ],
+  };
+
+  it("keys an entry sent without a slug on tradition-kind: a second completion doubles nothing", async () => {
+    const actor = character();
+    stubWorld([actor]);
+    await run(request(unslugged));
+    const second = await run(request({ ...unslugged, completionRevision: 2 }));
+    const entries = actor.items.contents.filter(
+      (i) => i.type === "spellcastingEntry",
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries[0].system).toMatchObject({ slug: "primal-innate" });
+    expect(entries[0].name).toBe("primal innate spells");
+    const spells = actor.items.contents
+      .filter((i) => i.type === "spell")
+      .map((i) => (i.system as { slug: string }).slug);
+    expect(spells.sort()).toEqual(["heal", "tanglefoot"]);
+    expect(second.written.spells).toBe(0);
+    expect(second.warnings).toEqual(
+      expect.arrayContaining(["item_present:tanglefoot", "item_present:heal"]),
+    );
+  });
+
+  it("reuses a GM-made entry carrying the tradition-kind slug when the request sends none", async () => {
+    const actor = character();
+    actor.items.contents.push(
+      item({
+        id: "entry00000000001",
+        type: "spellcastingEntry",
+        system: { slug: "primal-innate" },
+      }),
+    );
+    stubWorld([actor]);
+    await run(request(unslugged));
+    expect(created(actor).map((i) => i.type)).not.toContain(
+      "spellcastingEntry",
+    );
+    expect(
+      created(actor)
+        .filter((i) => i.type === "spell")
+        .map(
+          (i) => (i.system as { location: { value: string } }).location.value,
+        ),
+    ).toEqual(["entry00000000001", "entry00000000001"]);
+  });
+
   it("skips and warns item_not_found for a slug no pack carries", async () => {
     const actor = character();
     stubWorld([actor]);

@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- Pathfinder 2e: completing a character twice no longer duplicates its spellcasting entry and spells
+  when the request carries no entry slug; the entry is keyed on its tradition and kind.
+
 ## [0.16.0] - 2026-11-03
 
 ### Added

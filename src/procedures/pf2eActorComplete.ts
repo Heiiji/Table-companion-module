@@ -619,13 +619,16 @@ export const pf2eActorCompleteV1: Procedure = async (payload) => {
   const castings: Array<{ entryId?: string; entry?: Dict; spells: Dict[] }> =
     [];
   for (const casting of req.spellcasting) {
-    const existing = casting.slug
-      ? entries.find((e) => itemSlug(e) === casting.slug)
-      : undefined;
-    const entryId = existing ? String(existing.id ?? existing._id) : undefined;
+    // The apps send no entry slug: key the entry on tradition-kind, stamped on
+    // the entry it creates, so a second completion finds it again.
+    const key = casting.slug ?? `${casting.tradition}-${casting.kind}`;
+    const keyed = entries
+      .filter((e) => itemSlug(e) === key)
+      .map((e) => String(e.id ?? e._id));
+    const entryId = keyed[0];
     const spells: Dict[] = [];
     for (const spell of casting.spells) {
-      if (entryId && present("spell", spell.slug, entryId)) {
+      if (keyed.some((id) => present("spell", spell.slug, id))) {
         warnings.push(`item_present:${spell.slug}`);
         continue;
       }
@@ -652,7 +655,7 @@ export const pf2eActorCompleteV1: Procedure = async (payload) => {
               name: `${casting.tradition} ${casting.kind} spells`,
               type: "spellcastingEntry",
               system: {
-                ...(casting.slug ? { slug: casting.slug } : {}),
+                slug: key,
                 tradition: { value: casting.tradition },
                 prepared: { value: casting.kind },
               },
