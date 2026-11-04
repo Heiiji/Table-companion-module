@@ -549,6 +549,39 @@ function sameValue(a: unknown, b: unknown): boolean {
   );
 }
 
+/** Names compare after NFC on both sides; with `blankMatches`, an Item whose
+ * name is blank matches any name. */
+function sameName(
+  item: ItemDoc,
+  name: unknown,
+  blankMatches: boolean,
+): boolean {
+  if (blankMatches && !(typeof item.name === "string" && item.name.trim()))
+    return true;
+  return (
+    typeof name === "string" &&
+    itemName(item, "weapon").normalize("NFC") === name.normalize("NFC")
+  );
+}
+
+/** Whether the Item already holds `value` for `key`. A lone attack lands as
+ * the flat `primary` profile, named after the Item: its id and name are not
+ * compared. */
+function holds(item: ItemDoc, current: Dict, key: string, value: unknown) {
+  if (key === "name") return sameName(item, value, false);
+  if (key === "profiles" && Array.isArray(value) && value.length === 1) {
+    const read = current.profiles as AttackProfileV1[];
+    return (
+      read.length === 1 &&
+      sameValue(
+        { ...read[0], id: "primary", name: "" },
+        { ...(value[0] as AttackProfileV1), id: "primary", name: "" },
+      )
+    );
+  }
+  return sameValue(current[key], value);
+}
+
 // ------------------------------------------------------------ Item writes
 
 /** Plain text as escaped HTML paragraphs (a blank line separates two). */
@@ -768,9 +801,12 @@ async function addItem(
   add: Extract<ActorItemsOpV1, { add: unknown }>["add"],
   warnings: string[],
 ): Promise<string> {
-  const flagged = actorItems(actor).find(
-    (item) => flagValue(item, FLAG_KEYS.entryId) === add.entryId,
-  );
+  // Foundry's duplication copies the flag: the lowest id is the one.
+  const flagged = actorItems(actor)
+    .filter((item) => flagValue(item, FLAG_KEYS.entryId) === add.entryId)
+    .sort((a, b) =>
+      docId(a) < docId(b) ? -1 : docId(a) > docId(b) ? 1 : 0,
+    )[0];
   if (flagged) {
     // A re-send: the Item is already there, so the add converges as an update.
     const item = ofKind(flagged, add.kind);
@@ -852,7 +888,7 @@ export const actorItemsV1: Procedure = async (payload) => {
   if ("remove" in op) {
     if (!found) return result(itemId);
     const item = ofKind(found, kind);
-    if (itemName(item, kind) !== op.remove.expectedName)
+    if (!sameName(item, op.remove.expectedName, true))
       throw new RpcError("item_conflict", "the Item was renamed in Foundry");
     if (typeof actor.deleteEmbeddedDocuments !== "function")
       throw new RpcError(
@@ -869,13 +905,19 @@ export const actorItemsV1: Procedure = async (payload) => {
   const current = readFields(item, kind) as Dict;
   // An update that already landed (a re-send after a timeout) is applied, not
   // a conflict: only the entry stamp, if still missing, is written.
-  if (Object.entries(fields).every(([key, v]) => sameValue(current[key], v))) {
+  if (
+    Object.entries(fields).every(([key, v]) => holds(item, current, key, v))
+  ) {
     if (entryId !== undefined && flagValue(item, FLAG_KEYS.entryId) !== entryId)
       await applyPatch(item, { [entryFlagPath]: entryId });
     return result(itemId);
   }
   for (const [key, value] of Object.entries(expected))
-    if (!sameValue(current[key], value))
+    if (
+      key === "name"
+        ? !sameName(item, value, true)
+        : !sameValue(current[key], value)
+    )
       throw new RpcError("item_conflict", `the Item's ${key} moved in Foundry`);
   const patch = fieldPatch(item, kind, fields, false, warnings);
   if (entryId !== undefined) patch[entryFlagPath] = entryId;

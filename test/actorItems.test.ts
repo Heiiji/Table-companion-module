@@ -632,6 +632,64 @@ describe("actor.items.v1 update and remove", () => {
     );
   });
 
+  it("compares names after NFC on both sides; a blank Item name matches any", async () => {
+    const nfd = "Cafe\u0301";
+    const nfc = "Caf\u00e9";
+    const item = ownModule(ID, { name: nfd });
+    // Already equal after NFC: applied, nothing written.
+    await run({
+      update: {
+        itemId: ID,
+        kind: "module",
+        item: { name: nfc },
+        expected: { name: "Ancien" },
+      },
+    });
+    expect(item.update).not.toHaveBeenCalled();
+    // The expected name matches after NFC: the update lands.
+    await run({
+      update: {
+        itemId: ID,
+        kind: "module",
+        item: { name: "Neuf" },
+        expected: { name: nfc },
+      },
+    });
+    expect(item.name).toBe("Neuf");
+    item.name = nfd;
+    await run({ remove: { itemId: ID, kind: "module", expectedName: nfc } });
+    expect(items()).toHaveLength(0);
+    const blank = ownModule(ID, { name: " " });
+    await run({
+      update: {
+        itemId: ID,
+        kind: "module",
+        item: { name: "Neuf" },
+        expected: { name: "Peu importe" },
+      },
+    });
+    expect(blank.name).toBe("Neuf");
+    blank.name = "";
+    await run({
+      remove: { itemId: ID, kind: "module", expectedName: "Peu importe" },
+    });
+    expect(items()).toHaveLength(0);
+  });
+
+  it("re-sent add targets the lowest id among Items sharing the entry id", async () => {
+    const flagged = { flags: { [MODULE_ID]: { entryId: ENTRY } } };
+    const later = ownModule("zZ3dE5fG7hJ9kL1m", flagged);
+    const lowest = ownModule("aB3dE5fG7hJ9kL1m", flagged);
+    const upper = ownModule("Ab3dE5fG7hJ9kL1m", flagged);
+    const result = await run(addModule({ name: "Saut", active: true }));
+    // Codepoint order: uppercase sorts before lowercase.
+    expect(result.itemId).toBe("Ab3dE5fG7hJ9kL1m");
+    expect(upper.update).toHaveBeenCalled();
+    expect(lowest.update).not.toHaveBeenCalled();
+    expect(later.update).not.toHaveBeenCalled();
+    expect(items()).toHaveLength(3);
+  });
+
   it("answers applied when the update already landed, before comparing expected", async () => {
     const item = ownModule(ID, {
       flags: { [MODULE_ID]: { entryId: ENTRY } },
@@ -809,6 +867,42 @@ describe("actor.items.v1 weapons", () => {
           kind: "weapon",
           item: { profiles: [] },
           expected: { profiles: [{ id: "primary", name: "X" }] },
+        },
+      },
+      "item_conflict",
+    );
+  });
+
+  it("holds a lone attack as the flat profile, whatever its id and name", async () => {
+    world();
+    const lone: AttackProfileV1 = {
+      id: "contact",
+      name: "Frappe",
+      range: "Contact",
+      damage: { count: 3, faces: 6, flat: 6 },
+    };
+    await run(addWeapon([lone]));
+    const item = items()[0];
+    const update = item.update as ReturnType<typeof vi.fn>;
+    const writes = update.mock.calls.length;
+    const retried = {
+      update: {
+        itemId: item.id,
+        kind: "weapon",
+        item: { profiles: [lone] },
+        expected: { profiles: [{ id: "primary", name: "Ancien" }] },
+      },
+    };
+    expect(await run(retried)).toMatchObject({ itemId: item.id });
+    expect(update.mock.calls.length).toBe(writes);
+    // A lone attack whose dice differ has not landed: the stale expected conflicts.
+    await refused(
+      {
+        update: {
+          ...retried.update,
+          item: {
+            profiles: [{ ...lone, damage: { count: 4, faces: 6, flat: 6 } }],
+          },
         },
       },
       "item_conflict",
