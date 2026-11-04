@@ -251,12 +251,20 @@ export function supportsPf2eActorUpsertV1Runtime(): boolean {
   );
 }
 
-/** Runtime gate for `pf2e.resources.v1`: the same pf2e floor as the draft
- * lane, kept as its own gate so the live-counters lane can move alone. The
- * handler repeats it and then probes, at call time, the pf2e APIs it writes
- * through (they fail closed when absent). */
+/** The resource APIs and stored paths also match pf2e 8.5.1 (tag commit
+ * 563fd52708673ddd4f66c76921efbf6a938fffed). Draft creation keeps its own floor. */
+export const MINIMUM_PF2E_RESOURCES_SYSTEM_VERSION = "8.5.1";
+
+export const PF2E_RESOURCES_REQUIREMENT = `pf2e ${MINIMUM_PF2E_RESOURCES_SYSTEM_VERSION} or later on Foundry ${MINIMUM_PF2E_FOUNDRY_GENERATION}`;
+
+/** The handler repeats this gate and probes the condition and item APIs
+ * before writing; missing APIs still fail closed. */
 export function supportsPf2eResourcesV1Runtime(): boolean {
-  return supportsPf2eActorUpsertV1Runtime();
+  return (
+    systemId() === "pf2e" &&
+    isAtLeastVersion(systemVersion(), MINIMUM_PF2E_RESOURCES_SYSTEM_VERSION) &&
+    foundryGeneration() >= MINIMUM_PF2E_FOUNDRY_GENERATION
+  );
 }
 
 /** Every world-writing procedure runs only in a GM responder's browser. */

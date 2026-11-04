@@ -4,6 +4,11 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Pathfinder 2e: synchronize character resources on pf2e 8.5.1 and later; character creation and completion still require pf2e 8.6.1.
+
 ## [0.19.0] - 2026-11-04
 
 ### Added

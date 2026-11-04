@@ -144,10 +144,32 @@ describe("ProcedureRegistry", () => {
     }
     for (const lane of PF2E_LANES)
       expect(registry.unsupported()[lane], lane).toBe(
-        "pf2e 8.3.0 on Foundry 14; requires pf2e 8.6.1 or later on Foundry 14",
+        `pf2e 8.3.0 on Foundry 14; requires pf2e ${lane === "pf2e.resources.v1" ? "8.5.1" : "8.6.1"} or later on Foundry 14`,
       );
     expect(actorLookup).not.toHaveBeenCalled();
   });
+
+  it.each(["8.5.1", "8.5.9", "8.6.0"])(
+    "registers only the resource lane on pf2e %s",
+    (version) => {
+      vi.stubGlobal("game", {
+        system: { id: "pf2e", version },
+        release: { generation: 14 },
+      });
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      expect(registry.capabilities()).toEqual(
+        ["pf2e.resources.v1", ...BASE_CAPABILITIES].sort(),
+      );
+      expect(registry.mutations()).toEqual(["pf2e.resources.v1"]);
+      expect(registry.isSignedOnly("pf2e.resources.v1")).toBe(true);
+      expect(registry.unsupported()).toEqual({
+        "combat.sync.v1": "combat mirroring is not available on pf2e",
+        "pf2e.actor.upsert.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.6.1 or later on Foundry 14`,
+        "pf2e.actor.complete.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.6.1 or later on Foundry 14`,
+      });
+    },
+  );
 
   it("registers the three pf2e lanes only on pf2e 8.6.1 or later on Foundry 14 or later", () => {
     for (const version of ["8.6.1", "8.6.2", "8.7.0", "9.0.0"]) {
@@ -173,8 +195,8 @@ describe("ProcedureRegistry", () => {
       });
     }
     for (const [version, generation] of [
-      ["8.6.0", 14],
-      ["8.5.9", 14],
+      ["8.5.0", 14],
+      ["8.4.9", 14],
       ["v8.6.1", 14],
       ["8.6.1-beta", 14],
       ["8.6", 14],
@@ -189,7 +211,7 @@ describe("ProcedureRegistry", () => {
       expect(registry.capabilities(), version).toEqual(BASE_CAPABILITIES);
       for (const lane of PF2E_LANES)
         expect(registry.unsupported()[lane], version).toBe(
-          `pf2e ${version} on Foundry ${generation}; requires pf2e 8.6.1 or later on Foundry 14`,
+          `pf2e ${version} on Foundry ${generation}; requires pf2e ${lane === "pf2e.resources.v1" ? "8.5.1" : "8.6.1"} or later on Foundry 14`,
         );
     }
     // Another system on an admitted version string never gets the lane,

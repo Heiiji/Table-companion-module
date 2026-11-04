@@ -24,6 +24,7 @@ import {
   KNIGHT_UPSERT_SYSTEM_VERSION_LABEL,
   MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION,
   PF2E_REQUIREMENT,
+  PF2E_RESOURCES_REQUIREMENT,
   supportsDnd5eResourcesV1Runtime,
   supportsPf2eActorUpsertV1Runtime,
   supportsPf2eResourcesV1Runtime,
@@ -177,7 +178,7 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   } else if (systemId() === "pf2e") {
     registry.markUnsupported(
       "pf2e.resources.v1",
-      `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_REQUIREMENT}`,
+      `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT}`,
     );
   }
 }

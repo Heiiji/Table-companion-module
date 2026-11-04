@@ -11,7 +11,7 @@ import { PackLookup } from "./pf2eActorComplete.js";
 import { hasUnresolvedChoice } from "./pf2eActorUpsert.js";
 import {
   FLAG_KEYS,
-  PF2E_REQUIREMENT,
+  PF2E_RESOURCES_REQUIREMENT,
   SCHEMA_VERSION,
   actorCollection,
   alreadyApplied,
@@ -494,7 +494,7 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
   if (!supportsPf2eResourcesV1Runtime())
     throw new RpcError(
       "unsupported_runtime",
-      `${PROCEDURE} requires ${PF2E_REQUIREMENT}`,
+      `${PROCEDURE} requires ${PF2E_RESOURCES_REQUIREMENT}`,
     );
   if (typeof pf2eConditionManager()?.updateConditionValue !== "function")
     throw new RpcError(

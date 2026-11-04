@@ -8,7 +8,7 @@ import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
 
 // SYNTHETIC, shape-only: a prepared pf2e `character`, its condition items and
-// physical items as the pf2e 8.6.1 source describes them (source-derived, not a
+// physical items as the pf2e 8.5.1 and 8.6.1 sources describe them (source-derived, not a
 // capture). ConditionManager, increaseCondition, createEmbeddedDocuments and
 // deleteEmbeddedDocuments follow the source's observable behaviour: dying /
 // wounded / doomed capped at their prepared max, an immune condition silently
@@ -199,7 +199,7 @@ function stubWorld(
   actors: FakeCharacter[],
   {
     id = "pf2e",
-    version = "8.6.1",
+    version = "8.5.1",
     generation = 14,
     isGM = true,
     manager = conditionManager as unknown,
@@ -349,9 +349,36 @@ describe("pf2e.resources.v1 validation", () => {
 });
 
 describe("pf2e.resources.v1 runtime gate", () => {
+  it.each(["8.5.1", "8.5.9", "8.6.0", "8.6.1", "8.7.0"])(
+    "writes counters and conditions on pf2e %s",
+    async (version) => {
+      const actor = fakeCharacter();
+      stubWorld([actor], { version });
+      await pf2eResourcesV1(
+        request({
+          hp: 12,
+          hpTemp: 3,
+          heroPoints: 2,
+          conditions: { frightened: 2 },
+        }),
+        {} as never,
+      );
+      expect(actor.updates[0]).toMatchObject({
+        "system.attributes.hp.value": 12,
+        "system.attributes.hp.temp": 3,
+        "system.resources.heroPoints.value": 2,
+      });
+      expect(actor.increaseCondition).toHaveBeenCalledWith("frightened", {
+        value: 2,
+      });
+    },
+  );
+
   it.each([
-    ["pf2e below the floor", { version: "8.6.0" }],
-    ["a non-strict version", { version: "8.6.1-beta" }],
+    ["pf2e below the floor", { version: "8.5.0" }],
+    ["a non-strict version", { version: "8.5.1-beta" }],
+    ["a truncated version", { version: "8.5" }],
+    ["an unknown version", { version: "" }],
     ["Foundry 13", { generation: 13 }],
     ["a sibling system", { id: "sf2e" }],
     ["no ConditionManager", { manager: null }],
