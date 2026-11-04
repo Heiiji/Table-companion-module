@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  ATTACK_STAMP_MS,
   ATTACK_WAIT_MS,
   buildAttackResult,
   knightAttackV1,
@@ -103,7 +104,11 @@ interface Scenario {
   total?: number;
   targets: Dict[];
   weaponRaw?: string[];
+  /** Merged into the prepared weapon (structural effects, options). */
+  weapon?: Dict;
   landFlags?: boolean;
+  /** Create the card this long after doRoll returns (the system is slow). */
+  createAfterMs?: number;
 }
 
 let scenario: Scenario;
@@ -121,6 +126,7 @@ class FakeRollKnight {
       label: item.name,
       type: "contact",
       effets: { raw: scenario.weaponRaw ?? [] },
+      ...scenario.weapon,
     };
   }
   prepareWpnDistance(item: Dict) {
@@ -138,7 +144,7 @@ class FakeRollKnight {
       scenario.rolls.map(roll),
     );
     // Like #sendRollWeapon: not awaited by doRoll; create, then addFlags.
-    void Promise.resolve().then(async () => {
+    const create = async () => {
       for (const fn of hooks.get("preCreateChatMessage")?.values() ?? [])
         fn(msg, {}, {}, GM);
       world.messages.contents.push(msg);
@@ -158,7 +164,10 @@ class FakeRollKnight {
         surprise: this.data.surprise,
         weapon: this.data.weapon,
       };
-    });
+    };
+    if (scenario.createAfterMs)
+      setTimeout(() => void create(), scenario.createAfterMs);
+    else void Promise.resolve().then(create);
     return 0;
   }
 }
@@ -439,7 +448,31 @@ describe("knight.attack.v1 roll", () => {
     await knightAttackV1(payload({ visibility: "gm" }), {} as never);
     const card = world.messages.contents[0] as Message;
     expect(card.author).toBeUndefined();
-    expect(card.whisper).toEqual([GM]);
+    // A GM roll reaches the service user too: the backend reads the world as it.
+    expect(card.whisper).toEqual([GM, COMPANION]);
+  });
+
+  it("refuses a barrage weapon before rolling", async () => {
+    scenario.weaponRaw = ["barrage 2"];
+    expect(
+      await rejection(knightAttackV1(payload(), {} as never)),
+    ).toMatchObject({ code: "weapon_unsupported" });
+    scenario.weaponRaw = [];
+    scenario.weapon = { ornementales: { raw: ["barrage 1"] } };
+    expect(
+      await rejection(knightAttackV1(payload(), {} as never)),
+    ).toMatchObject({ code: "weapon_unsupported" });
+    expect(rollCalls).toEqual([]);
+    expect(hooks.get("preCreateChatMessage")?.size ?? 0).toBe(0);
+  });
+
+  it("rolls a barrage weapon whose barrage option is off", async () => {
+    scenario.weapon = {
+      structurelles: { raw: ["barrage 2"] },
+      options: [{ value: "barrage", active: false }],
+    };
+    await knightAttackV1(payload(), {} as never);
+    expect(rollCalls).toHaveLength(1);
   });
 
   it("lends the GM's targets to a cadence weapon and restores them", async () => {
@@ -453,7 +486,7 @@ describe("knight.attack.v1 roll", () => {
   });
 
   it("restores the targets and drops the hook when the roller throws", async () => {
-    scenario.weaponRaw = ["barrage 2"];
+    scenario.weaponRaw = ["cadence 2"];
     world.knight.RollKnight = class extends FakeRollKnight {
       override async doRoll(): Promise<number> {
         throw new Error("boom");
@@ -472,7 +505,73 @@ describe("knight.attack.v1 roll", () => {
     const pending = rejection(knightAttackV1(payload(), {} as never));
     await vi.advanceTimersByTimeAsync(ATTACK_WAIT_MS + 200);
     expect(await pending).toMatchObject({ code: "attack_card_timeout" });
+    // The card was created and stamped: a retry finds it and never rolls again.
+    expect(world.messages.contents[0].flags[MODULE_ID].eventId).toBe(EVENT);
     expect(hooks.get("preCreateChatMessage")?.size).toBe(0);
+  });
+
+  it("keeps the hook for a late card only until the late-stamp window closes", async () => {
+    vi.useFakeTimers();
+    scenario.createAfterMs = ATTACK_STAMP_MS + 5_000;
+    const pending = rejection(knightAttackV1(payload(), {} as never));
+    await vi.advanceTimersByTimeAsync(ATTACK_WAIT_MS + 200);
+    expect(await pending).toMatchObject({ code: "attack_card_timeout" });
+    // The hook waits for a late card until the late-stamp window closes.
+    expect(hooks.get("preCreateChatMessage")?.size).toBe(1);
+    await vi.advanceTimersByTimeAsync(ATTACK_STAMP_MS);
+    expect(hooks.get("preCreateChatMessage")?.size).toBe(0);
+    expect(world.messages.contents[0].flags[MODULE_ID]).toBeUndefined();
+  });
+
+  it("stamps a card created after the answer, and a retry answers from it", async () => {
+    vi.useFakeTimers();
+    scenario.createAfterMs = ATTACK_WAIT_MS + 2_000;
+    const late = rejection(knightAttackV1(payload(), {} as never));
+    await vi.advanceTimersByTimeAsync(ATTACK_WAIT_MS + 200);
+    expect(await late).toMatchObject({ code: "attack_card_timeout" });
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    const card = world.messages.contents[0] as Message;
+    expect(card.flags[MODULE_ID]).toMatchObject({
+      eventId: EVENT,
+      lane: "knight.attack",
+      attackResult: { messageId: card.id, alreadyRolled: false },
+    });
+    expect(hooks.get("preCreateChatMessage")?.size).toBe(0);
+
+    const retry = knightAttackV1(payload(), {} as never);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(await retry).toMatchObject({
+      messageId: card.id,
+      alreadyRolled: true,
+    });
+    expect(rollCalls).toHaveLength(1);
+  });
+
+  it("drops an older unfired hook when a new attack starts for the actor", async () => {
+    vi.useFakeTimers();
+    scenario.createAfterMs = 30_000;
+    const first = rejection(knightAttackV1(payload(), {} as never));
+    await vi.advanceTimersByTimeAsync(ATTACK_WAIT_MS + 200);
+    expect(await first).toMatchObject({ code: "attack_card_timeout" });
+    expect(hooks.get("preCreateChatMessage")?.size).toBe(1);
+
+    scenario.createAfterMs = undefined;
+    const second = knightAttackV1(
+      payload({ eventId: "00000000-0000-4000-8000-000000000002" }),
+      {} as never,
+    );
+    await vi.advanceTimersByTimeAsync(200);
+    expect(await second).toMatchObject({ alreadyRolled: false });
+    expect(hooks.get("preCreateChatMessage")?.size).toBe(0);
+
+    // The first card arrives late, with no hook left: it imports unstamped.
+    await vi.advanceTimersByTimeAsync(30_000);
+    const [stamped, unstamped] = world.messages.contents as Message[];
+    expect(stamped!.flags[MODULE_ID].eventId).toBe(
+      "00000000-0000-4000-8000-000000000002",
+    );
+    expect(unstamped!.flags[MODULE_ID]).toBeUndefined();
   });
 
   it.each([

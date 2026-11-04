@@ -112,7 +112,8 @@ Gamemaster can open setup from the console with
   Knight system itself (`knight.attack.v1`): the native card with its targets, hit or miss, effects
   and damage / violence buttons, and the result sent back to the app. The app composes the dice pool;
   the dialog's own extras (module damage bonuses and the like) are not applied, and costs are spent by
-  the app. Targets must be tokens on the scene the Gamemaster is viewing.
+  the app. Targets must be tokens on the scene the Gamemaster is viewing; barrage weapons, which have
+  no attack roll, stay on the app's engine.
 - **Combat mirror:** on every system, the app's combat (combatants, initiative, current turn) is
   mirrored one way into a Foundry Combat (`combat.sync.v1`).
 - **Languages:** English, Français

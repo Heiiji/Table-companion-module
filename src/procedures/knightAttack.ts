@@ -72,7 +72,7 @@ const PAYLOAD_KEYS = [
 const ORIGINS = ["app", "player"] as const;
 const VISIBILITIES = ["public", "gm", "blind", "self"] as const;
 /** Weapon effects whose roll reads the GM's own targets, not the injected ones. */
-const READS_USER_TARGETS = ["cadence", "chromeligneslumineuses", "barrage"];
+const READS_USER_TARGETS = ["cadence", "chromeligneslumineuses"];
 
 export interface KnightAttackV1 {
   eventId: string;
@@ -155,6 +155,7 @@ export interface CardMessage {
 }
 
 interface Weapon {
+  options?: { value?: string; active?: boolean }[];
   effets?: { raw?: string[] };
   structurelles?: { raw?: string[] };
   ornementales?: { raw?: string[] };
@@ -273,11 +274,18 @@ function knightFlags(message: CardMessage): Dict | undefined {
 }
 
 /** A user who is a person at the table: not a GM, not the app's service user. */
+/** The app's service user: the paired agent user, the one this module
+ * created, or one named like it. */
+function isServiceUser(u: UserLike): boolean {
+  return (
+    (!!u.id && [pairedAgentUserId(), companionAnchorId()].includes(u.id)) ||
+    u.name === COMPANION_USER_NAME
+  );
+}
+
 function players(): Player[] {
-  const service = new Set([pairedAgentUserId(), companionAnchorId()]);
   return (contentsOf(foundryGame()?.users) as Player[]).filter(
-    (u) =>
-      !u.isGM && !service.has(u.id ?? "") && u.name !== COMPANION_USER_NAME,
+    (u) => !u.isGM && !isServiceUser(u),
   );
 }
 
@@ -334,6 +342,19 @@ function readsUserTargets(weapon: Weapon): boolean {
   return raw.some((e) => READS_USER_TARGETS.includes(e.split(" ")[0] ?? ""));
 }
 
+/** Whether the system's `doRoll` treats `name` as active on this weapon: in
+ * its effects (base, structural, ornamental), and on unless an option turns it off. */
+function effectActive(weapon: Weapon, name: string): boolean {
+  const raw = [
+    ...(weapon.effets?.raw ?? []),
+    ...(weapon.structurelles?.raw ?? []),
+    ...(weapon.ornementales?.raw ?? []),
+  ];
+  if (!raw.some((e) => e.split(" ")[0] === name)) return false;
+  const option = weapon.options?.find((o) => o.value === name);
+  return !option || option.active === true;
+}
+
 function gmTargetIds(): string[] {
   return [...((foundryGame()?.user as Player | undefined)?.targets ?? [])].map(
     (t) => t.id,
@@ -347,10 +368,14 @@ function visibilityOf(
 ): { whisper: string[]; blind: boolean } {
   if (visibility === "public") return { whisper: [], blind: false };
   if (visibility === "self") return { whisper: [authorId], blind: false };
-  const gms = contentsOf(foundryGame()?.users)
-    .filter((u) => u.isGM && u.id)
+  // A GM roll also reaches the service user, so the backend, which reads the
+  // world as that user, sees the card and its result; a blind roll stays GM-only.
+  const readers = contentsOf(foundryGame()?.users)
+    .filter(
+      (u) => u.id && (u.isGM || (visibility === "gm" && isServiceUser(u))),
+    )
     .map((u) => u.id as string);
-  return { whisper: gms, blind: visibility === "blind" };
+  return { whisper: readers, blind: visibility === "blind" };
 }
 
 async function poll<T>(
@@ -544,16 +569,31 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
   const weapon = isRanged
     ? builder.prepareWpnDistance(item, {})
     : builder.prepareWpnContact(item, {});
+  // A barrage weapon posts a card with no attack roll: nothing for the app to
+  // resolve, so it stays on the app's own engine.
+  if (effectActive(weapon, "barrage"))
+    throw new RpcError(
+      "weapon_unsupported",
+      `${PROCEDURE}: a barrage weapon has no attack roll`,
+    );
   const { ids, source } = resolveTargets(actor, req.targetActorIds);
   const author = playerOf(actor);
   const authorId = author?.id ?? foundryGame()?.user?.id ?? "";
   const { whisper, blind } = visibilityOf(req.visibility, authorId);
 
+  // The stamping hook lives until it fires or the late-stamp window closes, so
+  // a card created after the answer still carries its eventId. A new attack
+  // for the same actor drops an older unfired hook first: that older card, if
+  // it ever comes, imports as ordinary chat.
+  dropHook(req.actorId);
   const hooks = foundryHooks();
-  let fired = false;
   const hookId = hooks?.on("preCreateChatMessage", (doc: CardMessage) => {
-    if (fired || doc.speaker?.actor !== actor.id) return;
-    fired = true;
+    if (
+      doc.speaker?.actor !== actor.id ||
+      pending.get(req.actorId)?.id !== hookId
+    )
+      return;
+    dropHook(req.actorId);
     doc.updateSource?.({
       ...(author?.id ? { author: author.id } : {}),
       whisper,
@@ -565,49 +605,67 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
       },
     });
   });
+  if (hookId !== undefined)
+    pending.set(req.actorId, {
+      id: hookId,
+      timer: setTimeout(() => dropHook(req.actorId), ATTACK_STAMP_MS),
+    });
 
-  // Cadence and barrage weapons read the GM's own targets: lend them for the roll.
+  // Cadence weapons read the GM's own targets: lend them for the roll.
   const layer = tokens();
   const previous = gmTargetIds();
   const lend =
     readsUserTargets(weapon) && source !== "gm" && !!layer?.setTargets;
   try {
     if (lend) layer.setTargets!(ids, { mode: "replace" });
-    try {
-      await new RollKnight(actor, {
-        name: req.label,
-        dices: `${req.dice}D6`,
-        carac: req.carac,
-        bonus: req.bonus,
-        weapon,
-        style: req.style,
-        surprise: req.surprise,
-        targets: ids.map((id) => ({ id })),
-        dataStyle: {},
-        dataMod: {
-          degats: { dice: 0, fixe: 0 },
-          violence: { dice: 0, fixe: 0 },
-        },
-        maximize: { degats: false, violence: false },
-      }).doRoll({});
-    } finally {
-      if (lend) layer.setTargets!(previous, { mode: "replace" });
-    }
-    // doRoll does not await the card; it is created, then its Knight flags
-    // written. Keep watching past the answer so a late card is still stamped.
-    let answer: KnightAttackResultV1 | null = null;
-    void poll(() => flagsLanded(req.eventId), ATTACK_STAMP_MS)
-      .then((card) => (card ? stamp(card, source) : null))
-      .then((r) => (answer = r))
-      .catch((error: unknown) =>
-        log.warn(`${PROCEDURE}: stamping failed`, error),
-      );
-    const result = await poll(() => answer, ATTACK_WAIT_MS);
-    if (!result) throw cardTimeout();
-    return result;
+    await new RollKnight(actor, {
+      name: req.label,
+      dices: `${req.dice}D6`,
+      carac: req.carac,
+      bonus: req.bonus,
+      weapon,
+      style: req.style,
+      surprise: req.surprise,
+      targets: ids.map((id) => ({ id })),
+      dataStyle: {},
+      dataMod: {
+        degats: { dice: 0, fixe: 0 },
+        violence: { dice: 0, fixe: 0 },
+      },
+      maximize: { degats: false, violence: false },
+    }).doRoll({});
+  } catch (error) {
+    dropHook(req.actorId); // the roller failed: no card is coming
+    throw error;
   } finally {
-    if (hookId !== undefined) hooks?.off?.("preCreateChatMessage", hookId);
+    if (lend) layer.setTargets!(previous, { mode: "replace" });
   }
+  // doRoll does not await the card; it is created, then its Knight flags
+  // written. Keep watching past the answer so a late card is still stamped.
+  let answer: KnightAttackResultV1 | null = null;
+  void poll(() => flagsLanded(req.eventId), ATTACK_STAMP_MS)
+    .then((card) => (card ? stamp(card, source) : null))
+    .then((r) => (answer = r))
+    .catch((error: unknown) =>
+      log.warn(`${PROCEDURE}: stamping failed`, error),
+    );
+  const result = await poll(() => answer, ATTACK_WAIT_MS);
+  if (!result) throw cardTimeout();
+  return result;
+}
+
+/** The unfired stamping hook of each actor's latest attack. */
+const pending = new Map<
+  string,
+  { id: unknown; timer: ReturnType<typeof setTimeout> }
+>();
+
+function dropHook(actorId: string): void {
+  const hook = pending.get(actorId);
+  if (!hook) return;
+  pending.delete(actorId);
+  clearTimeout(hook.timer);
+  foundryHooks()?.off?.("preCreateChatMessage", hook.id);
 }
 
 let queue: Promise<unknown> = Promise.resolve();
