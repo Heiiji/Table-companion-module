@@ -108,6 +108,11 @@ Gamemaster can open setup from the console with
   quantities of the items the app mirrors (0 deletes), and items added in the app found by slug in the
   system's equipment compendium, never stacked onto another item. A condition another item grants or
   locks, coins, the level and the attributes are never touched.
+- **Knight attacks:** on the same Knight releases, a weapon attack started in the app is rolled by the
+  Knight system itself (`knight.attack.v1`): the native card with its targets, hit or miss, effects
+  and damage / violence buttons, and the result sent back to the app. The app composes the dice pool;
+  the dialog's own extras (module damage bonuses and the like) are not applied, and costs are spent by
+  the app. Targets must be tokens on the scene the Gamemaster is viewing.
 - **Combat mirror:** on every system, the app's combat (combatants, initiative, current turn) is
   mirrored one way into a Foundry Combat (`combat.sync.v1`).
 - **Languages:** English, Français

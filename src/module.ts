@@ -21,6 +21,7 @@ import {
 import { appPresence } from "./setup/appPresence.js";
 import { startPresenceWatcher } from "./setup/presence.js";
 import { startKnightRollCards } from "./ui/knightRollCard.js";
+import { startKnightAttackFollowUps } from "./procedures/knightAttack.js";
 import { openSetupApp } from "./ui/SetupApp.js";
 import { indexedDbKeyStore } from "./util/keyStore.js";
 import { localize, log } from "./util/log.js";
@@ -141,6 +142,9 @@ Hooks.once("init", () => {
 
   // Every client: app rolls on a Knight world drawn as the system's roll card.
   startKnightRollCards();
+  // Knight: damage / violence cards rolled from an app attack card are tagged
+  // with that attack (the elected responder stamps them).
+  startKnightAttackFollowUps();
 
   // Publish the public API as early as possible so dependents can read it.
   if (mod) {

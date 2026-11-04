@@ -39,8 +39,18 @@ const KNIGHT_ONLY_MUTATIONS = [
   "actor.items.v1",
   "actor.resources.v1",
   "actor.upsert.v1",
+  "knight.attack.v1",
   "npc.upsert.v1",
 ];
+
+// The Knight system's roller, as far as the attack lane feature-detects it.
+const KNIGHT_ROLLER = {
+  RollKnight: class {
+    prepareWpnContact() {}
+    prepareWpnDistance() {}
+    doRoll() {}
+  },
+};
 
 const KNIGHT_CAPABILITIES = [
   ...KNIGHT_ONLY_MUTATIONS,
@@ -55,6 +65,7 @@ const MUTATION_PROCEDURES = [
   "actor.resources.v1",
   "actor.upsert.v1",
   "combat.sync.v1",
+  "knight.attack.v1",
   "npc.upsert.v1",
 ];
 
@@ -294,6 +305,7 @@ describe("ProcedureRegistry", () => {
     vi.stubGlobal("game", {
       system: { id: "knight", version: "3.58.33" },
       release: { generation: 14 },
+      knight: KNIGHT_ROLLER,
     });
     const registry = new ProcedureRegistry();
     registerBuiltinProcedures(registry);
@@ -366,6 +378,7 @@ describe("ProcedureRegistry", () => {
     vi.stubGlobal("game", {
       system: { id: "knight", version: "3.58.33" },
       release: { generation: 14 },
+      knight: KNIGHT_ROLLER,
     });
     const knight = new ProcedureRegistry();
     registerBuiltinProcedures(knight);
@@ -405,6 +418,7 @@ describe("ProcedureRegistry", () => {
     vi.stubGlobal("game", {
       system: { id: "knight", version: "3.58.33" },
       release: { generation: 14 },
+      knight: KNIGHT_ROLLER,
     });
     const registry = new ProcedureRegistry();
     registerBuiltinProcedures(registry);
@@ -441,6 +455,7 @@ describe("ProcedureRegistry", () => {
       vi.stubGlobal("game", {
         system: { id: "knight", version },
         release: { generation: 13 },
+        knight: KNIGHT_ROLLER,
       });
       const registry = new ProcedureRegistry();
       registerBuiltinProcedures(registry);

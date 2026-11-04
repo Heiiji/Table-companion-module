@@ -1014,6 +1014,7 @@ describe("Channel response signing", () => {
       "actor.items.v1",
       "actor.resources.v1",
       "actor.upsert.v1",
+      "knight.attack.v1",
       "npc.upsert.v1",
     ];
     const { signer } = await ModuleResponseSigner.generate();
@@ -1023,6 +1024,13 @@ describe("Channel response signing", () => {
         ...(globalThis as unknown as { game: object }).game,
         system: { id: "knight", version },
         release: { generation: 14 },
+        knight: {
+          RollKnight: class {
+            prepareWpnContact() {}
+            prepareWpnDistance() {}
+            doRoll() {}
+          },
+        },
       });
       const registry = new ProcedureRegistry();
       registerBuiltinProcedures(registry);

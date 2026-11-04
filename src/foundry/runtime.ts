@@ -153,6 +153,7 @@ type NotificationsLike = Partial<
 
 interface HooksLike {
   on(hook: string, fn: (...args: never[]) => void): unknown;
+  off?(hook: string, id: unknown): void;
 }
 
 type DialogV2Class = (new (options: unknown) => unknown) & {
@@ -235,6 +236,11 @@ interface GameLike {
   socket?: SocketLike;
   /** pf2e's system namespace (the Pathfinder 2e live-counters lane). */
   pf2e?: { ConditionManager?: Pf2eConditionManagerLike };
+  /** The Knight system's namespace (its roller, for the attack lane). */
+  knight?: { RollKnight?: unknown };
+  /** The chat log (`game.messages`). */
+  messages?: { contents?: unknown[] };
+  i18n?: { localize(key: string): string };
 }
 
 /** `game.pf2e.ConditionManager`: set a condition item's value by id (0 deletes). */
@@ -248,6 +254,8 @@ export interface Pf2eConditionManagerLike {
 
 interface FoundryGlobals {
   game?: GameLike;
+  /** The rendered canvas; its `tokens` layer is a structural view per caller. */
+  canvas?: { tokens?: unknown };
   Actor?: { implementation?: ActorFactoryLike };
   Combat?: { implementation?: CombatFactoryLike };
   Hooks?: HooksLike;
@@ -362,6 +370,11 @@ export function gameCombats(): CombatsLike | undefined {
 /** The scene the current user is viewing (`game.scenes.viewed`), or null. */
 export function viewedScene(): SceneLike | null {
   return foundryGame()?.scenes?.viewed ?? null;
+}
+
+/** `canvas.tokens`, the viewed scene's token layer, or undefined. */
+export function canvasTokens(): unknown {
+  return globals().canvas?.tokens;
 }
 
 /** `Combat.implementation`, the class new Combats are created through. */

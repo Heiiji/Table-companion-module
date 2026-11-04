@@ -4,6 +4,16 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Knight: a weapon attack started in the companion app can be run by the Knight system's own roller
+  through the new signed-only `knight.attack.v1`: the native attack card appears with its targets
+  (the player's own targets, else the app's, else the Gamemaster's), the hit or miss against each
+  one, the weapon's effects and the damage and violence buttons, authored by the character's player
+  and shown with the app's roll visibility. The result is returned to the app and stored on the card;
+  a retry never rolls twice. Damage and violence cards rolled from it are tagged with the attack.
+
 ## [0.18.1] - 2026-11-04
 
 ### Changed

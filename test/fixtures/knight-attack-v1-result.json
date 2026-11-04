@@ -1,0 +1,45 @@
+{
+  "messageId": "Xb2Lw8PqR4tY6uIo",
+  "alreadyRolled": false,
+  "faces": [
+    2,
+    5,
+    6,
+    1,
+    4,
+    3,
+    2
+  ],
+  "exploitFaces": null,
+  "successes": 4,
+  "bonus": 3,
+  "total": 7,
+  "rollState": "normal",
+  "targetSource": "player",
+  "targets": [
+    {
+      "tokenId": "T0k3nA1b2C3d4E5f",
+      "actorId": "Nf7cH2kLm9QwE4rT",
+      "name": "Nocte",
+      "versus": "defense",
+      "difficulty": 5,
+      "hit": true,
+      "margin": 2,
+      "weakPoint": false,
+      "effects": [
+        "Choc 1"
+      ]
+    },
+    {
+      "tokenId": "T0k3nZ9y8X7w6V5u",
+      "actorId": null,
+      "name": "Garde",
+      "versus": "defense",
+      "difficulty": 8,
+      "hit": false,
+      "margin": null,
+      "weakPoint": false,
+      "effects": []
+    }
+  ]
+}
