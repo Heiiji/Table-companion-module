@@ -177,7 +177,7 @@ interface KnightTarget {
   marge?: number;
   ptsFaible?: boolean;
   defense?: string;
-  effets?: { label?: unknown }[];
+  effets?: { label?: unknown; hit?: unknown }[];
 }
 
 // ------------------------------------------------------------- validation
@@ -438,7 +438,9 @@ export function buildAttackResult(
         hit,
         margin: hit && typeof t.marge === "number" ? t.marge : null,
         weakPoint: t.ptsFaible === true,
+        // Only what landed: Foundry keeps a resisted effect on the line with `hit: false`.
         effects: (t.effets ?? [])
+          .filter((e) => e.hit !== false)
           .map((e) => e.label)
           .filter((l): l is string => typeof l === "string"),
       } satisfies KnightAttackTargetV1;

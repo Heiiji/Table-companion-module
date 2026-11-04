@@ -254,7 +254,10 @@ const NOCTE_LINE = {
   marge: 2,
   ptsFaible: false,
   defense: "vs Défense (5)",
-  effets: [{ label: "Choc 1", hit: true }],
+  effets: [
+    { label: "Choc 1", hit: true },
+    { label: "Électrifiée", hit: false },
+  ],
 };
 const GARDE_LINE = {
   name: "Garde",
