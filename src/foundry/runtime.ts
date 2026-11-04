@@ -152,7 +152,7 @@ type NotificationsLike = Partial<
 >;
 
 interface HooksLike {
-  on(hook: string, fn: () => void): unknown;
+  on(hook: string, fn: (...args: never[]) => void): unknown;
 }
 
 type DialogV2Class = (new (options: unknown) => unknown) & {
@@ -259,6 +259,9 @@ interface FoundryGlobals {
       api?: {
         DialogV2?: DialogV2Class;
         ApplicationV2?: ApplicationV2Class;
+      };
+      handlebars?: {
+        renderTemplate?: (path: string, data: object) => Promise<string>;
       };
     };
   };
@@ -385,6 +388,12 @@ export function foundryHooks(): HooksLike | undefined {
  * when the Application framework is missing (a very old Foundry, a unit test). */
 export function dialogV2Class(): DialogV2Class | undefined {
   return globals().foundry?.applications?.api?.DialogV2;
+}
+
+/** `foundry.applications.handlebars.renderTemplate` (Foundry 13+), or undefined. */
+export function renderTemplateFn():
+  ((path: string, data: object) => Promise<string>) | undefined {
+  return globals().foundry?.applications?.handlebars?.renderTemplate;
 }
 
 /** `foundry.applications.api.ApplicationV2`, resolved lazily for the same

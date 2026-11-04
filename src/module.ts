@@ -20,6 +20,7 @@ import {
 } from "./rpc/responseSigning.js";
 import { appPresence } from "./setup/appPresence.js";
 import { startPresenceWatcher } from "./setup/presence.js";
+import { startKnightRollCards } from "./ui/knightRollCard.js";
 import { openSetupApp } from "./ui/SetupApp.js";
 import { indexedDbKeyStore } from "./util/keyStore.js";
 import { localize, log } from "./util/log.js";
@@ -137,6 +138,9 @@ Hooks.once("init", () => {
   // settings-menu API (layout-stable across v13/v14, unlike injecting into the
   // sidebar DOM). The API's openSetup() remains a fallback entry point.
   registerSetupMenu(openSetup);
+
+  // Every client: app rolls on a Knight world drawn as the system's roll card.
+  startKnightRollCards();
 
   // Publish the public API as early as possible so dependents can read it.
   if (mod) {
