@@ -2,6 +2,7 @@ import { MODULE_ID } from "../constants.js";
 import { deletionEntry, gameItems, gamePacks } from "../foundry/runtime.js";
 import { KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1 } from "../refdata/knightCompendiumCrosswalkV14_0_1.js";
 import { RpcError } from "../rpc/errors.js";
+import { MAX_ROLL_DICE } from "./rollExecute.js";
 import type { Procedure } from "../rpc/registry.js";
 import { canonicalize } from "../util/canonicalJson.js";
 import { paragraphsHtml } from "../util/html.js";
@@ -172,19 +173,22 @@ function itemKind(value: unknown, path: string): ItemKind {
   return value;
 }
 
+/** The dice an attack may carry: Knight rolls `count` d6 for damage and
+ * violence, so a count is bounded like `roll.execute`'s dice budget (zero is
+ * a flat-only attack) and faces like a real die. */
+const MAX_DICE_FACES = 1000;
+
 function dice(value: unknown, path: string): DiceV1 {
   const d = record(value, path, ["count", "faces", "flat", "expr"]);
-  const n = (key: string) =>
-    integer(
-      d[key],
-      `${path}.${key}`,
+  return {
+    count: integer(d.count, `${path}.count`, 0, MAX_ROLL_DICE),
+    faces: integer(d.faces, `${path}.faces`, 1, MAX_DICE_FACES),
+    flat: integer(
+      d.flat,
+      `${path}.flat`,
       Number.MIN_SAFE_INTEGER,
       Number.MAX_SAFE_INTEGER,
-    );
-  return {
-    count: n("count"),
-    faces: n("faces"),
-    flat: n("flat"),
+    ),
     ...(d.expr === undefined
       ? {}
       : { expr: text(d.expr, `${path}.expr`, MAX_PROFILE_TEXT, true) }),

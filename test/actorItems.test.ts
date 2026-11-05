@@ -291,6 +291,17 @@ describe("actor.items.v1 validation", () => {
     refuse(weapon([{ id: "a", name: "Tir", range: "" }]));
     refuse(weapon([{ id: "a", name: "Tir", damage: { count: 1, faces: 6 } }]));
     refuse(weapon([{ id: "a", name: "Tir", note: "x" }]));
+    // Dice a damage roll could not survive: negative, oversized, faceless.
+    const shot = (damage: Record<string, number>) =>
+      weapon([{ id: "a", name: "Tir", damage: { flat: 0, ...damage } }]);
+    refuse(shot({ count: -1, faces: 6 }));
+    refuse(shot({ count: 99999999, faces: 6 }));
+    refuse(shot({ count: 1001, faces: 6 }));
+    refuse(shot({ count: 1, faces: 0 }));
+    refuse(shot({ count: 1, faces: -6 }));
+    refuse(shot({ count: 1, faces: 1001 }));
+    validateKnightActorItemsV1(request(shot({ count: 0, faces: 6, flat: 2 })));
+    validateKnightActorItemsV1(request(shot({ count: 1000, faces: 6 })));
     validateKnightActorItemsV1(
       request(weapon(Array.from({ length: 8 }, (_, i) => attack(`a${i}`)))),
     );

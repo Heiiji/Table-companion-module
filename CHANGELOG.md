@@ -7,6 +7,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Security
+- Knight: `actor.items.v1` refuses weapon damage and violence dice with a negative or oversized
+  count (at most 1000) or faces outside 1–1000, so a stored weapon can no longer freeze the next
+  damage roll.
 - Knight: adding a module or weapon from a live world Item or compendium copies it only when the
   paired service user may observe that Item or pack, as the compendium lanes already require;
   otherwise the Item is built from the app's fields.
