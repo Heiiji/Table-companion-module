@@ -252,7 +252,7 @@ describe("pf2e.actor.upsert.v1 validation", () => {
 });
 
 describe("pf2e.actor.upsert.v1 runtime gate", () => {
-  it.each(["8.6.1", "8.6.2", "8.7.0", "9.0.0"])(
+  it.each(["8.6.1", "8.6.2", "8.7.0", "8.99.0"])(
     "admits pf2e %s",
     async (version) => {
       const world = stubWorld([], { version });
@@ -270,6 +270,8 @@ describe("pf2e.actor.upsert.v1 runtime gate", () => {
     ["pf2e", "8.6.1-beta", 14],
     ["pf2e", "8.6.1", 13],
     ["sf2e", "8.6.1", 14],
+    // A later major may move the paths the draft writes.
+    ["pf2e", "9.0.0", 14],
   ] as const)(
     "refuses %s %s on Foundry %s",
     async (id, version, generation) => {
@@ -277,7 +279,7 @@ describe("pf2e.actor.upsert.v1 runtime gate", () => {
       await expect(run(draft())).rejects.toMatchObject({
         code: "unsupported_runtime",
         message:
-          "pf2e.actor.upsert.v1 requires pf2e 8.6.1 or later on Foundry 14",
+          "pf2e.actor.upsert.v1 requires pf2e 8.6.1 or a later 8.x on Foundry 14",
       });
       expect(world.create).not.toHaveBeenCalled();
     },

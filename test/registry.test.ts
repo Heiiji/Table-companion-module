@@ -144,7 +144,7 @@ describe("ProcedureRegistry", () => {
     }
     for (const lane of PF2E_LANES)
       expect(registry.unsupported()[lane], lane).toBe(
-        `pf2e 8.3.0 on Foundry 14; requires pf2e ${lane === "pf2e.resources.v1" ? "8.5.1" : "8.6.1"} or later on Foundry 14`,
+        `pf2e 8.3.0 on Foundry 14; requires pf2e ${lane === "pf2e.resources.v1" ? "8.5.1" : "8.6.1"} or a later 8.x on Foundry 14`,
       );
     expect(actorLookup).not.toHaveBeenCalled();
   });
@@ -165,14 +165,14 @@ describe("ProcedureRegistry", () => {
       expect(registry.isSignedOnly("pf2e.resources.v1")).toBe(true);
       expect(registry.unsupported()).toEqual({
         "combat.sync.v1": "combat mirroring is not available on pf2e",
-        "pf2e.actor.upsert.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.6.1 or later on Foundry 14`,
-        "pf2e.actor.complete.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.6.1 or later on Foundry 14`,
+        "pf2e.actor.upsert.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.6.1 or a later 8.x on Foundry 14`,
+        "pf2e.actor.complete.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.6.1 or a later 8.x on Foundry 14`,
       });
     },
   );
 
-  it("registers the three pf2e lanes only on pf2e 8.6.1 or later on Foundry 14 or later", () => {
-    for (const version of ["8.6.1", "8.6.2", "8.7.0", "9.0.0"]) {
+  it("registers the three pf2e lanes only on pf2e 8.6.1 or a later 8.x on Foundry 14 or later", () => {
+    for (const version of ["8.6.1", "8.6.2", "8.7.0", "8.99.0"]) {
       vi.stubGlobal("game", {
         system: { id: "pf2e", version },
         release: { generation: 14 },
@@ -201,6 +201,7 @@ describe("ProcedureRegistry", () => {
       ["8.6.1-beta", 14],
       ["8.6", 14],
       ["8.6.1", 13],
+      ["9.0.0", 14],
     ] as const) {
       vi.stubGlobal("game", {
         system: { id: "pf2e", version },
@@ -211,7 +212,7 @@ describe("ProcedureRegistry", () => {
       expect(registry.capabilities(), version).toEqual(BASE_CAPABILITIES);
       for (const lane of PF2E_LANES)
         expect(registry.unsupported()[lane], version).toBe(
-          `pf2e ${version} on Foundry ${generation}; requires pf2e ${lane === "pf2e.resources.v1" ? "8.5.1" : "8.6.1"} or later on Foundry 14`,
+          `pf2e ${version} on Foundry ${generation}; requires pf2e ${lane === "pf2e.resources.v1" ? "8.5.1" : "8.6.1"} or a later 8.x on Foundry 14`,
         );
     }
     // Another system on an admitted version string never gets the lane,
@@ -260,7 +261,7 @@ describe("ProcedureRegistry", () => {
     const withheld = knight.unsupported();
     expect(Object.keys(withheld).sort()).toEqual(KNIGHT_ONLY_MUTATIONS);
     expect(withheld["actor.upsert.v1"]).toBe(
-      "Knight 3.58.32 on Foundry 14; requires Knight 3.58.33 or later on Foundry 13 or later",
+      "Knight 3.58.32 on Foundry 14; requires Knight 3.58.33 or a later 3.x on Foundry 13 or later",
     );
 
     // A dnd5e world withholds only its own lane, never the Knight ones.
@@ -269,12 +270,12 @@ describe("ProcedureRegistry", () => {
     registerBuiltinProcedures(dnd);
     expect(dnd.unsupported()).toEqual({
       "dnd5e.resources.v1":
-        "dnd5e unknown on Foundry unknown; requires dnd5e 6.1.0 or later on Foundry 14 or later",
+        "dnd5e unknown on Foundry unknown; requires dnd5e 6.1.0 or a later 6.x on Foundry 14 or later",
     });
   });
 
-  it("registers dnd5e.resources.v1 only on dnd5e 6.1.0 or later on Foundry 14 or later", () => {
-    for (const version of ["6.1.0", "6.1.1", "6.2.0", "7.0.0"]) {
+  it("registers dnd5e.resources.v1 only on dnd5e 6.1.0 or a later 6.x on Foundry 14 or later", () => {
+    for (const version of ["6.1.0", "6.1.1", "6.2.0", "6.99.0"]) {
       vi.stubGlobal("game", {
         system: { id: "dnd5e", version },
         release: { generation: 14 },
@@ -298,6 +299,7 @@ describe("ProcedureRegistry", () => {
       ["6.1.0-beta", 14],
       ["6.1", 14],
       ["6.1.0", 13],
+      ["7.0.0", 14],
     ] as const) {
       vi.stubGlobal("game", {
         system: { id: "dnd5e", version },
@@ -309,7 +311,7 @@ describe("ProcedureRegistry", () => {
         "dnd5e.resources.v1",
       );
       expect(registry.unsupported()["dnd5e.resources.v1"], version).toBe(
-        `dnd5e ${version} on Foundry ${generation}; requires dnd5e 6.1.0 or later on Foundry 14 or later`,
+        `dnd5e ${version} on Foundry ${generation}; requires dnd5e 6.1.0 or a later 6.x on Foundry 14 or later`,
       );
     }
     // Another system on an admitted version string never gets the lane.
@@ -472,7 +474,7 @@ describe("ProcedureRegistry", () => {
       "3.58.36",
       "3.58.37",
       "3.59.0",
-      "4.0.0",
+      "3.99.0",
     ]) {
       vi.stubGlobal("game", {
         system: { id: "knight", version },
@@ -487,14 +489,16 @@ describe("ProcedureRegistry", () => {
   });
 
   it("compares the Knight version numerically against the floor", () => {
-    for (const v of ["3.58.33", "3.58.36", "3.58.37", "3.58.100", "4.0.0"])
+    for (const v of ["3.58.33", "3.58.36", "3.58.37", "3.58.100", "3.99.0"])
       expect(isAdmittedKnightSystemVersion(v), v).toBe(true);
     for (const v of [
+      "4.0.0", // a later major: never verified
       "3.58.32",
       "3.57.99",
       "3.6.0",
       "v3.58.36",
       "3.58.33-beta",
+        "4.0.0",
       "3.58",
       " 3.58.33",
       3.58,

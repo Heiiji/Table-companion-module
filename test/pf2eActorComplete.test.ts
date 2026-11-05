@@ -446,7 +446,7 @@ describe("pf2e.actor.complete.v1 gates", () => {
     await expect(run(request())).rejects.toMatchObject({
       code: "unsupported_runtime",
       message:
-        "pf2e.actor.complete.v1 requires pf2e 8.6.1 or later on Foundry 14",
+        "pf2e.actor.complete.v1 requires pf2e 8.6.1 or a later 8.x on Foundry 14",
     });
     nothingWritten(actor);
   });

@@ -25,6 +25,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Setup: Reset password and Reset pairing ask for confirmation first and say what the app will
   need afterwards; the password window and the pairing QR code use the Companion user's current
   name when the Gamemaster renamed it.
+- An expected refusal (`stale_revision`, `base_conflict`, `invalid_args`, …) is logged as one
+  information line instead of a console error with a stack; unexpected failures stay errors.
+- System writes now stop at the system major they were verified against: Knight 3.x, Fifth Edition
+  6.x and Pathfinder 2e 8.x. A later major answers `unsupported_runtime` (the app keeps the write
+  queued) and its procedures are not advertised, until a module update verifies it; reads are
+  unchanged.
 
 ### Security
 - Setup no longer mistakes another account for the Companion user in a world set up before the
@@ -68,8 +74,6 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fetch each compendium's documents in one request, and Knight equipment fetches one request per
   compendium; Knight minor motivations are updated and created in one request each, and an
   unchanged one is no longer rewritten.
-- An expected refusal (`stale_revision`, `base_conflict`, `invalid_args`, …) is logged as one
-  information line instead of a console error with a stack; unexpected failures stay errors.
 - When the last Gamemaster closes the Foundry tab that answers the backend, the module tells the
   backend no Gamemaster is left on the way out, so app calls stop waiting for Foundry sooner.
 - Compendium search: the index warm-up now also runs for a world paired after Foundry loaded, and

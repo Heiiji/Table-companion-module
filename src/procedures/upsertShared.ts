@@ -152,29 +152,72 @@ export function parseAspectScores(value: unknown): AspectScoresV1 {
   };
 }
 
+/**
+ * The system releases each system-specific write lane was verified on: the
+ * release its write paths were derived from (`floor`) and the newest major
+ * checked (`major`). A later minor or patch of a verified major is accepted:
+ * the releases inspected so far change data preparation, not the stored paths
+ * these lanes write. A release below the floor, or of a later major (which may
+ * move those paths), is refused as `unsupported_runtime` rather than written
+ * in a shape it may not understand. Read lanes do not consult this table.
+ *
+ * - `knight`: every Knight lane (PC and pnj provisioning, live resources,
+ *   items, attacks), from the PC and pnj fixtures captured on 3.58.33.
+ * - `dnd5e`: the Fifth Edition live-resources lane, derived from 6.1.0.
+ * - `pf2e`: Pathfinder 2e character draft and completion, derived from 8.6.1
+ *   (source-derived, never confirmed against a live world).
+ * - `pf2eResources`: Pathfinder 2e live resources, whose APIs and paths also
+ *   match 8.5.1.
+ */
+export const VERIFIED_SYSTEM_VERSIONS = {
+  knight: { floor: "3.58.33", major: 3 },
+  dnd5e: { floor: "6.1.0", major: 6 },
+  pf2e: { floor: "8.6.1", major: 8 },
+  pf2eResources: { floor: "8.5.1", major: 8 },
+} as const;
+
+type VerifiedLane = keyof typeof VERIFIED_SYSTEM_VERSIONS;
+
+/** True only for a plain `major.minor.patch` string inside `lane`'s verified
+ * range: at or above its floor, and no later major. */
+export function isVerifiedSystemVersion(
+  version: unknown,
+  lane: VerifiedLane,
+): version is string {
+  const { floor, major } = VERIFIED_SYSTEM_VERSIONS[lane];
+  return (
+    isAtLeastVersion(version, floor) && Number(version.split(".")[0]) <= major
+  );
+}
+
+/** A lane's verified range as the « requires … » messages name it. */
+function verifiedRange(lane: VerifiedLane): string {
+  const { floor, major } = VERIFIED_SYSTEM_VERSIONS[lane];
+  return `${floor} or a later ${major}.x`;
+}
+
 /** Oldest Foundry core generation the Knight actor mapping runs on. There is
- * no upper bound: a newer Foundry generation is accepted, and a release that
- * proves breaking is handled when it happens. */
+ * no upper bound: a newer Foundry generation is accepted (the mapping writes
+ * system data, which the system defines), and a release that proves breaking
+ * is handled when it happens. */
 export const MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION = 13;
 
-/** Oldest Knight system version the actor mappings run on: 3.58.33, which the
- * PC and pnj fixtures were captured on. A floor, not a list: the later releases
- * inspected so far change only the system's data preparation code, outside the
- * source paths these mappings write and read, so a newer Knight release is
- * accepted, and one that proves breaking is handled when it happens. */
-export const MINIMUM_KNIGHT_UPSERT_SYSTEM_VERSION = "3.58.33";
+/** Oldest Knight system version the actor mappings run on. */
+export const MINIMUM_KNIGHT_UPSERT_SYSTEM_VERSION =
+  VERIFIED_SYSTEM_VERSIONS.knight.floor;
 
 /** The admitted versions as the « requires Knight … » messages name them. */
-export const KNIGHT_UPSERT_SYSTEM_VERSION_LABEL = `${MINIMUM_KNIGHT_UPSERT_SYSTEM_VERSION} or later`;
+export const KNIGHT_UPSERT_SYSTEM_VERSION_LABEL = verifiedRange("knight");
 
 const STRICT_VERSION = /^\d+\.\d+\.\d+$/;
 
-/** True only for a plain `major.minor.patch` string at or above the floor
- * ("v3.58.33", "3.58.33-beta", "3.58.32" and non-strings are all refused). */
+/** True only for a plain `major.minor.patch` Knight version in the verified
+ * range ("v3.58.33", "3.58.33-beta", "3.58.32", "4.0.0" and non-strings are
+ * all refused). */
 export function isAdmittedKnightSystemVersion(
   version: unknown,
 ): version is string {
-  return isAtLeastVersion(version, MINIMUM_KNIGHT_UPSERT_SYSTEM_VERSION);
+  return isVerifiedSystemVersion(version, "knight");
 }
 
 /** True only for a plain `major.minor.patch` string at or above `floor`,
@@ -191,12 +234,11 @@ export function isAtLeastVersion(
   return true;
 }
 
-/** Runtime gate for the Knight actor mappings admitted by this release: a
- * Knight system version at or above the floor, on Foundry 13 or any later
- * generation. It
- * decides whether the two provisioning procedures are registered at all, and
- * each procedure repeats it before touching the world. All three lanes read the
- * same floor, so moving it moves the PC and pnj lanes together. */
+/** Runtime gate for the Knight lanes admitted by this release: a Knight
+ * version in the verified range, on Foundry 13 or any later generation. It
+ * decides whether the lanes are registered at all, and each procedure repeats
+ * it before touching the world. Every Knight lane reads the same range, so
+ * moving it moves them together. */
 export function supportsKnightActorUpsertV1Runtime(): boolean {
   return (
     systemId() === "knight" &&
@@ -205,66 +247,49 @@ export function supportsKnightActorUpsertV1Runtime(): boolean {
   );
 }
 
-/** Oldest dnd5e system release the Fifth Edition live-resources lane writes
- * to: 6.1.0, the release whose source the write paths were derived from. A
- * floor, not a list; a later release that proves breaking is handled when it
- * happens. */
-export const MINIMUM_DND5E_RESOURCES_SYSTEM_VERSION = "6.1.0";
-
 /** dnd5e 6.x itself requires Foundry 14. */
 export const MINIMUM_DND5E_RESOURCES_FOUNDRY_GENERATION = 14;
 
 /** The « requires … » wording of the Fifth Edition lane's refusals. */
-export const DND5E_RESOURCES_REQUIREMENT = `dnd5e ${MINIMUM_DND5E_RESOURCES_SYSTEM_VERSION} or later on Foundry ${MINIMUM_DND5E_RESOURCES_FOUNDRY_GENERATION} or later`;
+export const DND5E_RESOURCES_REQUIREMENT = `dnd5e ${verifiedRange("dnd5e")} on Foundry ${MINIMUM_DND5E_RESOURCES_FOUNDRY_GENERATION} or later`;
 
-/** Runtime gate for `dnd5e.resources.v1`: the dnd5e system at or above the
- * floor, on Foundry 14 or later. It decides registration, and the handler
- * repeats it before touching the world. */
+/** Runtime gate for `dnd5e.resources.v1`: dnd5e in its verified range, on
+ * Foundry 14 or later. It decides registration, and the handler repeats it
+ * before touching the world. */
 export function supportsDnd5eResourcesV1Runtime(): boolean {
   return (
     systemId() === "dnd5e" &&
-    isAtLeastVersion(systemVersion(), MINIMUM_DND5E_RESOURCES_SYSTEM_VERSION) &&
+    isVerifiedSystemVersion(systemVersion(), "dnd5e") &&
     foundryGeneration() >= MINIMUM_DND5E_RESOURCES_FOUNDRY_GENERATION
   );
 }
 
-/** Oldest pf2e system release the Pathfinder 2e character-draft lane writes
- * to: 8.6.1, the release whose source the create path was derived from
- * (source-derived (pf2e 8.6.1), never confirmed against a live world). A floor,
- * not a list; a later release that proves breaking is handled when it
- * happens. */
-export const MINIMUM_PF2E_SYSTEM_VERSION = "8.6.1";
-
 /** pf2e 8.x itself runs on Foundry 14 only. */
 export const MINIMUM_PF2E_FOUNDRY_GENERATION = 14;
 
-/** The « requires … » wording of the Pathfinder 2e lane's refusals. */
-export const PF2E_REQUIREMENT = `pf2e ${MINIMUM_PF2E_SYSTEM_VERSION} or later on Foundry ${MINIMUM_PF2E_FOUNDRY_GENERATION}`;
+/** The « requires … » wording of the Pathfinder 2e draft lanes' refusals. */
+export const PF2E_REQUIREMENT = `pf2e ${verifiedRange("pf2e")} on Foundry ${MINIMUM_PF2E_FOUNDRY_GENERATION}`;
 
-/** Runtime gate for `pf2e.actor.upsert.v1`: the pf2e system (not a sibling
- * built from the same tree, such as sf2e) at or above the floor, on Foundry 14
- * or later. It decides registration, and the handler repeats it before
- * touching the world. */
+/** Runtime gate for `pf2e.actor.upsert.v1` and `pf2e.actor.complete.v1`: the
+ * pf2e system (not a sibling built from the same tree, such as sf2e) in its
+ * verified range, on Foundry 14 or later. It decides registration, and the
+ * handler repeats it before touching the world. */
 export function supportsPf2eActorUpsertV1Runtime(): boolean {
   return (
     systemId() === "pf2e" &&
-    isAtLeastVersion(systemVersion(), MINIMUM_PF2E_SYSTEM_VERSION) &&
+    isVerifiedSystemVersion(systemVersion(), "pf2e") &&
     foundryGeneration() >= MINIMUM_PF2E_FOUNDRY_GENERATION
   );
 }
 
-/** The resource APIs and stored paths also match pf2e 8.5.1 (tag commit
- * 563fd52708673ddd4f66c76921efbf6a938fffed). Draft creation keeps its own floor. */
-export const MINIMUM_PF2E_RESOURCES_SYSTEM_VERSION = "8.5.1";
-
-export const PF2E_RESOURCES_REQUIREMENT = `pf2e ${MINIMUM_PF2E_RESOURCES_SYSTEM_VERSION} or later on Foundry ${MINIMUM_PF2E_FOUNDRY_GENERATION}`;
+export const PF2E_RESOURCES_REQUIREMENT = `pf2e ${verifiedRange("pf2eResources")} on Foundry ${MINIMUM_PF2E_FOUNDRY_GENERATION}`;
 
 /** The handler repeats this gate and probes the condition and item APIs
  * before writing; missing APIs still fail closed. */
 export function supportsPf2eResourcesV1Runtime(): boolean {
   return (
     systemId() === "pf2e" &&
-    isAtLeastVersion(systemVersion(), MINIMUM_PF2E_RESOURCES_SYSTEM_VERSION) &&
+    isVerifiedSystemVersion(systemVersion(), "pf2eResources") &&
     foundryGeneration() >= MINIMUM_PF2E_FOUNDRY_GENERATION
   );
 }
