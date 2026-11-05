@@ -392,6 +392,8 @@ export const npcUpsertV1: Procedure = async (payload) => {
       parseStoredResult(target, FLAG_KEYS.npcUpsert)?.flag.written,
     );
   const warnings: string[] = [];
+  // Two updates on purpose: the result flag records what Foundry holds once
+  // the patch is prepared (`written`), which only a read after it can see.
   await actor.update(authoredNpcPatch(actor, req, binding, warnings));
   const result: NpcUpsertResultV1 = {
     schemaVersion: 1,

@@ -640,6 +640,21 @@ describe("npc.upsert.v1 base (compare-and-set)", () => {
     await expectRpcError(upsert(next()), "base_conflict");
   });
 
+  it("records what Foundry holds after the patch, so writes the patch before its result flag", async () => {
+    const actors = await provisioned();
+    // Foundry's data preparation holds health at 5 (an effect caps it).
+    const update = actors[0].update;
+    actors[0].update = async (changes) => {
+      await update(changes);
+      const sante = actors[0].system.sante as { value: number } | undefined;
+      if (sante && sante.value > 5) sante.value = 5;
+    };
+    await upsert(next());
+    const flag = (actors[0].flags[MODULE_ID] as Record<string, any>)
+      .npcUpsertV1;
+    expect(flag.written["resources.health.current"]).toBe(5);
+  });
+
   it("ignores a base for a field the request does not write", async () => {
     const actors = await provisioned();
     // The next request carries no defenses: the GM's edit is not compared.
