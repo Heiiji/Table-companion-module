@@ -20,6 +20,7 @@ import {
   assertKnightUpsertAuthority,
   bindingFor,
   bindingId,
+  assertBase,
   bindingOf,
   canonicalDigest,
   identifier,
@@ -49,7 +50,10 @@ import {
  * The request may also carry the character's `name` (with or without values).
  * With `previousName` it is a compare-and-set: an Actor renamed in Foundry
  * since the app last saw it refuses the request with `name_conflict` and
- * writes nothing, so Foundry's rename is the one the app adopts next.
+ * writes nothing, so Foundry's rename is the one the app adopts next. An
+ * optional `base.resources` (the values the app last saw) guards the values
+ * the same way: one moved in Foundry first refuses the whole request with
+ * `base_conflict`.
  */
 
 const ACTOR_TYPE = "knight";
@@ -64,6 +68,7 @@ export interface KnightActorResourcesV1 {
   resources: Partial<Record<ResourceKey, number>>;
   name?: string;
   previousName?: string;
+  base?: { resources: Partial<Record<ResourceKey, number>> };
 }
 
 /** The longest Actor name accepted, as `actor.upsert.v1`. */
@@ -73,6 +78,19 @@ export type ActorResourcesResultV1 = StoredResultV1;
 
 /** Foundry's randomID(16) shape. */
 export const actorDocumentId = /^[A-Za-z0-9]{16}$/;
+
+function resourceValues(
+  value: unknown,
+  path: string,
+): Partial<Record<ResourceKey, number>> {
+  const r = value === undefined ? {} : record(value, path, RESOURCE_KEYS);
+  const resources: Partial<Record<ResourceKey, number>> = {};
+  for (const key of RESOURCE_KEYS) {
+    if (r[key] !== undefined)
+      resources[key] = integer(r[key], `${path}.${key}`, 0, MAX_RESOURCE_VALUE);
+  }
+  return resources;
+}
 
 export function validateKnightActorResourcesV1(
   payload: unknown,
@@ -88,23 +106,20 @@ export function validateKnightActorResourcesV1(
     "resources",
     "name",
     "previousName",
+    "base",
   ]);
   if (p.schemaVersion !== SCHEMA_VERSION) invalid("schemaVersion must be 1");
   if (p.actorType !== ACTOR_TYPE) invalid("actorType must be knight");
-  const r =
-    p.resources === undefined
-      ? {}
-      : record(p.resources, "resources", RESOURCE_KEYS);
-  const resources: Partial<Record<ResourceKey, number>> = {};
-  for (const key of RESOURCE_KEYS) {
-    if (r[key] !== undefined)
-      resources[key] = integer(
-        r[key],
-        `resources.${key}`,
-        0,
-        MAX_RESOURCE_VALUE,
-      );
-  }
+  const resources = resourceValues(p.resources, "resources");
+  const base =
+    p.base === undefined
+      ? undefined
+      : {
+          resources: resourceValues(
+            record(p.base, "base", ["resources"]).resources,
+            "base.resources",
+          ),
+        };
   const name =
     p.name === undefined ? undefined : text(p.name, "name", MAX_NAME, true);
   if (p.previousName !== undefined && name === undefined)
@@ -130,6 +145,7 @@ export function validateKnightActorResourcesV1(
     resources,
     ...(name === undefined ? {} : { name }),
     ...(previousName === undefined ? {} : { previousName }),
+    ...(base === undefined ? {} : { base }),
   };
 }
 
@@ -193,6 +209,12 @@ export const actorResourcesV1: Procedure = async (payload) => {
     );
 
   const paths = resourcePaths(actor);
+  assertBase(req, req.base, (field) => {
+    const path = paths[field.slice("resources.".length) as ResourceKey]?.[0];
+    return path && hasPath(actor.system, path)
+      ? valueAt(actor.system, path)
+      : undefined;
+  });
   const patch: Dict = {};
   const warnings: string[] = [];
   for (const key of RESOURCE_KEYS) {

@@ -15,6 +15,7 @@ import {
   SCHEMA_VERSION,
   actorCollection,
   alreadyApplied,
+  assertBase,
   assertGMResponder,
   bindingFor,
   bindingId,
@@ -152,7 +153,21 @@ export interface Pf2eActorResourcesV1 {
   items?: Record<string, number>;
   /** Catalog items born in the app, idempotent by `key`. */
   adds?: Pf2eResourcesAddV1[];
+  /** The values the app last saw in Foundry, same keys and bounds as the
+   * counters above (never `adds`): the compare-and-set guard of every value
+   * both name. */
+  base?: Pf2eCountersV1;
 }
+
+/** The keys a `base` may name: every written value but the adds. */
+const COUNTER_KEYS = [
+  "hp",
+  "hpTemp",
+  "heroPoints",
+  "conditions",
+  "items",
+] as const;
+type Pf2eCountersV1 = Pick<Pf2eActorResourcesV1, (typeof COUNTER_KEYS)[number]>;
 
 export interface Pf2eResourcesResultV1 extends StoredResultV1 {
   /** The Foundry Item id of every `adds` key on the Actor. */
@@ -180,6 +195,33 @@ function map(
 
 const KNOWN_CONDITIONS: ReadonlySet<string> = new Set(PF2E_CONDITION_SLUGS);
 
+/** The counters of a request (`at` "") or of its base (`at` "base."). */
+function parseCounters(p: Dict, at: string): Pf2eCountersV1 {
+  const out: Pf2eCountersV1 = {};
+  if (p.hp !== undefined) out.hp = integer(p.hp, `${at}hp`, 0, 9999);
+  if (p.hpTemp !== undefined)
+    out.hpTemp = integer(p.hpTemp, `${at}hpTemp`, 0, 999);
+  if (p.heroPoints !== undefined)
+    out.heroPoints = integer(p.heroPoints, `${at}heroPoints`, 0, 3);
+  if (p.conditions !== undefined)
+    out.conditions = map(
+      p.conditions,
+      `${at}conditions`,
+      MAX_CONDITIONS,
+      (k) => KNOWN_CONDITIONS.has(k),
+      99,
+    );
+  if (p.items !== undefined)
+    out.items = map(
+      p.items,
+      `${at}items`,
+      MAX_ITEMS,
+      (k) => documentId.test(k),
+      MAX_QUANTITY,
+    );
+  return out;
+}
+
 export function validatePf2eActorResourcesV1(
   payload: unknown,
 ): Pf2eActorResourcesV1 {
@@ -197,6 +239,7 @@ export function validatePf2eActorResourcesV1(
     "conditions",
     "items",
     "adds",
+    "base",
   ]);
   if (p.schemaVersion !== SCHEMA_VERSION) invalid("schemaVersion must be 1");
   if (p.actorType !== ACTOR_TYPE) invalid("actorType must be character");
@@ -213,26 +256,9 @@ export function validatePf2eActorResourcesV1(
     ),
     sequence: integer(p.sequence, "sequence", 1, Number.MAX_SAFE_INTEGER),
   };
-  if (p.hp !== undefined) req.hp = integer(p.hp, "hp", 0, 9999);
-  if (p.hpTemp !== undefined) req.hpTemp = integer(p.hpTemp, "hpTemp", 0, 999);
-  if (p.heroPoints !== undefined)
-    req.heroPoints = integer(p.heroPoints, "heroPoints", 0, 3);
-  if (p.conditions !== undefined)
-    req.conditions = map(
-      p.conditions,
-      "conditions",
-      MAX_CONDITIONS,
-      (k) => KNOWN_CONDITIONS.has(k),
-      99,
-    );
-  if (p.items !== undefined)
-    req.items = map(
-      p.items,
-      "items",
-      MAX_ITEMS,
-      (k) => documentId.test(k),
-      MAX_QUANTITY,
-    );
+  Object.assign(req, parseCounters(p, ""));
+  if (p.base !== undefined)
+    req.base = parseCounters(record(p.base, "base", COUNTER_KEYS), "base.");
   if (p.adds !== undefined) {
     if (!Array.isArray(p.adds)) invalid("adds must be an array");
     if (p.adds.length > MAX_ADDS)
@@ -340,6 +366,38 @@ function counterPatch(
 }
 
 type Write = () => Promise<void>;
+
+/** Where each scalar counter lives (source-derived, pf2e 8.6.1). */
+const COUNTER_PATHS: Record<string, string> = {
+  hp: "attributes.hp.value",
+  hpTemp: "attributes.hp.temp",
+  heroPoints: "resources.heroPoints.value",
+};
+
+/** Foundry's current value of a `base` field, in the request's terms; a
+ * value the lane would not write (a locked condition, an unavailable item)
+ * reads `undefined`. */
+function currentValue(actor: ActorLike, field: string): unknown {
+  const dot = field.indexOf(".");
+  const group = dot < 0 ? field : field.slice(0, dot);
+  const key = field.slice(dot + 1);
+  if (group === "conditions") {
+    const held = conditionsOf(actor, key);
+    const free = held.filter(isFree);
+    if (free.length === 0) return held.length > 0 ? undefined : 0;
+    const value = valueAt(free[0].system, "value.value");
+    // A condition without a value (prone…) is present or absent only.
+    return typeof value === "number" ? value : 1;
+  }
+  if (group === "items") {
+    const item = itemsOf(actor).find((i) => docId(i) === key);
+    return !item || !PHYSICAL_TYPES.has(String(item.type)) || isCoin(item)
+      ? undefined
+      : valueAt(item.system, "quantity");
+  }
+  const path = COUNTER_PATHS[field];
+  return path === undefined ? undefined : valueAt(actor.system, path);
+}
 
 /** Condition writes, by item id on free condition items only. */
 function conditionWrites(
@@ -546,7 +604,11 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
       warnings: [...previous.warnings],
     };
 
-  const contentDigest = await canonicalDigest({ ...req, sequence: 0 });
+  const contentDigest = await canonicalDigest({
+    ...req,
+    sequence: 0,
+    base: undefined,
+  });
   const sameContent = stored?.flag.contentDigest === contentDigest;
   const refusedBefore = new Set(
     sameContent
@@ -556,6 +618,7 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
       : [],
   );
 
+  assertBase(req, req.base, (field) => currentValue(actor, field));
   const warnings: string[] = [];
   const created: Record<string, string> = {};
   const patch = counterPatch(actor, req, warnings);

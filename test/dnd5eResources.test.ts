@@ -689,3 +689,110 @@ describe("dnd5e.resources.v1 hpEffectiveMax", () => {
     expect(flagOf(actor)).not.toHaveProperty("hpEffectiveMax");
   });
 });
+
+describe("dnd5e.resources.v1 base (compare-and-set)", () => {
+  it("validates base with the counters' keys and bounds", () => {
+    expect(
+      validateDnd5eActorResourcesV1(
+        request({ hp: 10, base: { hp: 12, conditions: ["prone"] } }),
+      ).base,
+    ).toEqual({ hp: 12, conditions: ["prone"] });
+    for (const [base, path] of [
+      [{ sequence: 1 }, "base.sequence"],
+      [{ exhaustion: 9 }, "base.exhaustion"],
+      [{ slots: { spell1: 1 } }, "base.slots.spell2"],
+      [{ conditions: ["dazed"] }, "base.conditions"],
+    ] as const)
+      expect(() =>
+        validateDnd5eActorResourcesV1(request({ hp: 10, base: base as never })),
+      ).toThrow(path);
+  });
+
+  it("writes when Foundry still holds the base", async () => {
+    const actor = fakeCharacter();
+    await run(
+      actor,
+      request({
+        hp: 10,
+        slots: { ...ALL_SLOTS, spell1: 3 },
+        base: { hp: 12, slots: ALL_SLOTS, conditions: [] },
+      }),
+    );
+    expect(actor.updates[0]).toMatchObject({
+      "system.attributes.hp.value": 10,
+      "system.spells.spell1.value": 3,
+    });
+  });
+
+  it("refuses everything with base_conflict when hit points moved in Foundry", async () => {
+    const actor = fakeCharacter();
+    actor.system.attributes = {
+      ...(actor.system.attributes as object),
+      hp: { value: 7, max: 20, temp: 0, tempmax: 0, effectiveMax: 20 },
+    };
+    const pending = run(
+      actor,
+      request({
+        hp: 10,
+        conditions: ["blinded"],
+        base: { hp: 12, conditions: [] },
+      }),
+    );
+    await rejects(pending, "base_conflict");
+    await expect(pending).rejects.toThrow(/Foundry changed hp first/);
+    expect(actor.updates).toHaveLength(0);
+    expect(actor.toggles).toHaveLength(0);
+  });
+
+  it("refuses when the GM added a condition in Foundry, keeping it", async () => {
+    const actor = fakeCharacter([conditionEffect("prone")]);
+    await rejects(
+      run(
+        actor,
+        request({ conditions: ["blinded"], base: { conditions: [] } }),
+      ),
+      "base_conflict",
+    );
+    expect(held(actor)).toEqual(["prone"]);
+    expect(actor.updates).toHaveLength(0);
+  });
+
+  it("compares a condition set regardless of order, and a slot by key", async () => {
+    const actor = fakeCharacter([
+      conditionEffect("prone"),
+      conditionEffect("blinded"),
+    ]);
+    await run(
+      actor,
+      request({
+        conditions: ["blinded"],
+        base: { conditions: ["prone", "blinded"] },
+      }),
+    );
+    expect(held(actor)).toEqual(["blinded"]);
+    await rejects(
+      run(
+        fakeCharacter(),
+        request({
+          slots: { ...ALL_SLOTS, spell1: 2 },
+          base: { slots: { ...ALL_SLOTS, spell1: 3 } },
+        }),
+      ),
+      "base_conflict",
+    );
+  });
+
+  it("ignores a base for a counter the request does not write", async () => {
+    const actor = fakeCharacter();
+    await run(actor, request({ hp: 10, base: { hp: 12, hpTemp: 5 } }));
+    expect(actor.updates[0]).toMatchObject({
+      "system.attributes.hp.value": 10,
+    });
+  });
+
+  it("without a base writes over a Foundry edit, as before", async () => {
+    const actor = fakeCharacter([conditionEffect("prone")]);
+    await run(actor, request({ conditions: ["blinded"] }));
+    expect(held(actor)).toEqual(["blinded"]);
+  });
+});

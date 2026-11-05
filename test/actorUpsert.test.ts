@@ -704,3 +704,52 @@ describe("ownership deletion entries", () => {
     });
   });
 });
+
+describe("actor.upsert.v1 base.name (compare-and-set)", () => {
+  const draft = (overrides = {}) =>
+    approved({ state: "draft", approvedRevision: 0, ...overrides });
+  function boundActor(req = draft()): FakeActor {
+    const actor = fakeActor();
+    binding(actor, req);
+    stubFoundry([actor]);
+    return actor;
+  }
+
+  it("renames when Foundry still holds the base name", async () => {
+    const actor = boundActor();
+    await actorUpsertV1(draft({ base: { name: "Existing" } }), {} as never);
+    expect(actor.name).toBe("Lancelot");
+  });
+
+  it("refuses with base_conflict and writes nothing when Foundry renamed first", async () => {
+    const actor = boundActor();
+    actor.name = "Renamed in Foundry";
+    const error = await Promise.resolve(
+      actorUpsertV1(draft({ base: { name: "Existing" } }), {} as never),
+    ).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(RpcError);
+    expect((error as RpcError).code).toBe("base_conflict");
+    expect(actor.updates).toHaveLength(0);
+    expect(actor.name).toBe("Renamed in Foundry");
+  });
+
+  it("does not compare when Foundry already holds the requested name, nor on create", async () => {
+    const actor = boundActor();
+    actor.name = "Lancelot";
+    await actorUpsertV1(draft({ base: { name: "Existing" } }), {} as never);
+    expect(actor.updates.length).toBeGreaterThan(0);
+    const created = vi.fn(async (_data: Record<string, unknown>) =>
+      fakeActor(),
+    );
+    stubFoundry([], created);
+    await actorUpsertV1(draft({ base: { name: "Elsewhere" } }), {} as never);
+    expect(created).toHaveBeenCalledTimes(1);
+  });
+
+  it("without a base renames over a Foundry rename, as before", async () => {
+    const actor = boundActor();
+    actor.name = "Renamed in Foundry";
+    await actorUpsertV1(draft(), {} as never);
+    expect(actor.name).toBe("Lancelot");
+  });
+});

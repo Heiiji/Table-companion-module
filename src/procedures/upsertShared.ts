@@ -506,6 +506,49 @@ export function alreadyApplied(
   return true;
 }
 
+/** A request-shaped object as `field → value`: nested objects flatten to
+ * dotted keys (`slots.spell1`), an array is one value compared as a set. */
+export function fieldsOf(value: object, prefix = ""): Dict {
+  const out: Dict = {};
+  for (const [key, v] of Object.entries(value)) {
+    if (v === undefined) continue;
+    if (typeof v === "object" && v !== null && !Array.isArray(v))
+      Object.assign(out, fieldsOf(v as object, `${prefix}${key}.`));
+    else out[prefix + key] = Array.isArray(v) ? [...v].sort() : v;
+  }
+  return out;
+}
+
+/** Compare-and-set on the optional `base`: the request-shaped values the app
+ * last saw in Foundry. Every field the request writes AND the base names must
+ * still hold its base value in Foundry, or already hold the requested one;
+ * otherwise the whole request is refused with `base_conflict` before anything
+ * is written, so Foundry's edit is the one the app imports next. A base for a
+ * field the request does not write is ignored, and so is a field `current`
+ * cannot read (`undefined`: the lane skips its write as well). Without a base
+ * nothing is compared. */
+export function assertBase(
+  req: object,
+  base: object | undefined,
+  current: (field: string) => unknown,
+): void {
+  if (!base) return;
+  const wanted = fieldsOf(req);
+  const same = (a: unknown, b: unknown) => canonicalize(a) === canonicalize(b);
+  const moved = Object.entries(fieldsOf(base))
+    .filter(([field, was]) => {
+      if (!(field in wanted)) return false;
+      const now = current(field);
+      return now !== undefined && !same(now, was) && !same(now, wanted[field]);
+    })
+    .map(([field]) => field);
+  if (moved.length > 0)
+    throw new RpcError(
+      "base_conflict",
+      `Foundry changed ${moved.join(", ")} first; nothing was written`,
+    );
+}
+
 /** Create an Actor through Foundry's document class, without opening its
  * sheet, and check that Foundry handed back something updatable. */
 export async function createActorDocument(data: Dict): Promise<ActorLike> {

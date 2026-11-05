@@ -137,6 +137,9 @@ export interface KnightActorUpsertV1 {
   resources?: CurrentResourcesV1;
   equipment?: EquipmentV1;
   characterCreation?: CharacterCreationV1;
+  /** The name the app last saw in Foundry: the compare-and-set guard of the
+   * name write. */
+  base?: { name?: string };
 }
 
 export interface ActorUpsertResultV1 {

@@ -18,7 +18,10 @@
  * approved revision), `revision_conflict` (the same approved revision was
  * resubmitted with different content), `name_conflict` (an
  * `actor.resources.v1` rename whose `previousName` no longer matches: the Actor
- * was renamed in Foundry first; nothing is written), and `level_mismatch` (a
+ * was renamed in Foundry first; nothing is written), `base_conflict` (a live
+ * or provisioning write whose optional `base` no longer matches Foundry: a
+ * field it writes was edited in Foundry first; nothing is written), and
+ * `level_mismatch` (a
  * `pf2e.actor.complete.v1` build whose level differs from the Actor's; nothing
  * is written). Handlers that throw a plain `Error` map
  * to the generic `procedure_failed` with a generic message; the detail stays in

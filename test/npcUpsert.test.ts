@@ -570,3 +570,91 @@ describe("validateKnightNpcUpsertV1", () => {
     expect(parsed.contentRevision).toBe(1_755_555_555_123);
   });
 });
+
+describe("npc.upsert.v1 base (compare-and-set)", () => {
+  const upsert = (req: KnightNpcUpsertV1) =>
+    npcUpsertV1(req as unknown as Record<string, unknown>, {} as never);
+  const first = request();
+  // What the app saw after its first send: the request's own values.
+  const seen = {
+    name: first.name,
+    visibility: first.visibility,
+    aspects: first.aspects,
+    resources: first.resources,
+    defenses: first.defenses,
+  };
+  const next = (overrides: Partial<KnightNpcUpsertV1> = {}) =>
+    request({
+      contentRevision: 1_755_555_556_000,
+      name: "Lena Valcourt — blessée",
+      resources: { health: { max: 30, current: 6 } },
+      base: seen,
+      ...overrides,
+    });
+
+  async function provisioned(): Promise<FakeActor[]> {
+    const actors: FakeActor[] = [];
+    stubFoundry(actors);
+    await upsert(first);
+    return actors;
+  }
+
+  it("validates base with the request's groups and bounds", () => {
+    expect(validateKnightNpcUpsertV1(next()).base).toMatchObject(seen);
+    for (const [base, message] of [
+      [{ contentRevision: 1 }, "base.contentRevision"],
+      [{ visibility: "public" }, "base.visibility"],
+      [{ name: "" }, "base.name"],
+      [{ defenses: { defense: -1 } }, "defenses.defense"],
+    ] as const)
+      expect(() =>
+        validateKnightNpcUpsertV1(next({ base: base as never })),
+      ).toThrow(message);
+  });
+
+  it("writes when Foundry still holds the base", async () => {
+    const actors = await provisioned();
+    await upsert(next());
+    expect(actors[0].name).toBe("Lena Valcourt — blessée");
+    expect(actors[0].system).toMatchObject({ sante: { base: 30, value: 6 } });
+  });
+
+  it("refuses everything with base_conflict when the GM moved a pool in Foundry", async () => {
+    const actors = await provisioned();
+    setPath(actors[0] as never, "system.sante.value", 12);
+    const writes = actors[0].updates.length;
+    const pending = upsert(next());
+    await expectRpcError(pending, "base_conflict");
+    await expect(pending).rejects.toThrow("resources.health.current");
+    expect(actors[0].updates).toHaveLength(writes);
+    expect(actors[0].name).toBe("Lena Valcourt");
+    expect(actors[0].system).toMatchObject({ sante: { value: 12 } });
+  });
+
+  it("refuses a rename or a visibility the GM changed in Foundry first", async () => {
+    let actors = await provisioned();
+    actors[0].name = "Renamed in Foundry";
+    await expectRpcError(upsert(next()), "base_conflict");
+    actors = await provisioned();
+    actors[0].ownership.default = 2;
+    await expectRpcError(upsert(next()), "base_conflict");
+  });
+
+  it("ignores a base for a field the request does not write", async () => {
+    const actors = await provisioned();
+    // The next request carries no defenses: the GM's edit is not compared.
+    setPath(actors[0] as never, "system.defense.base", 9);
+    await upsert(next({ defenses: undefined }));
+    expect(actors[0].name).toBe("Lena Valcourt — blessée");
+  });
+
+  it("never compares on create, and without a base overwrites as before", async () => {
+    const actors: FakeActor[] = [];
+    stubFoundry(actors);
+    await upsert(request({ base: { name: "Someone else" } }));
+    expect(actors[0].name).toBe("Lena Valcourt");
+    setPath(actors[0] as never, "system.sante.value", 12);
+    await upsert(next({ base: undefined }));
+    expect(actors[0].system).toMatchObject({ sante: { value: 6 } });
+  });
+});

@@ -9,6 +9,7 @@ import {
   SCHEMA_VERSION,
   actorCollection,
   alreadyApplied,
+  assertBase,
   assertGMResponder,
   bindingFor,
   bindingId,
@@ -118,7 +119,26 @@ export interface Dnd5eActorResourcesV1 {
   /** Death save successes and failures, both 0..3. */
   deathSaves?: { success: number; failure: number };
   inspiration?: boolean;
+  /** The values the app last saw in Foundry, same keys and bounds as the
+   * counters above: the compare-and-set guard of every counter both name. */
+  base?: Dnd5eCountersV1;
 }
+
+/** The counter keys a request writes and a `base` may name. */
+const COUNTER_KEYS = [
+  "hp",
+  "hpTemp",
+  "hpTempMax",
+  "slots",
+  "exhaustion",
+  "conditions",
+  "deathSaves",
+  "inspiration",
+] as const;
+type Dnd5eCountersV1 = Pick<
+  Dnd5eActorResourcesV1,
+  (typeof COUNTER_KEYS)[number]
+>;
 
 /** The lane's result: the common stored fields plus the prepared maximum hit
  * points read after the write, when the Actor exposes a finite one. */
@@ -131,6 +151,69 @@ const actorDocumentId = /^[A-Za-z0-9]{16}$/;
 
 const count = (value: unknown, path: string): number =>
   integer(value, path, 0, Number.MAX_SAFE_INTEGER);
+
+/** The counters of a request (`at` "") or of its base (`at` "base."). */
+function parseCounters(p: Dict, at: string): Dnd5eCountersV1 {
+  const out: Dnd5eCountersV1 = {};
+  if (p.hp !== undefined) out.hp = count(p.hp, `${at}hp`);
+  if (p.hpTemp !== undefined) out.hpTemp = count(p.hpTemp, `${at}hpTemp`);
+  if (p.hpTempMax !== undefined)
+    out.hpTempMax = integer(
+      p.hpTempMax,
+      `${at}hpTempMax`,
+      -MAX_HP_TEMP_MAX,
+      MAX_HP_TEMP_MAX,
+    );
+  if (p.slots !== undefined) {
+    const s = record(p.slots, `${at}slots`, DND5E_SLOT_KEYS);
+    const slots = {} as Record<SlotKey, number>;
+    for (const key of DND5E_SLOT_KEYS)
+      slots[key] = count(s[key], `${at}slots.${key}`);
+    out.slots = slots;
+  }
+  if (p.exhaustion !== undefined)
+    out.exhaustion = integer(
+      p.exhaustion,
+      `${at}exhaustion`,
+      0,
+      MAX_EXHAUSTION,
+    );
+  if (p.conditions !== undefined) {
+    if (!Array.isArray(p.conditions))
+      invalid(`${at}conditions must be an array`);
+    const seen = new Set<string>();
+    for (const id of p.conditions as unknown[]) {
+      if (typeof id !== "string" || !KNOWN_CONDITIONS.has(id))
+        invalid(`${at}conditions holds an unknown condition id`);
+      if (seen.has(id)) invalid(`${at}conditions holds a duplicate id`);
+      seen.add(id);
+    }
+    out.conditions = [...seen];
+  }
+  if (p.deathSaves !== undefined) {
+    const d = record(p.deathSaves, `${at}deathSaves`, ["success", "failure"]);
+    out.deathSaves = {
+      success: integer(
+        d.success,
+        `${at}deathSaves.success`,
+        0,
+        MAX_DEATH_SAVES,
+      ),
+      failure: integer(
+        d.failure,
+        `${at}deathSaves.failure`,
+        0,
+        MAX_DEATH_SAVES,
+      ),
+    };
+  }
+  if (p.inspiration !== undefined) {
+    if (typeof p.inspiration !== "boolean")
+      invalid(`${at}inspiration must be a boolean`);
+    out.inspiration = p.inspiration;
+  }
+  return out;
+}
 
 export function validateDnd5eActorResourcesV1(
   payload: unknown,
@@ -151,6 +234,7 @@ export function validateDnd5eActorResourcesV1(
     "conditions",
     "deathSaves",
     "inspiration",
+    "base",
   ]);
   if (p.schemaVersion !== SCHEMA_VERSION) invalid("schemaVersion must be 1");
   if (p.actorType !== ACTOR_TYPE) invalid("actorType must be character");
@@ -167,47 +251,9 @@ export function validateDnd5eActorResourcesV1(
     ),
     sequence: integer(p.sequence, "sequence", 1, Number.MAX_SAFE_INTEGER),
   };
-  if (p.hp !== undefined) req.hp = count(p.hp, "hp");
-  if (p.hpTemp !== undefined) req.hpTemp = count(p.hpTemp, "hpTemp");
-  if (p.hpTempMax !== undefined)
-    req.hpTempMax = integer(
-      p.hpTempMax,
-      "hpTempMax",
-      -MAX_HP_TEMP_MAX,
-      MAX_HP_TEMP_MAX,
-    );
-  if (p.slots !== undefined) {
-    const s = record(p.slots, "slots", DND5E_SLOT_KEYS);
-    const slots = {} as Record<SlotKey, number>;
-    for (const key of DND5E_SLOT_KEYS)
-      slots[key] = count(s[key], `slots.${key}`);
-    req.slots = slots;
-  }
-  if (p.exhaustion !== undefined)
-    req.exhaustion = integer(p.exhaustion, "exhaustion", 0, MAX_EXHAUSTION);
-  if (p.conditions !== undefined) {
-    if (!Array.isArray(p.conditions)) invalid("conditions must be an array");
-    const seen = new Set<string>();
-    for (const id of p.conditions as unknown[]) {
-      if (typeof id !== "string" || !KNOWN_CONDITIONS.has(id))
-        invalid("conditions holds an unknown condition id");
-      if (seen.has(id)) invalid("conditions holds a duplicate id");
-      seen.add(id);
-    }
-    req.conditions = [...seen];
-  }
-  if (p.deathSaves !== undefined) {
-    const d = record(p.deathSaves, "deathSaves", ["success", "failure"]);
-    req.deathSaves = {
-      success: integer(d.success, "deathSaves.success", 0, MAX_DEATH_SAVES),
-      failure: integer(d.failure, "deathSaves.failure", 0, MAX_DEATH_SAVES),
-    };
-  }
-  if (p.inspiration !== undefined) {
-    if (typeof p.inspiration !== "boolean")
-      invalid("inspiration must be a boolean");
-    req.inspiration = p.inspiration;
-  }
+  Object.assign(req, parseCounters(p, ""));
+  if (p.base !== undefined)
+    req.base = parseCounters(record(p.base, "base", COUNTER_KEYS), "base.");
   if (
     req.hp === undefined &&
     req.hpTemp === undefined &&
@@ -235,6 +281,29 @@ function currentConditions(actor: ActorLike): Set<string> {
     if (typeof id === "string" && KNOWN_CONDITIONS.has(id)) held.add(id);
   }
   return held;
+}
+
+/** Where each scalar counter lives (source-derived, dnd5e 6.1.0). */
+const COUNTER_PATHS: Record<string, string> = {
+  hp: "attributes.hp.value",
+  hpTemp: "attributes.hp.temp",
+  hpTempMax: "attributes.hp.tempmax",
+  exhaustion: "attributes.exhaustion",
+  "deathSaves.success": "attributes.death.success",
+  "deathSaves.failure": "attributes.death.failure",
+  inspiration: "attributes.inspiration",
+};
+
+/** Foundry's current value of a `base` field, in the request's terms. */
+function currentCounter(actor: ActorLike, field: string): unknown {
+  if (field === "conditions") return [...currentConditions(actor)].sort();
+  // The legacy rules keep their own exhaustion: never written, never compared.
+  if (field === "exhaustion" && dnd5eRulesVersion() === "legacy")
+    return undefined;
+  const path = field.startsWith("slots.")
+    ? `spells.${field.slice("slots.".length)}.value`
+    : COUNTER_PATHS[field];
+  return path === undefined ? undefined : valueAt(actor.system, path);
 }
 
 function finiteAt(root: unknown, path: string): number | undefined {
@@ -392,6 +461,7 @@ export const dnd5eResourcesV1: Procedure = async (payload) => {
       ...storedEffectiveMax(stored!.flag),
     } satisfies Dnd5eResourcesResultV1;
 
+  assertBase(req, req.base, (field) => currentCounter(actor, field));
   const warnings: string[] = [];
   const patch = counterPatch(actor, req, warnings);
   const toggles: Array<[string, boolean]> = [];
@@ -418,7 +488,11 @@ export const dnd5eResourcesV1: Procedure = async (payload) => {
   };
   // Loop breaker, as actor.resources.v1: a new sequence re-sending what the
   // flag already records, with nothing to change, writes nothing.
-  const contentDigest = await canonicalDigest({ ...req, sequence: 0 });
+  const contentDigest = await canonicalDigest({
+    ...req,
+    sequence: 0,
+    base: undefined,
+  });
   if (
     Object.keys(patch).length === 0 &&
     toggles.length === 0 &&

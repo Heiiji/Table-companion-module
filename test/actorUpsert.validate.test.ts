@@ -75,3 +75,17 @@ describe("actor.upsert.v1 request validation", () => {
     ).toThrow(/canonical slot allocation/);
   });
 });
+
+describe("validateKnightActorUpsertV1 base", () => {
+  it("accepts base.name and refuses any other base key or a blank name", () => {
+    expect(
+      validateKnightActorUpsertV1(approved({ base: { name: "Old" } })).base,
+    ).toEqual({ name: "Old" });
+    expect(() =>
+      validateKnightActorUpsertV1(approved({ base: { profile: {} } as never })),
+    ).toThrow("base.profile");
+    expect(() =>
+      validateKnightActorUpsertV1(approved({ base: { name: " " } })),
+    ).toThrow("base.name");
+  });
+});

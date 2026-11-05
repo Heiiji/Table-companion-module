@@ -754,3 +754,99 @@ describe("pf2e.resources.v1 convergence", () => {
     );
   });
 });
+
+describe("pf2e.resources.v1 base (compare-and-set)", () => {
+  it("validates base with the counters' keys and bounds, never adds", () => {
+    expect(
+      validatePf2eActorResourcesV1(
+        request({ hp: 5, base: { hp: 20, conditions: { prone: 1 } } }),
+      ).base,
+    ).toEqual({ hp: 20, conditions: { prone: 1 } });
+    for (const [base, path] of [
+      [{ adds: [] }, "base.adds"],
+      [{ heroPoints: 4 }, "base.heroPoints"],
+      [{ conditions: { dazed: 1 } }, "base.conditions.dazed"],
+      [{ items: { short: 1 } }, "base.items.short"],
+    ] as const)
+      expect(() =>
+        validatePf2eActorResourcesV1(request({ hp: 5, base: base as never })),
+      ).toThrow(path);
+  });
+
+  it("writes when Foundry still holds the base", async () => {
+    const potion = item("consumable", { slug: "potion", quantity: 1 });
+    const actor = fakeCharacter([potion, condition("prone")]);
+    await run(
+      actor,
+      request({
+        hp: 15,
+        items: { [potion._id]: 0 },
+        conditions: { prone: 0 },
+        base: { hp: 20, items: { [potion._id]: 1 }, conditions: { prone: 1 } },
+      }),
+    );
+    expect(actor.items.contents).toEqual([]);
+    expect(actor.updates[0]).toMatchObject({
+      "system.attributes.hp.value": 15,
+    });
+  });
+
+  it("refuses everything with base_conflict when the GM refilled an item the app deletes", async () => {
+    const potion = item("consumable", { slug: "potion", quantity: 3 });
+    const actor = fakeCharacter([potion]);
+    const pending = run(
+      actor,
+      request({
+        hp: 15,
+        items: { [potion._id]: 0 },
+        base: { hp: 20, items: { [potion._id]: 1 } },
+      }),
+    );
+    await rejects(pending, "base_conflict");
+    await expect(pending).rejects.toThrow(`items.${potion._id}`);
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+    expect(actor.updates).toHaveLength(0);
+    expect(actor.items.contents).toEqual([potion]);
+  });
+
+  it("refuses when a condition value moved in Foundry, reading an absent one as 0", async () => {
+    const actor = fakeCharacter([condition("frightened", 2)]);
+    await rejects(
+      run(
+        actor,
+        request({
+          conditions: { frightened: 0 },
+          base: { conditions: { frightened: 1 } },
+        }),
+      ),
+      "base_conflict",
+    );
+    expect(held(actor)).toEqual(["frightened:2"]);
+    // The GM removed sickened in Foundry: the app re-adding it is refused.
+    await rejects(
+      run(
+        fakeCharacter(),
+        request({
+          conditions: { sickened: 2 },
+          base: { conditions: { sickened: 1 } },
+        }),
+      ),
+      "base_conflict",
+    );
+  });
+
+  it("ignores a base for a value the request does not write", async () => {
+    const actor = fakeCharacter();
+    await run(actor, request({ hp: 15, base: { hp: 20, heroPoints: 3 } }));
+    expect(actor.updates[0]).toMatchObject({
+      "system.attributes.hp.value": 15,
+    });
+  });
+
+  it("without a base writes over a Foundry edit, as before", async () => {
+    const potion = item("consumable", { slug: "potion", quantity: 3 });
+    const actor = fakeCharacter([potion]);
+    await run(actor, request({ items: { [potion._id]: 0 } }));
+    expect(actor.items.contents).toEqual([]);
+  });
+});

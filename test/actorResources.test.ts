@@ -660,3 +660,88 @@ describe("actor.resources.v1", () => {
     expect(actor.updates).toHaveLength(0);
   });
 });
+
+describe("actor.resources.v1 base (compare-and-set)", () => {
+  async function refusal(promise: Promise<unknown>): Promise<RpcError> {
+    try {
+      await promise;
+    } catch (error) {
+      if (error instanceof RpcError) return error;
+      throw error;
+    }
+    throw new Error("expected a refusal");
+  }
+
+  it("validates base.resources with the request's keys and bounds", () => {
+    expect(
+      validateKnightActorResourcesV1(
+        request({ base: { resources: { health: 1 } } }),
+      ).base,
+    ).toEqual({ resources: { health: 1 } });
+    expect(() =>
+      validateKnightActorResourcesV1(
+        request({ base: { resources: { mana: 1 } } as never }),
+      ),
+    ).toThrow(/base\.resources\.mana/);
+    expect(() =>
+      validateKnightActorResourcesV1(
+        request({ base: { resources: { health: -1 } } }),
+      ),
+    ).toThrow(/base\.resources\.health/);
+    expect(() =>
+      validateKnightActorResourcesV1(request({ base: { hp: 1 } } as never)),
+    ).toThrow(/base\.hp/);
+  });
+
+  it("writes when Foundry still holds the base", async () => {
+    const actor = boundActor();
+    stubFoundry([actor]);
+    await apply(request({ base: { resources: { health: 1, hope: 1 } } }));
+    expect(actor.updates[0]).toMatchObject({
+      "system.sante.value": 12,
+      "system.espoir.value": 3,
+    });
+  });
+
+  it("refuses the whole request with base_conflict when a written value moved in Foundry", async () => {
+    const actor = boundActor();
+    (actor.system as { sante: { value: number } }).sante.value = 5;
+    stubFoundry([actor]);
+    const error = await refusal(
+      apply(request({ base: { resources: { health: 1, hope: 1 } } })),
+    );
+    expect(error.code).toBe("base_conflict");
+    expect(error.message).toContain("resources.health");
+    expect(error.message).not.toContain("resources.hope");
+    // Nothing written, not even the unmoved hope nor the result flag.
+    expect(actor.updates).toHaveLength(0);
+  });
+
+  it("does not compare a field Foundry already holds at the requested value", async () => {
+    const actor = boundActor();
+    (actor.system as { sante: { value: number } }).sante.value = 12;
+    stubFoundry([actor]);
+    await apply(request({ base: { resources: { health: 1 } } }));
+    expect(actor.updates[0]).toMatchObject({ "system.espoir.value": 3 });
+  });
+
+  it("ignores a base for a value the request does not write", async () => {
+    const actor = boundActor();
+    stubFoundry([actor]);
+    await apply(
+      request({
+        resources: { health: 12 },
+        base: { resources: { health: 1, hope: 40 } },
+      }),
+    );
+    expect(actor.updates[0]).toMatchObject({ "system.sante.value": 12 });
+  });
+
+  it("without a base writes over a Foundry edit, as before", async () => {
+    const actor = boundActor();
+    (actor.system as { sante: { value: number } }).sante.value = 5;
+    stubFoundry([actor]);
+    await apply(request());
+    expect(actor.updates[0]).toMatchObject({ "system.sante.value": 12 });
+  });
+});

@@ -1,6 +1,7 @@
 import { MODULE_ID } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
+import { valueAt } from "./actorUpsert.patch.js";
 import {
   ASPECT_KEYS,
   OWNERSHIP_LIMITED,
@@ -9,6 +10,7 @@ import {
   actorCollection,
   docId,
   alreadyApplied,
+  assertBase,
   assertKnightUpsertAuthority,
   bindingFor,
   bindingId,
@@ -90,7 +92,17 @@ export interface KnightNpcUpsertV1 {
   aspects: NpcAspectsV1;
   resources?: NpcResourcesV1;
   defenses?: NpcDefensesV1;
+  /** The values the app last saw in Foundry, same keys and bounds as the
+   * written groups: the compare-and-set guard of every field both name. */
+  base?: NpcBaseV1;
 }
+
+type NpcBaseV1 = Partial<
+  Pick<
+    KnightNpcUpsertV1,
+    "name" | "visibility" | "aspects" | "resources" | "defenses"
+  >
+>;
 
 export type NpcUpsertResultV1 = StoredResultV1;
 
@@ -142,6 +154,30 @@ function parseDefenses(value: unknown): NpcDefensesV1 {
   };
 }
 
+function visibilityOf(value: unknown, path: string): Visibility {
+  if (value !== "hidden" && value !== "visible")
+    invalid(`${path} must be hidden or visible`);
+  return value;
+}
+
+function parseBase(value: unknown): NpcBaseV1 {
+  const b = record(value, "base", [
+    "name",
+    "visibility",
+    "aspects",
+    "resources",
+    "defenses",
+  ]);
+  const base: NpcBaseV1 = {};
+  if (b.name !== undefined) base.name = text(b.name, "base.name", 200, true);
+  if (b.visibility !== undefined)
+    base.visibility = visibilityOf(b.visibility, "base.visibility");
+  if (b.aspects !== undefined) base.aspects = parseAspectScores(b.aspects);
+  if (b.resources !== undefined) base.resources = parseResources(b.resources);
+  if (b.defenses !== undefined) base.defenses = parseDefenses(b.defenses);
+  return base;
+}
+
 export function validateKnightNpcUpsertV1(payload: unknown): KnightNpcUpsertV1 {
   const keys = [
     "schemaVersion",
@@ -155,12 +191,11 @@ export function validateKnightNpcUpsertV1(payload: unknown): KnightNpcUpsertV1 {
     "aspects",
     "resources",
     "defenses",
+    "base",
   ] as const;
   const p = record(payload, "npcUpsert", keys);
   if (p.schemaVersion !== SCHEMA_VERSION) invalid("schemaVersion must be 1");
   if (p.actorType !== NPC_ACTOR_TYPE) invalid("actorType must be pnj");
-  if (p.visibility !== "hidden" && p.visibility !== "visible")
-    invalid("visibility must be hidden or visible");
   if (p.aspects === undefined) invalid("aspects is required");
   return {
     schemaVersion: 1,
@@ -177,11 +212,12 @@ export function validateKnightNpcUpsertV1(payload: unknown): KnightNpcUpsertV1 {
       Number.MAX_SAFE_INTEGER,
     ),
     name: text(p.name, "name", 200, true),
-    visibility: p.visibility as Visibility,
+    visibility: visibilityOf(p.visibility, "visibility"),
     aspects: parseAspectScores(p.aspects),
     resources:
       p.resources === undefined ? undefined : parseResources(p.resources),
     defenses: p.defenses === undefined ? undefined : parseDefenses(p.defenses),
+    base: p.base === undefined ? undefined : parseBase(p.base),
   };
 }
 
@@ -274,6 +310,35 @@ function authoredNpcPatch(
   return patch;
 }
 
+/** Where each scalar field lives on the pnj Actor: the paths
+ * `authoredNpcPatch` writes. */
+const NPC_FIELD_PATHS: Record<string, string> = {
+  "resources.forceField": "champDeForce.base",
+  "defenses.defense": "defense.base",
+  "defenses.reaction": "reaction.base",
+  "defenses.initiative": "initiative.bonus.user",
+  ...Object.fromEntries(
+    NPC_POOL_FIELDS.flatMap(([key, field]) => [
+      [`resources.${key}.max`, `${field}.base`],
+      [`resources.${key}.current`, `${field}.value`],
+    ]),
+  ),
+};
+
+/** Foundry's current value of a `base` field, in the request's terms. */
+function currentNpcField(actor: ActorLike, field: string): unknown {
+  if (field === "name") return actor.name;
+  if (field === "visibility") {
+    const level = actor.ownership?.default;
+    if (level === OWNERSHIP_LIMITED) return "visible";
+    return level === OWNERSHIP_NONE ? "hidden" : level;
+  }
+  const path = field.startsWith("aspects.")
+    ? `${field}.value`
+    : NPC_FIELD_PATHS[field];
+  return path === undefined ? undefined : valueAt(actor.system, path);
+}
+
 /**
  * Durable Knight NPC provisioning. Lookup is exclusively the shared Table
  * Companion binding (names are never a key); a missing binding creates a new
@@ -316,6 +381,10 @@ export const npcUpsertV1: Procedure = async (payload) => {
     } satisfies NpcUpsertResultV1;
   }
 
+  // A just-created Actor holds the request itself: nothing to compare.
+  const target = actor;
+  if (outcome === "updated")
+    assertBase(req, req.base, (field) => currentNpcField(target, field));
   const warnings: string[] = [];
   await actor.update(authoredNpcPatch(actor, req, binding, warnings));
   const result: NpcUpsertResultV1 = {

@@ -6,6 +6,7 @@ import {
   actorCollection,
   docId,
   alreadyApplied,
+  assertBase,
   assertKnightUpsertAuthority,
   bindingFor,
   bindingOf,
@@ -147,6 +148,13 @@ export const actorUpsertV1: Procedure = async (payload) => {
     } satisfies ActorUpsertResultV1;
   }
 
+  // The name the app last saw (`base.name`) guards the name write; a created
+  // or just-adopted Actor has nothing the app saw to compare.
+  const target = actor;
+  if (outcome === "updated")
+    assertBase(req, req.base, (field) =>
+      field === "name" ? target.name : undefined,
+    );
   await actor.update(authoredPatch(actor, req, binding));
   const motivationWarnings =
     req.state === "approved"

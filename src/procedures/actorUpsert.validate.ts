@@ -354,6 +354,7 @@ export function validateKnightActorUpsertV1(
     "resources",
     "equipment",
     "characterCreation",
+    "base",
   ] as const;
   const p = record(payload, "actorUpsert", keys);
   if (p.schemaVersion !== SCHEMA_VERSION) invalid("schemaVersion must be 1");
@@ -430,5 +431,13 @@ export function validateKnightActorUpsertV1(
       p.characterCreation === undefined
         ? undefined
         : parseCharacterCreation(p.characterCreation),
+    base: p.base === undefined ? undefined : parseBase(p.base),
   };
+}
+
+function parseBase(value: unknown): { name?: string } {
+  const b = record(value, "base", ["name"]);
+  return b.name === undefined
+    ? {}
+    : { name: text(b.name, "base.name", 200, true) };
 }
