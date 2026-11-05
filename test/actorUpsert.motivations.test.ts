@@ -65,12 +65,52 @@ describe("actor.upsert.v1 minor motivations", () => {
       "motivation000003",
       "motivation000004",
     ]);
-    expect(keep.system).toEqual({ description: "Respecter le blason" });
+    expect(keep.system).toEqual({
+      description: "<p>Respecter le blason</p>",
+    });
     expect(actor.items.contents).toContainEqual(
       expect.objectContaining({
         id: "motivation000005",
         system: { description: "MJ-authored; untouched" },
       }),
     );
+  });
+
+  it("escapes app text written into the Knight sheet's HTML fields", async () => {
+    const actor = fakeActor();
+    stubFoundry([actor]);
+    const hostile = `<img src=x onerror="alert(1)">`;
+    await actorUpsertV1(
+      approved({
+        assignedActorId: actor.id,
+        equipment: undefined,
+        profile: {
+          ...approved().profile!,
+          description: "<script>alert(1)</script>",
+          limitedDescription: "Tom & Jerry &lt;3",
+          history: `Line one\n\n${hostile}`,
+          age: "<32>",
+          minorMotivations: [hostile],
+        },
+      }),
+      {} as never,
+    );
+    const system = actor.system as Record<string, unknown>;
+    expect(system.description).toBe(
+      "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>",
+    );
+    // An entity the player typed stays text: decoding gives back what they wrote.
+    expect(system.descriptionLimitee).toBe("<p>Tom &amp; Jerry &amp;lt;3</p>");
+    expect(system.histoire).toBe(
+      "<p>Line one</p><p>&lt;img src=x onerror=&quot;alert(1)&quot;&gt;</p>",
+    );
+    // A plain-string field is not HTML: written as typed.
+    expect(system.age).toBe("<32>");
+    const motivation = actor.items.contents.find(
+      (item) => item.type === "motivationMineure",
+    );
+    expect(motivation?.system).toEqual({
+      description: "<p>&lt;img src=x onerror=&quot;alert(1)&quot;&gt;</p>",
+    });
   });
 });

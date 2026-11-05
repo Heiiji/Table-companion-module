@@ -1,4 +1,5 @@
 import { MODULE_ID } from "../constants.js";
+import { paragraphsHtml } from "../util/html.js";
 import {
   ASPECT_KEYS,
   FLAG_KEYS,
@@ -51,9 +52,11 @@ export function authoredPatch(
   const aspects = req.aspects!;
   const chars = req.characteristics!;
   Object.assign(patch, {
-    "system.description": p.description,
-    "system.descriptionLimitee": p.limitedDescription,
-    "system.histoire": p.history,
+    // The three biography fields are Knight HTML editors: the app's plain
+    // text is escaped into paragraphs; the other fields are plain strings.
+    "system.description": paragraphsHtml(p.description),
+    "system.descriptionLimitee": paragraphsHtml(p.limitedDescription),
+    "system.histoire": paragraphsHtml(p.history),
     "system.origin": p.origin,
     "system.age": p.age,
     "system.archetype": p.archetype,

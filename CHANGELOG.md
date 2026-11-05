@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+- Knight: the description, limited description, history and minor motivations written from the
+  companion app are now escaped into paragraphs before they reach the character sheet, which
+  renders them as HTML; markup typed in the app shows as text instead of running in the browser.
+
 ### Fixed
 - Knight: equipment from the companion app no longer deletes an armour, weapon or module before its
   replacement can be imported; with the Knight Compendium missing, disabled or at another version,

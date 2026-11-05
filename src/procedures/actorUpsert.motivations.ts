@@ -1,4 +1,5 @@
 import { MODULE_ID } from "../constants.js";
+import { paragraphsHtml } from "../util/html.js";
 import {
   contentsOf,
   FLAG_KEYS,
@@ -13,7 +14,9 @@ import {
  * Minor-motivation reconciliation. The request carries the authoritative list
  * (one to five entries); each entry is one `motivationMineure` Item stamped
  * with its index. Only Items carrying that stamp are updated or removed — a
- * motivation the GM authored by hand in Foundry is never touched.
+ * motivation the GM authored by hand in Foundry is never touched. The Knight
+ * sheet renders the description as raw HTML, so the app's plain text is
+ * escaped into paragraphs.
  */
 
 interface MinorMotivationFlagV1 {
@@ -79,7 +82,7 @@ export async function applyMinorMotivations(
     if (existing?.update) {
       await existing.update({
         name: `Motivation mineure ${index + 1}`,
-        "system.description": motivation,
+        "system.description": paragraphsHtml(motivation),
         [`flags.${MODULE_ID}.${FLAG_KEYS.minorMotivation}`]: flag,
       });
       continue;
@@ -96,7 +99,7 @@ export async function applyMinorMotivations(
       {
         name: `Motivation mineure ${index + 1}`,
         type: "motivationMineure",
-        system: { description: motivation },
+        system: { description: paragraphsHtml(motivation) },
         flags: {
           [MODULE_ID]: { [FLAG_KEYS.minorMotivation]: flag },
         },

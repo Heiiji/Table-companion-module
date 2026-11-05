@@ -4,7 +4,7 @@ import { KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1 } from "../refdata/knightCompendiumC
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import { canonicalize } from "../util/canonicalJson.js";
-import { escapeHtml } from "../util/html.js";
+import { paragraphsHtml } from "../util/html.js";
 import { actorDocumentId, linkedKnightActor } from "./actorResources.js";
 import { compendiumAvailabilityWarning } from "./actorUpsert.equipment.js";
 import { catalogId as catalogIdShape } from "./actorUpsert.types.js";
@@ -583,16 +583,6 @@ function holds(item: ItemDoc, current: Dict, key: string, value: unknown) {
 }
 
 // ------------------------------------------------------------ Item writes
-
-/** Plain text as escaped HTML paragraphs (a blank line separates two). */
-function paragraphsHtml(plain: string): string {
-  return plain
-    .split(/\r?\n[ \t]*\r?\n/)
-    .map((p) => p.trim())
-    .filter((p) => p !== "")
-    .map((p) => `<p>${escapeHtml(p)}</p>`)
-    .join("");
-}
 
 /** The dotted Item update a module's fields make. `built` adds the
  * description (a copied document keeps its own). */
