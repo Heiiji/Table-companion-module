@@ -6,32 +6,33 @@ import {
   pf2eConditionManager,
   type ActorItemLike,
 } from "../foundry/runtime.js";
-import { valueAt } from "./actorUpsert.patch.js";
-import { PackLookup } from "./pf2eActorComplete.js";
-import { hasUnresolvedChoice } from "./pf2eActorUpsert.js";
+import { PackLookup, hasUnresolvedChoice } from "./pf2ePacks.js";
 import {
   FLAG_KEYS,
   PF2E_RESOURCES_REQUIREMENT,
-  SCHEMA_VERSION,
-  actorCollection,
+  LIVE_HEADER_KEYS,
   alreadyApplied,
   assertBase,
-  assertGMResponder,
-  bindingFor,
-  bindingId,
-  bindingOf,
+  assertLaneAuthority,
   canonicalDigest,
   contentsOf,
   docId,
+  documentId,
+  finiteAt,
   identifier,
   integer,
   invalid,
+  linkedActor,
+  liveHeader,
+  liveSequence,
   parseStoredResult,
   record,
   supportsPf2eResourcesV1Runtime,
   text,
-  uniqueBoundActor,
+  uuid,
+  valueAt,
   writtenFields,
+  type LiveHeaderV1,
   type ActorLike,
   type Dict,
   type StoredResultV1,
@@ -126,9 +127,6 @@ const MAX_ITEMS = 500;
 const MAX_ADDS = 50;
 const MAX_QUANTITY = 999_999;
 
-/** Foundry's randomID(16) shape (Actor and Item ids). */
-const documentId = /^[A-Za-z0-9]{16}$/;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export interface Pf2eResourcesAddV1 {
@@ -137,13 +135,7 @@ export interface Pf2eResourcesAddV1 {
   quantity: number;
 }
 
-export interface Pf2eActorResourcesV1 {
-  schemaVersion: 1;
-  actorType: "character";
-  worldId: string;
-  tableId: string;
-  characterId: string;
-  expectedActorId: string;
+export interface Pf2eActorResourcesV1 extends LiveHeaderV1<"character"> {
   sequence: number;
   hp?: number;
   hpTemp?: number;
@@ -227,12 +219,7 @@ export function validatePf2eActorResourcesV1(
   payload: unknown,
 ): Pf2eActorResourcesV1 {
   const p = record(payload, "pf2eResources", [
-    "schemaVersion",
-    "actorType",
-    "worldId",
-    "tableId",
-    "characterId",
-    "expectedActorId",
+    ...LIVE_HEADER_KEYS,
     "sequence",
     "hp",
     "hpTemp",
@@ -242,20 +229,9 @@ export function validatePf2eActorResourcesV1(
     "adds",
     "base",
   ]);
-  if (p.schemaVersion !== SCHEMA_VERSION) invalid("schemaVersion must be 1");
-  if (p.actorType !== ACTOR_TYPE) invalid("actorType must be character");
   const req: Pf2eActorResourcesV1 = {
-    schemaVersion: 1,
-    actorType: ACTOR_TYPE,
-    worldId: identifier(p.worldId, "worldId", bindingId),
-    tableId: identifier(p.tableId, "tableId", bindingId),
-    characterId: identifier(p.characterId, "characterId", bindingId),
-    expectedActorId: identifier(
-      p.expectedActorId,
-      "expectedActorId",
-      documentId,
-    ),
-    sequence: integer(p.sequence, "sequence", 1, Number.MAX_SAFE_INTEGER),
+    ...liveHeader(p, ACTOR_TYPE),
+    sequence: liveSequence(p),
   };
   Object.assign(req, parseCounters(p, ""));
   if (p.base !== undefined)
@@ -292,11 +268,6 @@ export function validatePf2eActorResourcesV1(
   )
     invalid("pf2eResources needs at least one value");
   return req;
-}
-
-function finiteAt(root: unknown, path: string): number | undefined {
-  const v = valueAt(root, path);
-  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
 }
 
 const itemsOf = (actor: ActorLike): ActorItemLike[] => contentsOf(actor.items);
@@ -553,12 +524,11 @@ function storedCreated(flag: Dict): Record<string, string> {
 
 export const pf2eResourcesV1: Procedure = async (payload) => {
   const req = validatePf2eActorResourcesV1(payload);
-  assertGMResponder(PROCEDURE);
-  if (!supportsPf2eResourcesV1Runtime())
-    throw new RpcError(
-      "unsupported_runtime",
-      `${PROCEDURE} requires ${PF2E_RESOURCES_REQUIREMENT}`,
-    );
+  assertLaneAuthority(
+    PROCEDURE,
+    supportsPf2eResourcesV1Runtime,
+    PF2E_RESOURCES_REQUIREMENT,
+  );
   if (typeof pf2eConditionManager()?.updateConditionValue !== "function")
     throw new RpcError(
       "unsupported_runtime",
@@ -570,26 +540,8 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
       "game.items.fromCompendium is unavailable",
     );
   const digest = await canonicalDigest(req);
-  const collection = actorCollection();
-  let actor = uniqueBoundActor(collection, bindingFor(req));
-  if (!actor) {
-    // An imported character carries no binding: only the unbound Actor the
-    // app names qualifies.
-    actor = collection.get(req.expectedActorId);
-    if (!actor)
-      throw new RpcError("deleted_link", "the linked Actor no longer exists");
-    if (bindingOf(actor))
-      throw new RpcError(
-        "binding_conflict",
-        "the Actor is bound to another character",
-      );
-  }
+  const actor = linkedActor(req, ACTOR_TYPE);
   const id = docId(actor);
-  if (actor.type !== ACTOR_TYPE || id !== req.expectedActorId)
-    throw new RpcError(
-      "binding_conflict",
-      "the binding points at a different Actor",
-    );
   if (
     typeof actor.increaseCondition !== "function" ||
     typeof actor.createEmbeddedDocuments !== "function" ||

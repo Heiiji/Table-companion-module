@@ -125,6 +125,97 @@ export function identifier(
 
 export const bindingId = /^[A-Za-z0-9._-]{1,128}$/;
 export const foundryId = /^[A-Za-z0-9_-]{1,64}$/;
+/** Foundry's randomID(16) shape. */
+export const documentId = /^[A-Za-z0-9]{16}$/;
+/** A lowercase RFC 4122 UUID, as the app writes one. */
+export const uuid =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export function oneOf<T extends string>(
+  value: unknown,
+  path: string,
+  allowed: readonly T[],
+): T {
+  if (!allowed.includes(value as T))
+    invalid(`${path} must be one of ${allowed.join(", ")}`);
+  return value as T;
+}
+
+export function list(value: unknown, path: string, max: number): unknown[] {
+  if (!Array.isArray(value) || value.length > max)
+    invalid(`${path} must be an array of at most ${max} entries`);
+  return value;
+}
+
+/** The value at a dotted path, or undefined. */
+export function valueAt(root: unknown, path: string): unknown {
+  let current = root;
+  for (const key of path.split(".")) {
+    if (typeof current !== "object" || current === null) return undefined;
+    current = (current as Dict)[key];
+  }
+  return current;
+}
+
+export function hasPath(root: unknown, path: string): boolean {
+  let current = root;
+  for (const key of path.split(".")) {
+    if (typeof current !== "object" || current === null || !(key in current))
+      return false;
+    current = (current as Dict)[key];
+  }
+  return true;
+}
+
+/** The finite number at a dotted path, or undefined. */
+export function finiteAt(root: unknown, path: string): number | undefined {
+  const v = valueAt(root, path);
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+/** The fields every live lane opens with: the binding and the Actor the app
+ * expects to write. */
+export interface LiveHeaderV1<T extends string> {
+  schemaVersion: 1;
+  actorType: T;
+  worldId: string;
+  tableId: string;
+  characterId: string;
+  expectedActorId: string;
+}
+
+export const LIVE_HEADER_KEYS = [
+  "schemaVersion",
+  "actorType",
+  "worldId",
+  "tableId",
+  "characterId",
+  "expectedActorId",
+] as const;
+
+export function liveHeader<T extends string>(
+  p: Dict,
+  actorType: T,
+): LiveHeaderV1<T> {
+  if (p.schemaVersion !== SCHEMA_VERSION) invalid("schemaVersion must be 1");
+  if (p.actorType !== actorType) invalid(`actorType must be ${actorType}`);
+  return {
+    schemaVersion: 1,
+    actorType,
+    worldId: identifier(p.worldId, "worldId", bindingId),
+    tableId: identifier(p.tableId, "tableId", bindingId),
+    characterId: identifier(p.characterId, "characterId", bindingId),
+    expectedActorId: identifier(
+      p.expectedActorId,
+      "expectedActorId",
+      documentId,
+    ),
+  };
+}
+
+/** A live lane's ordering counter. */
+export const liveSequence = (p: Dict): number =>
+  integer(p.sequence, "sequence", 1, Number.MAX_SAFE_INTEGER);
 
 /** The five Knight aspects, in the order both actor types store them. */
 export const ASPECT_KEYS = [
@@ -310,13 +401,26 @@ export function assertGMResponder(procedure: string): void {
  * `procedure` names the lane in the error message.
  */
 export function assertKnightUpsertAuthority(procedure: string): void {
+  assertLaneAuthority(
+    procedure,
+    supportsKnightActorUpsertV1Runtime,
+    `Knight ${KNIGHT_UPSERT_SYSTEM_VERSION_LABEL} on Foundry ${MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION} or later`,
+  );
+}
+
+/** A GM responder on a runtime the lane was verified against, else the
+ * refusal: `unsupported_runtime` naming the `requirement`. */
+export function assertLaneAuthority(
+  procedure: string,
+  supported: () => boolean,
+  requirement: string,
+): void {
   assertGMResponder(procedure);
-  if (!supportsKnightActorUpsertV1Runtime()) {
+  if (!supported())
     throw new RpcError(
       "unsupported_runtime",
-      `${procedure} requires Knight ${KNIGHT_UPSERT_SYSTEM_VERSION_LABEL} on Foundry ${MINIMUM_KNIGHT_UPSERT_FOUNDRY_GENERATION} or later`,
+      `${procedure} requires ${requirement}`,
     );
-  }
 }
 export function actorCollection(): ActorsLike {
   const actors = gameActors();
@@ -464,6 +568,42 @@ export function uniqueBoundActor(
       "multiple Actors carry this Table Companion binding",
     );
   return matches[0];
+}
+
+/** The PC a live lane writes: the Actor bound to the character (which must be
+ * the one the app expects) or, for a character imported from Foundry, the
+ * unbound Actor of `actorType` the app names. Never created, bound or matched
+ * by name. */
+export function linkedActor(
+  req: {
+    worldId: string;
+    tableId: string;
+    characterId: string;
+    expectedActorId: string;
+  },
+  actorType: string,
+): ActorLike {
+  const collection = actorCollection();
+  let actor = uniqueBoundActor(collection, bindingFor(req));
+  if (!actor) {
+    // A character imported from Foundry carries no binding: the app names the
+    // Actor it was imported from. Only an unbound Actor qualifies, so a binding
+    // owned by another character is never written through this path.
+    actor = collection.get(req.expectedActorId);
+    if (!actor)
+      throw new RpcError("deleted_link", "the linked Actor no longer exists");
+    if (bindingOf(actor))
+      throw new RpcError(
+        "binding_conflict",
+        "the Actor is bound to another character",
+      );
+  }
+  if (actor.type !== actorType || docId(actor) !== req.expectedActorId)
+    throw new RpcError(
+      "binding_conflict",
+      "the binding points at a different Actor",
+    );
+  return actor;
 }
 
 /** The result fields both lanes store on the Actor after an apply. */

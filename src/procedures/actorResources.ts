@@ -1,37 +1,31 @@
 import { MODULE_ID } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
-import {
-  clampToPrepared,
-  hasPath,
-  resourcePaths,
-  valueAt,
-} from "./actorUpsert.patch.js";
+import { clampToPrepared, resourcePaths } from "./actorUpsert.patch.js";
 import {
   MAX_RESOURCE_VALUE,
   RESOURCE_KEYS,
   type ResourceKey,
 } from "./actorUpsert.types.js";
 import {
-  SCHEMA_VERSION,
-  actorCollection,
+  LIVE_HEADER_KEYS,
   docId,
   alreadyApplied,
   assertKnightUpsertAuthority,
-  bindingFor,
-  bindingId,
   assertBase,
-  bindingOf,
   canonicalDigest,
-  identifier,
+  hasPath,
+  linkedActor,
+  liveHeader,
+  liveSequence,
+  valueAt,
   writtenFields,
   integer,
   invalid,
   parseStoredResult,
   record,
   text,
-  uniqueBoundActor,
-  type ActorLike,
+  type LiveHeaderV1,
   type Dict,
   type StoredResultV1,
   FLAG_KEYS,
@@ -58,13 +52,7 @@ import {
  */
 
 const ACTOR_TYPE = "knight";
-export interface KnightActorResourcesV1 {
-  schemaVersion: 1;
-  actorType: "knight";
-  worldId: string;
-  tableId: string;
-  characterId: string;
-  expectedActorId: string;
+export interface KnightActorResourcesV1 extends LiveHeaderV1<"knight"> {
   sequence: number;
   resources: Partial<Record<ResourceKey, number>>;
   name?: string;
@@ -76,9 +64,6 @@ export interface KnightActorResourcesV1 {
 const MAX_NAME = 200;
 
 export type ActorResourcesResultV1 = StoredResultV1;
-
-/** Foundry's randomID(16) shape. */
-export const actorDocumentId = /^[A-Za-z0-9]{16}$/;
 
 function resourceValues(
   value: unknown,
@@ -97,20 +82,14 @@ export function validateKnightActorResourcesV1(
   payload: unknown,
 ): KnightActorResourcesV1 {
   const p = record(payload, "actorResources", [
-    "schemaVersion",
-    "actorType",
-    "worldId",
-    "tableId",
-    "characterId",
-    "expectedActorId",
+    ...LIVE_HEADER_KEYS,
     "sequence",
     "resources",
     "name",
     "previousName",
     "base",
   ]);
-  if (p.schemaVersion !== SCHEMA_VERSION) invalid("schemaVersion must be 1");
-  if (p.actorType !== ACTOR_TYPE) invalid("actorType must be knight");
+  const header = liveHeader(p, ACTOR_TYPE);
   const resources = resourceValues(p.resources, "resources");
   const base =
     p.base === undefined
@@ -132,17 +111,8 @@ export function validateKnightActorResourcesV1(
   if (Object.keys(resources).length === 0 && name === undefined)
     invalid("resources needs at least one value or a name");
   return {
-    schemaVersion: 1,
-    actorType: ACTOR_TYPE,
-    worldId: identifier(p.worldId, "worldId", bindingId),
-    tableId: identifier(p.tableId, "tableId", bindingId),
-    characterId: identifier(p.characterId, "characterId", bindingId),
-    expectedActorId: identifier(
-      p.expectedActorId,
-      "expectedActorId",
-      actorDocumentId,
-    ),
-    sequence: integer(p.sequence, "sequence", 1, Number.MAX_SAFE_INTEGER),
+    ...header,
+    sequence: liveSequence(p),
     resources,
     ...(name === undefined ? {} : { name }),
     ...(previousName === undefined ? {} : { previousName }),
@@ -150,44 +120,11 @@ export function validateKnightActorResourcesV1(
   };
 }
 
-/** The Knight PC a live lane writes: the Actor bound to the character (which
- * must be the one the app expects) or, for a character imported from Foundry,
- * the unbound Knight Actor the app names. Never created, bound or matched by
- * name. */
-export function linkedKnightActor(req: {
-  worldId: string;
-  tableId: string;
-  characterId: string;
-  expectedActorId: string;
-}): ActorLike {
-  const collection = actorCollection();
-  let actor = uniqueBoundActor(collection, bindingFor(req));
-  if (!actor) {
-    // A character imported from Foundry carries no binding: the app names the
-    // Actor it was imported from. Only an unbound Actor qualifies, so a binding
-    // owned by another character is never written through this path.
-    actor = collection.get(req.expectedActorId);
-    if (!actor)
-      throw new RpcError("deleted_link", "the linked Actor no longer exists");
-    if (bindingOf(actor))
-      throw new RpcError(
-        "binding_conflict",
-        "the Actor is bound to another character",
-      );
-  }
-  if (actor.type !== ACTOR_TYPE || docId(actor) !== req.expectedActorId)
-    throw new RpcError(
-      "binding_conflict",
-      "the binding points at a different Actor",
-    );
-  return actor;
-}
-
 export const actorResourcesV1: Procedure = async (payload) => {
   const req = validateKnightActorResourcesV1(payload);
   assertKnightUpsertAuthority("actor.resources.v1");
   const digest = await canonicalDigest(req);
-  const actor = linkedKnightActor(req);
+  const actor = linkedActor(req, ACTOR_TYPE);
   const id = docId(actor);
 
   const stored = parseStoredResult(actor, FLAG_KEYS.actorResources);

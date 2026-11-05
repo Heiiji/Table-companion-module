@@ -10,7 +10,7 @@ import type { Procedure } from "../rpc/registry.js";
 import {
   actorCollection,
   alreadyApplied,
-  assertGMResponder,
+  assertLaneAuthority,
   bindingFor,
   bindingId,
   bindingOf,
@@ -36,6 +36,7 @@ import {
   type Dict,
   type Outcome,
 } from "./upsertShared.js";
+import { hasUnresolvedChoice, indexSlug } from "./pf2ePacks.js";
 import type {
   ActorUpsertResultV1,
   EquipmentCompleteness,
@@ -193,32 +194,6 @@ function worldSchemaVersion(): number {
   return value;
 }
 
-/** A compendium index entry's `system.slug`, whichever shape the index uses
- * (nested object, or the flat dotted key). */
-function indexSlug(entry: Dict): unknown {
-  const system = entry.system;
-  if (typeof system === "object" && system !== null)
-    return (system as Dict).slug;
-  return entry["system.slug"];
-}
-
-/** True when an Item source carries a ChoiceSet rule with no stored
- * selection. Source-derived (pf2e 8.6.1): embedding such an Item opens a
- * blocking choice dialog in this GM's browser, which no one answers. */
-export function hasUnresolvedChoice(source: Dict): boolean {
-  const rules = (source.system as Dict | undefined)?.rules;
-  return (
-    Array.isArray(rules) &&
-    rules.some(
-      (rule) =>
-        typeof rule === "object" &&
-        rule !== null &&
-        (rule as Dict).key === "ChoiceSet" &&
-        (rule as Dict).selection == null,
-    )
-  );
-}
-
 /** Resolve each requested ABC slug to a compendium Item source. Returns the
  * kept sources (in ABC order) and one warning per slug not kept. A kind whose
  * Item is already embedded with that slug (a re-send after the embed went
@@ -282,12 +257,11 @@ async function abcSources(
  */
 export const pf2eActorUpsertV1: Procedure = async (payload) => {
   const req = validatePf2eActorUpsertV1(payload);
-  assertGMResponder(PROCEDURE);
-  if (!supportsPf2eActorUpsertV1Runtime())
-    throw new RpcError(
-      "unsupported_runtime",
-      `${PROCEDURE} requires ${PF2E_REQUIREMENT}`,
-    );
+  assertLaneAuthority(
+    PROCEDURE,
+    supportsPf2eActorUpsertV1Runtime,
+    PF2E_REQUIREMENT,
+  );
   if (req.foundryUserId && !gameUsers()?.get(req.foundryUserId))
     invalid("foundryUserId is not a User in this world");
   const digest = await canonicalDigest(req);

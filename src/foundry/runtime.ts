@@ -149,6 +149,8 @@ interface ModulesLike {
 interface SettingsLike {
   get(namespace: string, key: string): unknown;
   set(namespace: string, key: string, value: unknown): Promise<unknown>;
+  register(namespace: string, key: string, data: unknown): void;
+  registerMenu(namespace: string, key: string, data: unknown): void;
 }
 
 /** `game.socket`, narrowed to the two methods this module uses. Foundry's
@@ -168,11 +170,21 @@ type NotificationsLike = Partial<
 >;
 
 interface HooksLike {
-  on(hook: string, fn: (...args: never[]) => void): unknown;
+  on(hook: string, fn: (...args: never[]) => void): number;
   off?(hook: string, id: unknown): void;
 }
 
-type DialogV2Class = (new (options: unknown) => unknown) & {
+/** The DialogV2 instance surface this module touches: the stable, documented
+ * instance API and its element, robust across Foundry 13/14 point releases. */
+export interface DialogInstance {
+  element: HTMLElement;
+  rendered: boolean;
+  render(options: { force: boolean }): Promise<unknown>;
+  bringToFront?: () => void;
+  close(): Promise<unknown>;
+}
+
+type DialogV2Class = (new (options: unknown) => DialogInstance) & {
   /** Resolves true on Yes; false or null on No or a closed window. */
   confirm?(options: unknown): Promise<unknown>;
 };

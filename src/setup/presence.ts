@@ -1,6 +1,7 @@
 import type { Channel } from "../rpc/channel.js";
 import { isResponder } from "./election.js";
 import { isServiceUserId } from "./identity.js";
+import { foundryHooks } from "../foundry/runtime.js";
 import { log } from "../util/log.js";
 
 /** True when at least one human GM is actually connected to this world. The
@@ -42,10 +43,7 @@ export function startPresenceWatcher(channel: Channel): void {
 
   // Foundry fires userConnected(user, connected) whenever another user joins
   // OR leaves; there is no userDisconnected hook.
-  const hooks = Hooks as unknown as {
-    on(hook: string, fn: () => void): number;
-  };
-  hooks.on("userConnected", schedule);
+  foundryHooks()?.on("userConnected", schedule);
   // The last GM closing the tab: no GM client is left to observe the leave,
   // so say it on the way out. Best effort (the backend also learns it from
   // Foundry itself); a duplicate signal is harmless.

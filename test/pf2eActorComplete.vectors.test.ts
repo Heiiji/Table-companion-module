@@ -87,11 +87,15 @@ describe("pf2e.actor.complete.v1 shared vectors", () => {
       return codes(body![0]);
     };
     const procedure = read("../src/procedures/pf2eActorComplete.ts");
-    const helpers = ["invalid", "assertGMResponder", "actorCollection"];
+    const helpers = ["invalid", "assertLaneAuthority", "actorCollection"];
     for (const name of helpers) expect(procedure).toMatch(`${name}(`);
+    // The lane gate refuses a non-GM responder through assertGMResponder.
+    expect(shared).toMatch(
+      /export function assertLaneAuthority[^}]*assertGMResponder\(/,
+    );
     const own = new Set([
       ...codes(procedure),
-      ...helpers.flatMap((name) => [...helper(name)]),
+      ...[...helpers, "assertGMResponder"].flatMap((name) => [...helper(name)]),
     ]);
     // A plain error mid-write surfaces as procedure_failed.
     expect(procedure).toMatch("throw new Error(");

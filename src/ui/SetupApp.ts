@@ -17,20 +17,14 @@ import {
   companionVisibility,
   shareUnseenWithCompanion,
 } from "../setup/companionVisibility.js";
-import { dialogV2Class, gameActors } from "../foundry/runtime.js";
+import {
+  dialogV2Class,
+  foundryHooks,
+  gameActors,
+  type DialogInstance,
+} from "../foundry/runtime.js";
 import { escapeHtml } from "../util/html.js";
 import { localize, log } from "../util/log.js";
-
-// Minimal structural shape of the DialogV2 instance bits we touch: the stable,
-// documented surface (the instance API + a content string), robust across
-// Foundry 13/14 point releases.
-interface DialogInstance {
-  element: HTMLElement;
-  rendered: boolean;
-  render(options: { force: boolean }): Promise<unknown>;
-  bringToFront?: () => void;
-  close(): Promise<unknown>;
-}
 
 /** A DialogV2, through the runtime gateway (resolved lazily, so the bundle
  * imports cleanly before the `foundry` global exists). Throws when the
@@ -38,7 +32,7 @@ interface DialogInstance {
 function newDialog(options: unknown): DialogInstance {
   const DialogV2 = dialogV2Class();
   if (!DialogV2) throw new Error("Foundry's DialogV2 is unavailable");
-  return new DialogV2(options) as DialogInstance;
+  return new DialogV2(options);
 }
 
 // Single live setup dialog. Re-opening the sidebar button refreshes this one
@@ -404,14 +398,11 @@ async function refreshStatus(
  * online/offline). Torn down once the dialog closes, detected via
  * `dialog.rendered` on the next tick. */
 function startLiveRefresh(channel: Channel, dialog: DialogInstance): void {
-  const hooks = Hooks as unknown as {
-    on(hook: string, fn: () => void): number;
-    off(hook: string, id: number): void;
-  };
+  const hooks = foundryHooks();
   const refresh = () => void refreshStatus(channel, dialog);
-  const ids: Array<[string, number]> = [
+  const ids: Array<[string, number | undefined]> = [
     // Fires on a join and on a leave (connected: boolean).
-    ["userConnected", hooks.on("userConnected", refresh)],
+    ["userConnected", hooks?.on("userConnected", refresh)],
   ];
   const timer = setInterval(() => {
     if (dialog.rendered) {
@@ -419,7 +410,7 @@ function startLiveRefresh(channel: Channel, dialog: DialogInstance): void {
       return;
     }
     clearInterval(timer);
-    for (const [hook, id] of ids) hooks.off(hook, id);
+    for (const [hook, id] of ids) hooks?.off?.(hook, id);
     // The pairing window is only open while this dialog is on screen — and a
     // dialog closed and reopened within one interval must not close the new
     // dialog's window.

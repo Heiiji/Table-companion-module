@@ -5,6 +5,8 @@ import {
   FLAG_KEYS,
   contentsOf,
   normalizedOwnershipUpdate,
+  hasPath,
+  valueAt,
   type ActorLike,
   type BindingV1,
   type Dict,
@@ -85,16 +87,6 @@ export function authoredPatch(
   return patch;
 }
 
-export function hasPath(root: unknown, path: string): boolean {
-  let current = root;
-  for (const key of path.split(".")) {
-    if (typeof current !== "object" || current === null || !(key in current))
-      return false;
-    current = (current as Dict)[key];
-  }
-  return true;
-}
-
 /** The gear subtree Foundry reads the worn armour and energy from:
  * `system.equipements.<system.wear>`. As the Knight system prepares a PC, the
  * first embedded `armure` Item of generation 4 or later is always worn,
@@ -131,16 +123,6 @@ export function resourcePaths(
     heroism: ["heroisme.value", "heroisme.max"],
     contact: ["contacts.actuel"],
   };
-}
-
-/** The value at a dotted path, or undefined. */
-export function valueAt(root: unknown, path: string): unknown {
-  let current = root;
-  for (const key of path.split(".")) {
-    if (typeof current !== "object" || current === null) return undefined;
-    current = (current as Dict)[key];
-  }
-  return current;
 }
 
 /** A current over the prepared maximum, when the Actor exposes a finite one,

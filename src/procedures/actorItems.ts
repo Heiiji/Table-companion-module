@@ -6,28 +6,32 @@ import { MAX_ROLL_DICE } from "./rollExecute.js";
 import type { Procedure } from "../rpc/registry.js";
 import { canonicalize } from "../util/canonicalJson.js";
 import { paragraphsHtml } from "../util/html.js";
-import { actorDocumentId, linkedKnightActor } from "./actorResources.js";
 import { pairedAgentUser } from "../setup/identity.js";
 import { compendiumAvailabilityWarning } from "./actorUpsert.equipment.js";
 import { catalogId as catalogIdShape } from "./actorUpsert.types.js";
 import { readable } from "./compendium.js";
 import {
-  SCHEMA_VERSION,
+  LIVE_HEADER_KEYS,
   assertKnightUpsertAuthority,
   bindingId,
   canonicalDigest,
   contentsOf,
   docId,
+  documentId,
   FLAG_KEYS,
   flagValue,
   identifier,
   integer,
   invalid,
+  linkedActor,
+  liveHeader,
   record,
   text,
+  uuid,
   type ActorItemLike,
   type ActorLike,
   type Dict,
+  type LiveHeaderV1,
 } from "./upsertShared.js";
 
 /**
@@ -53,8 +57,6 @@ const MAX_DESCRIPTION_BYTES = 8192;
 const MAX_PROFILES = 8;
 /** The weapon snapshot envelope's own ceiling bounds every profile string. */
 const MAX_PROFILE_TEXT = 4096;
-const entryIdShape =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type ItemKind = "module" | "weapon";
 const FOUNDRY_TYPE: Record<ItemKind, string> = {
@@ -136,13 +138,7 @@ export type ActorItemsOpV1 =
     }
   | { remove: { itemId: string; kind: ItemKind; expectedName: string } };
 
-export interface KnightActorItemsV1 {
-  schemaVersion: 1;
-  actorType: "knight";
-  worldId: string;
-  tableId: string;
-  characterId: string;
-  expectedActorId: string;
+export interface KnightActorItemsV1 extends LiveHeaderV1<"knight"> {
   op: ActorItemsOpV1;
 }
 
@@ -289,7 +285,7 @@ function itemSource(value: unknown, path: string): ItemSourceV1 {
     return {
       live: {
         pack: l.pack as string,
-        docId: identifier(l.docId, `${path}.live.docId`, actorDocumentId),
+        docId: identifier(l.docId, `${path}.live.docId`, documentId),
       },
     };
   }
@@ -311,7 +307,7 @@ function itemsOp(value: unknown): ActorItemsOpV1 {
     const source = itemSource(a.source, "op.add.source");
     return {
       add: {
-        entryId: identifier(a.entryId, "op.add.entryId", entryIdShape),
+        entryId: identifier(a.entryId, "op.add.entryId", uuid),
         kind,
         source,
         // A copied document keeps its own description.
@@ -346,14 +342,14 @@ function itemsOp(value: unknown): ActorItemsOpV1 {
       invalid("op.update needs a field or an entryId");
     return {
       update: {
-        itemId: identifier(u.itemId, "op.update.itemId", actorDocumentId),
+        itemId: identifier(u.itemId, "op.update.itemId", documentId),
         kind,
         item,
         expected,
         ...(u.entryId === undefined
           ? {}
           : {
-              entryId: identifier(u.entryId, "op.update.entryId", entryIdShape),
+              entryId: identifier(u.entryId, "op.update.entryId", uuid),
             }),
       },
     };
@@ -361,7 +357,7 @@ function itemsOp(value: unknown): ActorItemsOpV1 {
   const r = record(o.remove, "op.remove", ["itemId", "kind", "expectedName"]);
   return {
     remove: {
-      itemId: identifier(r.itemId, "op.remove.itemId", actorDocumentId),
+      itemId: identifier(r.itemId, "op.remove.itemId", documentId),
       kind: itemKind(r.kind, "op.remove.kind"),
       expectedName: text(
         r.expectedName,
@@ -376,30 +372,8 @@ function itemsOp(value: unknown): ActorItemsOpV1 {
 export function validateKnightActorItemsV1(
   payload: unknown,
 ): KnightActorItemsV1 {
-  const p = record(payload, "actorItems", [
-    "schemaVersion",
-    "actorType",
-    "worldId",
-    "tableId",
-    "characterId",
-    "expectedActorId",
-    "op",
-  ]);
-  if (p.schemaVersion !== SCHEMA_VERSION) invalid("schemaVersion must be 1");
-  if (p.actorType !== ACTOR_TYPE) invalid("actorType must be knight");
-  return {
-    schemaVersion: 1,
-    actorType: ACTOR_TYPE,
-    worldId: identifier(p.worldId, "worldId", bindingId),
-    tableId: identifier(p.tableId, "tableId", bindingId),
-    characterId: identifier(p.characterId, "characterId", bindingId),
-    expectedActorId: identifier(
-      p.expectedActorId,
-      "expectedActorId",
-      actorDocumentId,
-    ),
-    op: itemsOp(p.op),
-  };
+  const p = record(payload, "actorItems", [...LIVE_HEADER_KEYS, "op"]);
+  return { ...liveHeader(p, ACTOR_TYPE), op: itemsOp(p.op) };
 }
 
 // ------------------------------------------------- the app's read of an Item
@@ -874,7 +848,7 @@ export const actorItemsV1: Procedure = async (payload) => {
   const req = validateKnightActorItemsV1(payload);
   assertKnightUpsertAuthority(PROCEDURE);
   const digest = await canonicalDigest(req);
-  const actor = linkedKnightActor(req);
+  const actor = linkedActor(req, ACTOR_TYPE);
   const warnings: string[] = [];
   const result = (itemId: string): ActorItemsResultV1 => ({
     schemaVersion: 1,

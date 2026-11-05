@@ -2,29 +2,29 @@ import { MODULE_ID } from "../constants.js";
 import { dnd5eRulesVersion } from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
-import { hasPath, valueAt } from "./actorUpsert.patch.js";
 import {
   DND5E_RESOURCES_REQUIREMENT,
   FLAG_KEYS,
-  SCHEMA_VERSION,
-  actorCollection,
+  LIVE_HEADER_KEYS,
   alreadyApplied,
   assertBase,
-  assertGMResponder,
-  bindingFor,
-  bindingId,
-  bindingOf,
+  assertLaneAuthority,
   canonicalDigest,
   contentsOf,
   docId,
-  identifier,
+  finiteAt,
+  hasPath,
   integer,
   invalid,
+  linkedActor,
+  liveHeader,
+  liveSequence,
   parseStoredResult,
   record,
   supportsDnd5eResourcesV1Runtime,
-  uniqueBoundActor,
+  valueAt,
   writtenFields,
+  type LiveHeaderV1,
   type ActorLike,
   type Dict,
   type StoredResultV1,
@@ -99,13 +99,7 @@ const MAX_DEATH_SAVES = 3;
  * `hp.tempmax` is an integer with no min (a negative value lowers the max). */
 const MAX_HP_TEMP_MAX = 9999;
 
-export interface Dnd5eActorResourcesV1 {
-  schemaVersion: 1;
-  actorType: "character";
-  worldId: string;
-  tableId: string;
-  characterId: string;
-  expectedActorId: string;
+export interface Dnd5eActorResourcesV1 extends LiveHeaderV1<"character"> {
   sequence: number;
   hp?: number;
   hpTemp?: number;
@@ -146,9 +140,6 @@ type Dnd5eCountersV1 = Pick<
 export interface Dnd5eResourcesResultV1 extends StoredResultV1 {
   hpEffectiveMax?: number;
 }
-
-/** Foundry's randomID(16) shape. */
-const actorDocumentId = /^[A-Za-z0-9]{16}$/;
 
 const count = (value: unknown, path: string): number =>
   integer(value, path, 0, Number.MAX_SAFE_INTEGER);
@@ -220,12 +211,7 @@ export function validateDnd5eActorResourcesV1(
   payload: unknown,
 ): Dnd5eActorResourcesV1 {
   const p = record(payload, "dnd5eResources", [
-    "schemaVersion",
-    "actorType",
-    "worldId",
-    "tableId",
-    "characterId",
-    "expectedActorId",
+    ...LIVE_HEADER_KEYS,
     "sequence",
     "hp",
     "hpTemp",
@@ -237,20 +223,9 @@ export function validateDnd5eActorResourcesV1(
     "inspiration",
     "base",
   ]);
-  if (p.schemaVersion !== SCHEMA_VERSION) invalid("schemaVersion must be 1");
-  if (p.actorType !== ACTOR_TYPE) invalid("actorType must be character");
   const req: Dnd5eActorResourcesV1 = {
-    schemaVersion: 1,
-    actorType: ACTOR_TYPE,
-    worldId: identifier(p.worldId, "worldId", bindingId),
-    tableId: identifier(p.tableId, "tableId", bindingId),
-    characterId: identifier(p.characterId, "characterId", bindingId),
-    expectedActorId: identifier(
-      p.expectedActorId,
-      "expectedActorId",
-      actorDocumentId,
-    ),
-    sequence: integer(p.sequence, "sequence", 1, Number.MAX_SAFE_INTEGER),
+    ...liveHeader(p, ACTOR_TYPE),
+    sequence: liveSequence(p),
   };
   Object.assign(req, parseCounters(p, ""));
   if (p.base !== undefined)
@@ -305,11 +280,6 @@ function currentCounter(actor: ActorLike, field: string): unknown {
     ? `spells.${field.slice("slots.".length)}.value`
     : COUNTER_PATHS[field];
   return path === undefined ? undefined : valueAt(actor.system, path);
-}
-
-function finiteAt(root: unknown, path: string): number | undefined {
-  const v = valueAt(root, path);
-  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
 }
 
 /** source-derived (dnd5e 6.1.0, data/actor/templates/attributes.mjs L473):
@@ -425,33 +395,14 @@ function counterPatch(
 
 export const dnd5eResourcesV1: Procedure = async (payload) => {
   const req = validateDnd5eActorResourcesV1(payload);
-  assertGMResponder(PROCEDURE);
-  if (!supportsDnd5eResourcesV1Runtime())
-    throw new RpcError(
-      "unsupported_runtime",
-      `${PROCEDURE} requires ${DND5E_RESOURCES_REQUIREMENT}`,
-    );
+  assertLaneAuthority(
+    PROCEDURE,
+    supportsDnd5eResourcesV1Runtime,
+    DND5E_RESOURCES_REQUIREMENT,
+  );
   const digest = await canonicalDigest(req);
-  const collection = actorCollection();
-  let actor = uniqueBoundActor(collection, bindingFor(req));
-  if (!actor) {
-    // An imported character carries no binding: only the unbound Actor the
-    // app names qualifies.
-    actor = collection.get(req.expectedActorId);
-    if (!actor)
-      throw new RpcError("deleted_link", "the linked Actor no longer exists");
-    if (bindingOf(actor))
-      throw new RpcError(
-        "binding_conflict",
-        "the Actor is bound to another character",
-      );
-  }
+  const actor = linkedActor(req, ACTOR_TYPE);
   const id = docId(actor);
-  if (actor.type !== ACTOR_TYPE || id !== req.expectedActorId)
-    throw new RpcError(
-      "binding_conflict",
-      "the binding points at a different Actor",
-    );
 
   const stored = parseStoredResult(actor, FLAG_KEYS.dnd5eResources);
   const previous = stored?.result ?? null;

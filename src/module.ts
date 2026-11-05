@@ -8,6 +8,7 @@ import {
 } from "./constants.js";
 import {
   applicationV2Class,
+  gameSettings,
   worldId as foundryWorldId,
 } from "./foundry/runtime.js";
 import { registerBuiltinProcedures } from "./procedures/index.js";
@@ -31,27 +32,15 @@ import { localize, log } from "./util/log.js";
 
 let channel: Channel | undefined;
 
-// Structural view of Foundry's settings store — fvtt-types only models keys it
-// knows, and both of ours are registered structurally (config:false).
-type SettingsStore = {
-  get(ns: string, key: string): unknown;
-  set(ns: string, key: string, value: unknown): Promise<unknown>;
-  register(ns: string, key: string, data: unknown): void;
-};
-
-function settingsStore(): SettingsStore | undefined {
-  return game.settings as unknown as SettingsStore | undefined;
-}
-
 /** Read this browser's stored response-signing keypair (private JWK), or null. */
 function getKeypairJwk(): JsonWebKey | null {
-  const v = settingsStore()?.get(MODULE_ID, SETTING_MODULE_KEYPAIR);
+  const v = gameSettings()?.get(MODULE_ID, SETTING_MODULE_KEYPAIR);
   return v && typeof v === "object" ? (v as JsonWebKey) : null;
 }
 
 /** Persist this browser's response-signing keypair (private JWK). */
 async function setKeypairJwk(jwk: JsonWebKey | null): Promise<void> {
-  await settingsStore()?.set(MODULE_ID, SETTING_MODULE_KEYPAIR, jwk);
+  await gameSettings()?.set(MODULE_ID, SETTING_MODULE_KEYPAIR, jwk);
 }
 
 /** Where this GM browser keeps its response-signing key: a non-extractable key
@@ -104,12 +93,8 @@ async function initResponseSigner(ch: Channel): Promise<void> {
 Hooks.once("init", () => {
   // Pinned agent signing key (trust-on-first-use). Hidden from the settings form
   // (config:false); managed by the channel and the setup UI. fvtt-types models
-  // settings only for keys it knows, so we register through a structural cast.
-  (
-    game.settings as unknown as {
-      register(ns: string, key: string, data: unknown): void;
-    }
-  )?.register(MODULE_ID, SETTING_AGENT_KEY, {
+  // settings only for keys it knows, so we register through the runtime shim.
+  gameSettings()?.register(MODULE_ID, SETTING_AGENT_KEY, {
     scope: "world",
     config: false,
     type: String,
@@ -118,7 +103,7 @@ Hooks.once("init", () => {
   // The Foundry user the paired agent sends as, and the service user this
   // module created. Both hidden and GM-managed; see src/setup/identity.ts.
   for (const key of [SETTING_AGENT_USER, SETTING_COMPANION_ANCHOR]) {
-    settingsStore()?.register(MODULE_ID, key, {
+    gameSettings()?.register(MODULE_ID, key, {
       scope: "world",
       config: false,
       type: String,
@@ -131,7 +116,7 @@ Hooks.once("init", () => {
   // IndexedDB cannot hold the key. CLIENT scope is load-bearing — a world-scoped
   // private key would broadcast to every player and let them forge module
   // responses. See responseSigning.ts.
-  settingsStore()?.register(MODULE_ID, SETTING_MODULE_KEYPAIR, {
+  gameSettings()?.register(MODULE_ID, SETTING_MODULE_KEYPAIR, {
     scope: "client",
     config: false,
     type: Object,
@@ -221,11 +206,7 @@ function registerSetupMenu(openSetup: () => void): void {
         return this;
       }
     }
-    (
-      game.settings as unknown as {
-        registerMenu(ns: string, key: string, data: unknown): void;
-      }
-    )?.registerMenu(MODULE_ID, "setupMenu", {
+    gameSettings()?.registerMenu(MODULE_ID, "setupMenu", {
       name: localize("setup.menu.name"),
       label: localize("setup.menu.label"),
       hint: localize("setup.menu.hint"),

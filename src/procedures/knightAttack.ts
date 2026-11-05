@@ -11,18 +11,23 @@ import type { Procedure } from "../rpc/registry.js";
 import { isResponder } from "../setup/election.js";
 import { isServiceUserId } from "../setup/identity.js";
 import { log } from "../util/log.js";
+import { waitFor, within } from "../util/wait.js";
 import {
   FLAG_KEYS,
   actorCollection,
   assertKnightUpsertAuthority,
   contentsOf,
+  documentId,
   flagValue,
   identifier,
   integer,
   invalid,
+  list,
+  oneOf,
   record,
   supportsKnightActorUpsertV1Runtime,
   text,
+  uuid,
   type ActorLike,
 } from "./upsertShared.js";
 
@@ -51,8 +56,6 @@ export const ATTACK_STAMP_MS = 60_000;
 /** The chat events after which a card may have changed. */
 const CHAT_HOOKS = ["createChatMessage", "updateChatMessage"] as const;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const FOUNDRY_ID = /^[A-Za-z0-9]{16}$/;
 const STYLE_KEY = /^[A-Za-z0-9_-]{1,32}$/;
 const PAYLOAD_KEYS = [
   "eventId",
@@ -183,22 +186,6 @@ interface KnightTarget {
 
 // ------------------------------------------------------------- validation
 
-function oneOf<T extends string>(
-  value: unknown,
-  path: string,
-  allowed: readonly T[],
-): T {
-  if (!allowed.includes(value as T))
-    invalid(`${path} must be one of ${allowed.join(", ")}`);
-  return value as T;
-}
-
-function list(value: unknown, path: string, max: number): unknown[] {
-  if (!Array.isArray(value) || value.length > max)
-    invalid(`${path} must be an array of at most ${max}`);
-  return value as unknown[];
-}
-
 /** The strict payload: every key required, unknown keys refused. */
 export function validateKnightAttackV1(payload: unknown): KnightAttackV1 {
   const p = record(payload, "payload", PAYLOAD_KEYS);
@@ -206,10 +193,10 @@ export function validateKnightAttackV1(payload: unknown): KnightAttackV1 {
     if (!(key in p)) invalid(`payload.${key} is required`);
   if (typeof p.surprise !== "boolean") invalid("surprise must be a boolean");
   return {
-    eventId: identifier(p.eventId, "eventId", UUID),
+    eventId: identifier(p.eventId, "eventId", uuid),
     origin: oneOf(p.origin, "origin", ORIGINS),
-    actorId: identifier(p.actorId, "actorId", FOUNDRY_ID),
-    entryId: identifier(p.entryId, "entryId", UUID),
+    actorId: identifier(p.actorId, "actorId", documentId),
+    entryId: identifier(p.entryId, "entryId", uuid),
     label: text(p.label, "label", 120, true),
     dice: integer(p.dice, "dice", 1, 60),
     bonus: list(p.bonus, "bonus", 10).map((b, i) =>
@@ -221,7 +208,7 @@ export function validateKnightAttackV1(payload: unknown): KnightAttackV1 {
     style: identifier(p.style, "style", STYLE_KEY),
     surprise: p.surprise as boolean,
     targetActorIds: list(p.targetActorIds, "targetActorIds", 20).map((id, i) =>
-      identifier(id, `targetActorIds[${i}]`, FOUNDRY_ID),
+      identifier(id, `targetActorIds[${i}]`, documentId),
     ),
     visibility: oneOf(p.visibility, "visibility", VISIBILITIES),
   };
@@ -369,41 +356,6 @@ function visibilityOf(
   return { whisper: readers, blind: visibility === "blind" };
 }
 
-/** `read()` once it is truthy, re-read on every chat create or update rather
- * than on a timer chain a hidden tab would throttle; null at the deadline. */
-function waitFor<T>(
-  read: () => T | null | undefined,
-  ms: number,
-): Promise<T | null> {
-  const now = read();
-  if (now) return Promise.resolve(now);
-  const hooks = foundryHooks();
-  return new Promise((resolve) => {
-    const finish = (value: T | null | undefined) => {
-      clearTimeout(timer);
-      ids.forEach(([name, id]) => hooks?.off?.(name, id));
-      resolve(value ?? null);
-    };
-    const check = () => {
-      const value = read();
-      if (value) finish(value);
-    };
-    const ids = CHAT_HOOKS.map(
-      (name) => [name, hooks?.on(name, check)] as const,
-    );
-    const timer = setTimeout(() => finish(read()), ms);
-  });
-}
-
-/** `promise`'s value, or null once `ms` has passed. */
-function within<T>(promise: Promise<T | null>, ms: number): Promise<T | null> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  return Promise.race([
-    promise,
-    new Promise<null>((resolve) => (timer = setTimeout(resolve, ms, null))),
-  ]).finally(() => clearTimeout(timer));
-}
-
 function cardTimeout(): RpcError {
   return new RpcError(
     "attack_card_timeout",
@@ -530,12 +482,16 @@ const flagsLanded = (eventId: string) => {
 
 /** A retry of an attack already on the chat: its stored result, never a new roll. */
 async function replay(eventId: string): Promise<KnightAttackResultV1> {
-  const card = await waitFor(() => {
-    const c = cardOf(eventId);
-    return c && (storedResult(c) || Array.isArray(knightFlags(c)?.content))
-      ? c
-      : null;
-  }, ATTACK_WAIT_MS);
+  const card = await waitFor(
+    () => {
+      const c = cardOf(eventId);
+      return c && (storedResult(c) || Array.isArray(knightFlags(c)?.content))
+        ? c
+        : null;
+    },
+    CHAT_HOOKS,
+    ATTACK_WAIT_MS,
+  );
   if (!card) throw cardTimeout();
   // ponytail: a card left unstamped (the GM reloaded mid-attack) is rebuilt
   // without its target source; stamp it under the card's flags if it matters.
@@ -669,7 +625,7 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
   }
   // doRoll does not await the card; it is created, then its Knight flags
   // written. Keep watching past the answer so a late card is still stamped.
-  void waitFor(() => flagsLanded(req.eventId), ATTACK_STAMP_MS)
+  void waitFor(() => flagsLanded(req.eventId), CHAT_HOOKS, ATTACK_STAMP_MS)
     .then((card) => (card ? stamp(card, source) : null))
     .catch((error: unknown) => {
       log.warn(`${PROCEDURE}: stamping failed`, error);

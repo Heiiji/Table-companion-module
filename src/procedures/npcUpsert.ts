@@ -1,7 +1,6 @@
 import { MODULE_ID } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
-import { valueAt } from "./actorUpsert.patch.js";
 import {
   ASPECT_KEYS,
   OWNERSHIP_LIMITED,
@@ -34,6 +33,7 @@ import {
   type Outcome,
   type StoredResultV1,
   FLAG_KEYS,
+  valueAt,
 } from "./upsertShared.js";
 
 /**

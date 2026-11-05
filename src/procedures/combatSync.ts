@@ -28,6 +28,7 @@ import {
   identifier,
   integer,
   invalid,
+  documentId,
   record,
   text,
   type Dict,
@@ -51,9 +52,6 @@ const MAX_COMBATANTS = 64;
 const MAX_NAME = 120;
 const MAX_ROUND = 9999;
 const MAX_INITIATIVE = 1_000_000;
-
-/** A Foundry document id (randomID(16)). */
-const documentId = /^[A-Za-z0-9]{16}$/;
 
 interface CombatantSyncV1 {
   key: string;

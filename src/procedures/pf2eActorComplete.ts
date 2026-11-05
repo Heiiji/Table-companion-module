@@ -1,16 +1,11 @@
 import { MODULE_ID } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
-import {
-  gameItems,
-  gamePacks,
-  gameUsers,
-  type PackDocumentLike,
-} from "../foundry/runtime.js";
+import { gameItems, gameUsers } from "../foundry/runtime.js";
 import type { Procedure } from "../rpc/registry.js";
 import { pairedAgentUserId } from "../setup/identity.js";
 import {
   actorCollection,
-  assertGMResponder,
+  assertLaneAuthority,
   bindingId,
   bindingOf,
   canonicalDigest,
@@ -22,17 +17,20 @@ import {
   identifier,
   integer,
   invalid,
+  list,
+  oneOf,
   OWNERSHIP_OWNER,
-  packDocuments,
   parseStoredResult,
   PF2E_REQUIREMENT,
   record,
   supportsPf2eActorUpsertV1Runtime,
   text,
+  valueAt,
   type ActorItemLike,
   type ActorLike,
   type Dict,
 } from "./upsertShared.js";
+import { PackLookup } from "./pf2ePacks.js";
 
 /**
  * `pf2e.actor.complete.v1`: the character's player completes, from the apps,
@@ -129,22 +127,6 @@ function slug(value: unknown, path: string): string {
   if (!SLUG.test(s) || new TextEncoder().encode(s).length > 64)
     invalid(`${path} must be a lowercase hyphenated slug`);
   return s;
-}
-
-function oneOf<T extends string>(
-  value: unknown,
-  path: string,
-  allowed: readonly T[],
-): T {
-  if (!allowed.includes(value as T))
-    invalid(`${path} must be one of ${allowed.join(", ")}`);
-  return value as T;
-}
-
-function list(value: unknown, path: string, max: number): unknown[] {
-  if (!Array.isArray(value) || value.length > max)
-    invalid(`${path} must be an array of at most ${max} entries`);
-  return value;
 }
 
 function attributes(value: unknown, path: string): Attribute[] {
@@ -394,14 +376,6 @@ function itemSlug(item: ActorItemLike | Dict): unknown {
   return ((item as Dict).system as Dict | undefined)?.slug;
 }
 
-/** A compendium index entry's `system.slug`, whichever shape the index uses. */
-function indexSlug(entry: Dict): unknown {
-  const system = entry.system;
-  if (typeof system === "object" && system !== null)
-    return (system as Dict).slug;
-  return entry["system.slug"];
-}
-
 /** pf2e's default ChoiceSet flag (source-derived (pf2e 8.6.1),
  * `#setDefaultFlag`): the rule's flag stripped to `[-a-z0-9]`, else the
  * rule's or the item's slug in dromedary case. */
@@ -444,45 +418,6 @@ function preselect(source: Dict, choices: Record<string, string>): boolean {
   return true;
 }
 
-/** Compendium sources by slug: one index read per pack, and the documents of
- * every slug `prefetch`ed together in one request rather than one each. */
-export class PackLookup {
-  #indexes = new Map<string, Map<string, string> | null>();
-  /** Fetched documents by `pack/id`; null when the pack does not hold it. */
-  #docs = new Map<string, PackDocumentLike | null>();
-
-  async prefetch(packId: string, slugs: string[]): Promise<void> {
-    if (!this.#indexes.has(packId)) {
-      const pack = gamePacks()?.get(packId);
-      const index = pack
-        ? [...(await pack.getIndex({ fields: ["system.slug"] }))]
-        : null;
-      this.#indexes.set(
-        packId,
-        index &&
-          new Map(index.map((e) => [String(indexSlug(e)), String(e._id)])),
-      );
-    }
-    const index = this.#indexes.get(packId);
-    const ids = slugs
-      .map((s) => index?.get(s))
-      .filter((id): id is string => !!id && !this.#docs.has(`${packId}/${id}`));
-    if (ids.length === 0) return;
-    const docs = await packDocuments(packId, ids);
-    for (const id of ids)
-      this.#docs.set(`${packId}/${id}`, docs.get(id) ?? null);
-  }
-
-  async source(packId: string, wanted: string): Promise<Dict | "missing"> {
-    await this.prefetch(packId, [wanted]);
-    const id = this.#indexes.get(packId)?.get(wanted);
-    const doc = id ? this.#docs.get(`${packId}/${id}`) : null;
-    if (!doc) return "missing";
-    // fromCompendium stamps `_stats.compendiumSource` (the Item's identity).
-    return gameItems()!.fromCompendium!(doc);
-  }
-}
-
 function sluggified(name: string): string {
   return name
     .toLowerCase()
@@ -493,15 +428,6 @@ function sluggified(name: string): string {
 function sourceSystem(actor: ActorLike): Dict {
   const source = (actor as { _source?: { system?: unknown } })._source;
   return ((source?.system ?? actor.system) as Dict | undefined) ?? {};
-}
-
-function sourceAt(root: Dict, dotted: string): unknown {
-  let cursor: unknown = root;
-  for (const part of dotted.split(".")) {
-    if (typeof cursor !== "object" || cursor === null) return undefined;
-    cursor = (cursor as Dict)[part];
-  }
-  return cursor;
 }
 
 type BoostSlots = Record<string, { value?: unknown; selected?: unknown }>;
@@ -552,12 +478,11 @@ async function createItems(actor: ActorLike, sources: Dict[]): Promise<Dict[]> {
  * a re-send applies again (additively, so nothing doubles).
  */
 export const pf2eActorCompleteV1: Procedure = async (payload) => {
-  assertGMResponder(PROCEDURE);
-  if (!supportsPf2eActorUpsertV1Runtime())
-    throw new RpcError(
-      "unsupported_runtime",
-      `${PROCEDURE} requires ${PF2E_REQUIREMENT}`,
-    );
+  assertLaneAuthority(
+    PROCEDURE,
+    supportsPf2eActorUpsertV1Runtime,
+    PF2E_REQUIREMENT,
+  );
   const req = validatePf2eActorCompleteV1(payload);
   const actor = targetActor(req);
   assertCompletingOwner(actor, req.foundryUserId);
@@ -741,11 +666,11 @@ export const pf2eActorCompleteV1: Procedure = async (payload) => {
   const system = sourceSystem(actor);
   const update: Dict = {};
   for (const [skill, rank] of Object.entries(req.skills)) {
-    const current = Number(sourceAt(system, `skills.${skill}.rank`) ?? 0);
+    const current = Number(valueAt(system, `skills.${skill}.rank`) ?? 0);
     if (rank > current) update[`system.skills.${skill}.rank`] = rank;
   }
   for (const [level, wanted] of Object.entries(req.boosts)) {
-    const current = sourceAt(system, `build.attributes.boosts.${level}`);
+    const current = valueAt(system, `build.attributes.boosts.${level}`);
     if (Array.isArray(current) && current.length > 0) {
       if ([...current].sort().join() !== [...wanted].sort().join())
         warnings.push(`boosts_present:${level}`);

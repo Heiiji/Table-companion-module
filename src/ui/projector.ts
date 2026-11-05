@@ -1,4 +1,4 @@
-import { dialogV2Class } from "../foundry/runtime.js";
+import { dialogV2Class, type DialogInstance } from "../foundry/runtime.js";
 import { localize, log } from "../util/log.js";
 
 /**
@@ -12,12 +12,6 @@ import { localize, log } from "../util/log.js";
  * old Foundry, or a unit test): the resolver yields undefined and openProjector
  * no-ops, rather than a bare-identifier ReferenceError.
  */
-
-interface DialogInstance {
-  rendered: boolean;
-  render(options: { force: boolean }): Promise<unknown>;
-  close(): Promise<unknown>;
-}
 
 // Single live projector popout. A new show REPLACES the prior — the spotlight is a
 // singleton ("push a 2nd clears the 1st"), matching the app's NowShowing model.
@@ -60,7 +54,7 @@ export function openProjector(
         buttons: [
           { action: "close", label: localize("common.close"), default: true },
         ],
-      }) as DialogInstance;
+      });
       projectorDialog = dialog;
       await dialog.render({ force: true });
       return true;
