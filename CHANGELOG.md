@@ -7,6 +7,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Security
+- Knight: adding a module or weapon from a live world Item or compendium copies it only when the
+  paired service user may observe that Item or pack, as the compendium lanes already require;
+  otherwise the Item is built from the app's fields.
 - Dice: `roll.execute` refuses dice whose count or faces resolve only while rolling (`(N)d6`,
   `1d(N)`) and budgets the dice inside parentheses, functions and pools, so an oversized roll can
   no longer slip past the dice limit and freeze the Gamemaster's browser.

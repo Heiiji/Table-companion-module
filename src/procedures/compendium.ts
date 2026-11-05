@@ -69,7 +69,7 @@ const SERVED_DOCUMENT_TYPES = new Set(["Actor", "Item"]);
  * is whether the paired service user may observe it. Fails closed: no paired user, or a pack
  * without a permission API, is not readable.
  */
-function readable(
+export function readable(
   pack: CompendiumPackLike,
   agent: UserLike | undefined,
 ): boolean {

@@ -9,7 +9,9 @@ import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
 import {
   ACTOR_ID,
+  USER_ID,
   fakeActor,
+  pairCompanion,
   stubFoundry,
   type FakeActor,
   type StubCompendium,
@@ -431,6 +433,38 @@ describe("actor.items.v1 add", () => {
     expect(items()[0].type).toBe("module");
   });
 
+  /** Pair the backend as USER_ID and give the world Item and every pack the
+   * service user's view: `visible` decides what it may observe. */
+  function liveWorld(source: Record<string, unknown>, visible: boolean) {
+    world(
+      { documents: { "world.mods": { [WORLD_ITEM]: source } } },
+      {
+        [WORLD_ITEM]: source,
+      },
+    );
+    pairCompanion(USER_ID);
+    const game = (globalThis as unknown as { game: Record<string, any> }).game;
+    const see = (user: { id?: string }, level: string) =>
+      visible && user?.id === USER_ID && level === "OBSERVER";
+    vi.stubGlobal("game", {
+      ...game,
+      items: {
+        get: (id: string) => {
+          const doc = game.items.get(id);
+          return doc && { ...doc, testUserPermission: see };
+        },
+      },
+      packs: {
+        get: (pack: string) => {
+          const p = game.packs.get(pack);
+          return (
+            p && { ...p, metadata: { type: "Item" }, testUserPermission: see }
+          );
+        },
+      },
+    });
+  }
+
   it("copies a live world Item or pack document, and builds when it is gone", async () => {
     const source = {
       _id: WORLD_ITEM,
@@ -439,12 +473,7 @@ describe("actor.items.v1 add", () => {
       folder: "f",
       system: moduleSystem(),
     };
-    world(
-      { documents: { "world.mods": { [WORLD_ITEM]: source } } },
-      {
-        [WORLD_ITEM]: source,
-      },
-    );
+    liveWorld(source, true);
     expect(
       (
         await run(
@@ -456,7 +485,7 @@ describe("actor.items.v1 add", () => {
       ).warnings,
     ).toEqual([]);
     expect(items()[0].folder).toBeUndefined();
-    world({ documents: { "world.mods": { [WORLD_ITEM]: source } } });
+    liveWorld(source, true);
     expect(
       (
         await run(
@@ -468,6 +497,41 @@ describe("actor.items.v1 add", () => {
       ).warnings,
     ).toEqual([]);
     world();
+    expect(
+      (
+        await run(
+          addModule(
+            { name: "Monde" },
+            { live: { pack: "", docId: WORLD_ITEM } },
+          ),
+        )
+      ).warnings,
+    ).toEqual(["item_built"]);
+  });
+
+  it("never copies a live Item or pack the paired service user cannot observe", async () => {
+    const hidden = {
+      _id: WORLD_ITEM,
+      name: "Secret du MJ",
+      type: "module",
+      system: { ...moduleSystem(), description: "<p>GM only</p>" },
+    };
+    for (const pack of ["", "world.mods"]) {
+      liveWorld(hidden, false);
+      const result = await run(
+        addModule({ name: "Monde" }, { live: { pack, docId: WORLD_ITEM } }),
+      );
+      expect(result.warnings).toEqual(["item_built"]);
+      expect(items()[0].name).toBe("Monde");
+      expect(sys(items()[0]).description).not.toContain("GM only");
+    }
+    // Unpaired: nothing is observable.
+    world(
+      { documents: { "world.mods": { [WORLD_ITEM]: hidden } } },
+      {
+        [WORLD_ITEM]: hidden,
+      },
+    );
     expect(
       (
         await run(

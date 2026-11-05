@@ -6,8 +6,10 @@ import type { Procedure } from "../rpc/registry.js";
 import { canonicalize } from "../util/canonicalJson.js";
 import { paragraphsHtml } from "../util/html.js";
 import { actorDocumentId, linkedKnightActor } from "./actorResources.js";
+import { pairedAgentUser } from "../setup/identity.js";
 import { compendiumAvailabilityWarning } from "./actorUpsert.equipment.js";
 import { catalogId as catalogIdShape } from "./actorUpsert.types.js";
+import { readable } from "./compendium.js";
 import {
   SCHEMA_VERSION,
   assertKnightUpsertAuthority,
@@ -762,11 +764,19 @@ async function copiedSource(
 ): Promise<{ raw: unknown; level?: number } | undefined> {
   if ("custom" in source) return undefined;
   if ("live" in source) {
+    // The read lanes' visibility: only what the paired service user may
+    // observe is copied; anything else is built from the app's fields.
     const { pack, docId: id } = source.live;
-    const doc =
-      pack === ""
-        ? gameItems()?.get?.(id)
-        : await gamePacks()?.get(pack)?.getDocument(id);
+    const agent = pairedAgentUser();
+    if (pack === "") {
+      const doc = gameItems()?.get?.(id);
+      return agent && doc?.testUserPermission?.(agent, "OBSERVER") === true
+        ? { raw: doc.toObject() }
+        : undefined;
+    }
+    const compendium = gamePacks()?.get(pack);
+    if (!compendium || !readable(compendium, agent)) return undefined;
+    const doc = await compendium.getDocument(id);
     return doc ? { raw: doc.toObject() } : undefined;
   }
   const mapped = KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1[source.catalogId];
