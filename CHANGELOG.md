@@ -7,6 +7,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Security
+- Dice: `roll.execute` refuses dice whose count or faces resolve only while rolling (`(N)d6`,
+  `1d(N)`) and budgets the dice inside parentheses, functions and pools, so an oversized roll can
+  no longer slip past the dice limit and freeze the Gamemaster's browser.
 - Knight: the description, limited description, history and minor motivations written from the
   companion app are now escaped into paragraphs before they reach the character sheet, which
   renders them as HTML; markup typed in the app shows as text instead of running in the browser.

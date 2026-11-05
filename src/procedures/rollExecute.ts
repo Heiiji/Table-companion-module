@@ -7,7 +7,8 @@ export const MAX_ROLL_FORMULA_LEN = 500;
 
 /** roll.execute guard: reject a formula whose total dice count exceeds this, so a
  * request like "999999d6" (from a buggy/compromised agent, or a replay) can't
- * freeze the responder GM's browser inside `Roll#evaluate`. */
+ * freeze the responder GM's browser inside `Roll#evaluate`. Every count must be
+ * a static number, nested formulas included, so the budget is complete. */
 export const MAX_ROLL_DICE = 1000;
 
 /**
@@ -42,7 +43,7 @@ export const rollExecute: Procedure = async (payload) => {
   // BEFORE evaluating — an unbounded "999999d6" would otherwise block the
   // responder GM's browser inside evaluate().
   const roll = new Roll(formula);
-  if (totalDice(roll) > MAX_ROLL_DICE) {
+  if (diceBudget(roll, 0) > MAX_ROLL_DICE) {
     throw new RpcError(
       "invalid_args",
       "roll.execute formula exceeds the dice budget",
@@ -57,16 +58,49 @@ export const rollExecute: Procedure = async (payload) => {
   return { formula: roll.formula, total: roll.total ?? 0, dice };
 };
 
-/** Sum the dice count across a constructed (not-yet-evaluated) Roll. `roll.dice`
- * flattens pool terms, so this catches dice nested in pools too. Static counts
- * (e.g. the 999999 in "999999d6") are known pre-evaluate; dynamic counts that
- * resolve only during evaluation read as 0 here — the formula-length cap bounds
- * those. */
-function totalDice(roll: Roll): number {
+/** How deep parenthetical / function / pool formulas may nest before the
+ * budget refuses them. */
+const MAX_ROLL_NESTING = 8;
+
+type Term = Record<string, unknown>;
+
+/** A die's count or faces, only when it is a static positive integer: a
+ * dynamic one (`(99999999)d6`, `(1d6)d6`, `1d(@x)`) is a Roll that resolves
+ * only during evaluation, so it cannot be budgeted beforehand. */
+function staticPositive(term: Term, key: "number" | "faces"): number {
+  const raw = `_${key}` in term ? term[`_${key}`] : term[key];
+  if (!Number.isSafeInteger(raw) || (raw as number) < 1)
+    throw new RpcError(
+      "invalid_args",
+      `roll.execute dice ${key === "number" ? "counts" : "faces"} must be static positive numbers`,
+    );
+  return raw as number;
+}
+
+/** Sum the dice count of a constructed (not-yet-evaluated) Roll by walking its
+ * terms. A parenthetical, function or pool term builds its inner Rolls only
+ * when evaluated (its `dice` are empty until then), so their formulas are
+ * parsed here — constructing a Roll draws no dice — and budgeted too. */
+function diceBudget(roll: Roll, depth: number): number {
+  if (depth > MAX_ROLL_NESTING)
+    throw new RpcError("invalid_args", "roll.execute formula nests too deep");
   let n = 0;
-  for (const die of roll.dice) {
-    const count = (die as { number?: number | null }).number ?? 0;
-    if (count > 0) n += count;
+  for (const term of roll.terms as unknown as Term[]) {
+    if ("_number" in term || ("number" in term && "faces" in term)) {
+      staticPositive(term, "faces");
+      n += staticPositive(term, "number");
+      continue;
+    }
+    const formulas = [
+      ...(typeof term.term === "string" ? [term.term] : []),
+      ...(Array.isArray(term.terms) ? term.terms : []),
+    ].filter((f): f is string => typeof f === "string");
+    const inner = formulas.length
+      ? formulas.map((f) => new Roll(f))
+      : [term.roll, ...(Array.isArray(term.rolls) ? term.rolls : [])].filter(
+          (r): r is Roll => typeof r === "object" && r !== null && "terms" in r,
+        );
+    for (const r of inner) n += diceBudget(r, depth + 1);
   }
   return n;
 }
