@@ -20,7 +20,10 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
-    sourcemap: true,
+    // The map is written for debugging but not referenced from module.js: the
+    // release zip leaves maps out, and a dangling reference makes every
+    // browser request a file that is not there.
+    sourcemap: "hidden",
     // Floor the output to a baseline the verified-v13 Electron/Chromium parses,
     // so emit can't outrun a supported client and hard-fail module load. (tsconfig
     // keeps `target: ESNext` for type-checking; this governs the actual emit.)
@@ -39,8 +42,20 @@ export default defineConfig({
 
         // Stamp the package.json version into the shipped manifest so the
         // release artifact's version is never out of sync with the source.
+        // `manifest` keeps pointing at the latest release (how Foundry finds
+        // updates); `download` points at this version's own zip, so installing
+        // from an older release's manifest installs that release. The release
+        // workflow sets the version from the tag before building.
         const manifest = JSON.parse(readFileSync("module.json", "utf8"));
         manifest.version = pkgVersion;
+        manifest.download = manifest.download.replace(
+          "/releases/latest/download/",
+          `/releases/download/v${pkgVersion}/`,
+        );
+        if (!manifest.download.includes(`/v${pkgVersion}/`))
+          throw new Error(
+            "tca-copy-static: module.json download is not a latest-release URL",
+          );
         writeFileSync(
           "dist/module.json",
           JSON.stringify(manifest, null, 2) + "\n",

@@ -57,6 +57,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   renders them as HTML; markup typed in the app shows as text instead of running in the browser.
 
 ### Fixed
+- Packaging: a release's manifest downloads that release's own zip instead of the latest one, so
+  installing from an older release's manifest installs that release; `module.js` no longer
+  references a source map the zip does not carry.
 - French: the setup texts follow French typography (a no-break space before « : ; ? ! » and inside
   guillemets, typographic apostrophes), so a colon or a question mark no longer wraps onto a line
   of its own.
