@@ -657,4 +657,28 @@ describe("npc.upsert.v1 base (compare-and-set)", () => {
     await upsert(next({ base: undefined }));
     expect(actors[0].system).toMatchObject({ sante: { value: 6 } });
   });
+
+  it("accepts a base read before the app's own previous write landed, not a later Foundry edit", async () => {
+    const actors = await provisioned();
+    await upsert(next());
+    // A later revision still based on the first read: Foundry holds the
+    // app's own previous write.
+    await upsert(
+      next({
+        contentRevision: 1_755_555_557_000,
+        resources: { health: { max: 30, current: 3 } },
+      }),
+    );
+    expect(actors[0].system).toMatchObject({ sante: { value: 3 } });
+    setPath(actors[0] as never, "system.sante.value", 20);
+    await expectRpcError(
+      upsert(
+        next({
+          contentRevision: 1_755_555_558_000,
+          resources: { health: { max: 30, current: 1 } },
+        }),
+      ),
+      "base_conflict",
+    );
+  });
 });

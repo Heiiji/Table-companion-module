@@ -795,4 +795,18 @@ describe("dnd5e.resources.v1 base (compare-and-set)", () => {
     await run(actor, request({ conditions: ["blinded"] }));
     expect(held(actor)).toEqual(["blinded"]);
   });
+
+  it("accepts a base read before the app's own previous write landed, not a later Foundry edit", async () => {
+    const actor = fakeCharacter();
+    await run(actor, request({ sequence: 3, hp: 10, base: { hp: 12 } }));
+    await run(actor, request({ sequence: 4, hp: 8, base: { hp: 12 } }));
+    expect(actor.updates.at(-2)).toMatchObject({
+      "system.attributes.hp.value": 8,
+    });
+    (actor.system.attributes as { hp: { value: number } }).hp.value = 15;
+    await rejects(
+      run(actor, request({ sequence: 5, hp: 6, base: { hp: 12 } })),
+      "base_conflict",
+    );
+  });
 });

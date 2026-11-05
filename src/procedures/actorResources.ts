@@ -24,6 +24,7 @@ import {
   bindingOf,
   canonicalDigest,
   identifier,
+  writtenFields,
   integer,
   invalid,
   parseStoredResult,
@@ -209,12 +210,20 @@ export const actorResourcesV1: Procedure = async (payload) => {
     );
 
   const paths = resourcePaths(actor);
-  assertBase(req, req.base, (field) => {
+  const pathOf = (field: string): string | undefined => {
+    if (!field.startsWith("resources.")) return undefined;
     const path = paths[field.slice("resources.".length) as ResourceKey]?.[0];
-    return path && hasPath(actor.system, path)
-      ? valueAt(actor.system, path)
-      : undefined;
-  });
+    return path && hasPath(actor.system, path) ? path : undefined;
+  };
+  assertBase(
+    req,
+    req.base,
+    (field) => {
+      const path = pathOf(field);
+      return path === undefined ? undefined : valueAt(actor.system, path);
+    },
+    stored?.flag.written,
+  );
   const patch: Dict = {};
   const warnings: string[] = [];
   for (const key of RESOURCE_KEYS) {
@@ -262,6 +271,14 @@ export const actorResourcesV1: Procedure = async (payload) => {
     [`flags.${MODULE_ID}.${FLAG_KEYS.actorResources}`]: {
       ...result,
       contentDigest,
+      // What Foundry holds once this update lands, for the next base compare.
+      written: writtenFields(req, (field) => {
+        const path = pathOf(field);
+        if (path === undefined) return undefined;
+        return `system.${path}` in patch
+          ? patch[`system.${path}`]
+          : valueAt(actor.system, path);
+      }),
     },
   });
   return result;

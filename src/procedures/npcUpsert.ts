@@ -26,6 +26,7 @@ import {
   record,
   text,
   uniqueBoundActor,
+  writtenFields,
   type ActorLike,
   type AspectScoresV1,
   type BindingV1,
@@ -384,7 +385,12 @@ export const npcUpsertV1: Procedure = async (payload) => {
   // A just-created Actor holds the request itself: nothing to compare.
   const target = actor;
   if (outcome === "updated")
-    assertBase(req, req.base, (field) => currentNpcField(target, field));
+    assertBase(
+      req,
+      req.base,
+      (field) => currentNpcField(target, field),
+      parseStoredResult(target, FLAG_KEYS.npcUpsert)?.flag.written,
+    );
   const warnings: string[] = [];
   await actor.update(authoredNpcPatch(actor, req, binding, warnings));
   const result: NpcUpsertResultV1 = {
@@ -395,6 +401,12 @@ export const npcUpsertV1: Procedure = async (payload) => {
     appliedDigest: digest,
     warnings,
   };
-  await actor.update({ [`flags.${MODULE_ID}.${FLAG_KEYS.npcUpsert}`]: result });
+  await actor.update({
+    [`flags.${MODULE_ID}.${FLAG_KEYS.npcUpsert}`]: {
+      ...result,
+      // What Foundry holds after this write, for the next base compare.
+      written: writtenFields(req, (field) => currentNpcField(target, field)),
+    },
+  });
   return result;
 };

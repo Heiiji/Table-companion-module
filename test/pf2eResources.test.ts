@@ -849,4 +849,25 @@ describe("pf2e.resources.v1 base (compare-and-set)", () => {
     await run(actor, request({ items: { [potion._id]: 0 } }));
     expect(actor.items.contents).toEqual([]);
   });
+
+  it("accepts a base read before the app's own previous write landed, not a later Foundry edit", async () => {
+    const potion = item("consumable", { slug: "potion", quantity: 3 });
+    const actor = fakeCharacter([potion]);
+    const base = { items: { [potion._id]: 3 } };
+    await run(
+      actor,
+      request({ sequence: 3, items: { [potion._id]: 2 }, base }),
+    );
+    await run(
+      actor,
+      request({ sequence: 4, items: { [potion._id]: 1 }, base }),
+    );
+    expect(potion.system.quantity).toBe(1);
+    potion.system.quantity = 5;
+    await rejects(
+      run(actor, request({ sequence: 5, items: { [potion._id]: 0 }, base })),
+      "base_conflict",
+    );
+    expect(potion.system.quantity).toBe(5);
+  });
 });

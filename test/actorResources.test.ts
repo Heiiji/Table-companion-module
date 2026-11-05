@@ -188,6 +188,7 @@ describe("actor.resources.v1 name", () => {
         [`flags.${MODULE_ID}.actorResourcesV1`]: {
           ...result,
           contentDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+          written: {},
         },
       },
     ]);
@@ -292,6 +293,14 @@ describe("actor.resources.v1", () => {
       [`flags.${MODULE_ID}.actorResourcesV1`]: {
         ...result,
         contentDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+        written: {
+          "resources.health": 12,
+          "resources.hope": 3,
+          "resources.armour": 8,
+          "resources.energy": 5,
+          "resources.heroism": 2,
+          "resources.contact": 0,
+        },
       },
     });
   });
@@ -403,6 +412,12 @@ describe("actor.resources.v1", () => {
       [`flags.${MODULE_ID}.actorResourcesV1`]: {
         ...result,
         contentDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+        // The capped value is what Foundry holds.
+        written: {
+          "resources.health": 30,
+          "resources.hope": 1,
+          "resources.heroism": 4,
+        },
       },
     });
   });
@@ -743,5 +758,31 @@ describe("actor.resources.v1 base (compare-and-set)", () => {
     stubFoundry([actor]);
     await apply(request());
     expect(actor.updates[0]).toMatchObject({ "system.sante.value": 12 });
+  });
+
+  it("accepts a base read before the app's own previous write landed, not a later Foundry edit", async () => {
+    const actor = boundActor();
+    stubFoundry([actor]);
+    await apply(request({ sequence: 7, base: { resources: { health: 1 } } }));
+    // Sequence 8 was based on the same read (health 1); Foundry holds 12 now,
+    // the app's own write.
+    await apply(
+      request({
+        sequence: 8,
+        resources: { health: 9 },
+        base: { resources: { health: 1 } },
+      }),
+    );
+    expect(actor.updates[1]).toMatchObject({ "system.sante.value": 9 });
+    (actor.system as { sante: { value: number } }).sante.value = 4;
+    await expect(
+      apply(
+        request({
+          sequence: 9,
+          resources: { health: 2 },
+          base: { resources: { health: 1 } },
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "base_conflict" });
   });
 });

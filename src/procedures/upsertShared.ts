@@ -521,25 +521,37 @@ export function fieldsOf(value: object, prefix = ""): Dict {
 
 /** Compare-and-set on the optional `base`: the request-shaped values the app
  * last saw in Foundry. Every field the request writes AND the base names must
- * still hold its base value in Foundry, or already hold the requested one;
- * otherwise the whole request is refused with `base_conflict` before anything
- * is written, so Foundry's edit is the one the app imports next. A base for a
- * field the request does not write is ignored, and so is a field `current`
- * cannot read (`undefined`: the lane skips its write as well). Without a base
- * nothing is compared. */
+ * still hold its base value in Foundry, already hold the requested one, or
+ * still hold what the lane's last applied write left there (`written`, from
+ * the lane's flag: a request based on a read taken before the app's own
+ * previous write landed is not a conflict); otherwise the whole request is
+ * refused with `base_conflict` before anything is written, so Foundry's edit
+ * is the one the app imports next. A base for a field the request does not
+ * write is ignored, and so is a field `current` cannot read (`undefined`: the
+ * lane skips its write as well). Without a base nothing is compared.
+ * ponytail: a Foundry edit back to exactly the value the lane last wrote reads
+ * as the app's own write; a per-field write counter would tell them apart. */
 export function assertBase(
   req: object,
   base: object | undefined,
   current: (field: string) => unknown,
+  written?: unknown,
 ): void {
   if (!base) return;
   const wanted = fieldsOf(req);
+  const last =
+    typeof written === "object" && written !== null ? (written as Dict) : {};
   const same = (a: unknown, b: unknown) => canonicalize(a) === canonicalize(b);
   const moved = Object.entries(fieldsOf(base))
     .filter(([field, was]) => {
       if (!(field in wanted)) return false;
       const now = current(field);
-      return now !== undefined && !same(now, was) && !same(now, wanted[field]);
+      return (
+        now !== undefined &&
+        !same(now, was) &&
+        !same(now, wanted[field]) &&
+        !(field in last && same(now, last[field]))
+      );
     })
     .map(([field]) => field);
   if (moved.length > 0)
@@ -547,6 +559,21 @@ export function assertBase(
       "base_conflict",
       `Foundry changed ${moved.join(", ")} first; nothing was written`,
     );
+}
+
+/** What Foundry holds, after a write, for each field the request names: the
+ * `written` a lane records in its flag for `assertBase`. */
+export function writtenFields(
+  req: object,
+  current: (field: string) => unknown,
+): Dict {
+  const out: Dict = {};
+  for (const field of Object.keys(fieldsOf(req))) {
+    if (field.startsWith("base.")) continue;
+    const now = current(field);
+    if (now !== undefined) out[field] = now;
+  }
+  return out;
 }
 
 /** Create an Actor through Foundry's document class, without opening its

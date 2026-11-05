@@ -31,6 +31,7 @@ import {
   supportsPf2eResourcesV1Runtime,
   text,
   uniqueBoundActor,
+  writtenFields,
   type ActorLike,
   type Dict,
   type StoredResultV1,
@@ -618,7 +619,12 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
       : [],
   );
 
-  assertBase(req, req.base, (field) => currentValue(actor, field));
+  assertBase(
+    req,
+    req.base,
+    (field) => currentValue(actor, field),
+    stored?.flag.written,
+  );
   const warnings: string[] = [];
   const created: Record<string, string> = {};
   const patch = counterPatch(actor, req, warnings);
@@ -671,6 +677,14 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
     [`flags.${MODULE_ID}.${FLAG_KEYS.pf2eResources}`]: {
       ...result,
       contentDigest,
+      // What Foundry holds once this update lands, for the next base compare:
+      // the item and condition writes are done, the counters ride this update.
+      written: writtenFields(req, (field) => {
+        const path = COUNTER_PATHS[field];
+        return path !== undefined && `system.${path}` in patch
+          ? patch[`system.${path}`]
+          : currentValue(actor, field);
+      }),
     },
   });
   return result;

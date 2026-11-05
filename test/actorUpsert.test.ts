@@ -752,4 +752,23 @@ describe("actor.upsert.v1 base.name (compare-and-set)", () => {
     await actorUpsertV1(draft(), {} as never);
     expect(actor.name).toBe("Lancelot");
   });
+
+  it("accepts a base read before the app's own previous rename landed, not a later Foundry rename", async () => {
+    const rev = (approvedRevision: number, name: string) =>
+      approved({
+        approvedRevision,
+        name,
+        equipment: undefined,
+        base: { name: "Existing" },
+      });
+    const actor = boundActor(rev(1, "Lancelot"));
+    await actorUpsertV1(rev(1, "Lancelot"), {} as never);
+    await actorUpsertV1(rev(2, "Percival"), {} as never);
+    expect(actor.name).toBe("Percival");
+    actor.name = "Renamed in Foundry";
+    await expect(
+      actorUpsertV1(rev(3, "Galahad"), {} as never),
+    ).rejects.toMatchObject({ code: "base_conflict" });
+    expect(actor.name).toBe("Renamed in Foundry");
+  });
 });

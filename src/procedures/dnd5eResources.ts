@@ -24,6 +24,7 @@ import {
   record,
   supportsDnd5eResourcesV1Runtime,
   uniqueBoundActor,
+  writtenFields,
   type ActorLike,
   type Dict,
   type StoredResultV1,
@@ -461,7 +462,12 @@ export const dnd5eResourcesV1: Procedure = async (payload) => {
       ...storedEffectiveMax(stored!.flag),
     } satisfies Dnd5eResourcesResultV1;
 
-  assertBase(req, req.base, (field) => currentCounter(actor, field));
+  assertBase(
+    req,
+    req.base,
+    (field) => currentCounter(actor, field),
+    stored?.flag.written,
+  );
   const warnings: string[] = [];
   const patch = counterPatch(actor, req, warnings);
   const toggles: Array<[string, boolean]> = [];
@@ -513,6 +519,8 @@ export const dnd5eResourcesV1: Procedure = async (payload) => {
     [`flags.${MODULE_ID}.${FLAG_KEYS.dnd5eResources}`]: {
       ...final,
       contentDigest,
+      // What Foundry holds after this write, for the next base compare.
+      written: writtenFields(req, (field) => currentCounter(actor, field)),
     },
   });
   return final;

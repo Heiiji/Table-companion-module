@@ -152,8 +152,11 @@ export const actorUpsertV1: Procedure = async (payload) => {
   // or just-adopted Actor has nothing the app saw to compare.
   const target = actor;
   if (outcome === "updated")
-    assertBase(req, req.base, (field) =>
-      field === "name" ? target.name : undefined,
+    assertBase(
+      req,
+      req.base,
+      (field) => (field === "name" ? target.name : undefined),
+      parseStoredResult(target, FLAG_KEYS.actorUpsert)?.flag.written,
     );
   await actor.update(authoredPatch(actor, req, binding));
   const motivationWarnings =
@@ -190,7 +193,12 @@ export const actorUpsertV1: Procedure = async (payload) => {
       ...equipment.warnings,
     ],
   };
-  const sync: SyncV1 = { ...result, state: req.state };
+  // `written` (the name Foundry now holds) serves the next base compare.
+  const sync: SyncV1 & { written: { name?: string } } = {
+    ...result,
+    state: req.state,
+    written: { name: target.name },
+  };
   await actor.update({ [`flags.${MODULE_ID}.${FLAG_KEYS.actorUpsert}`]: sync });
   return result;
 };
