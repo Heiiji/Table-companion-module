@@ -238,6 +238,21 @@ afterEach(() => {
 
 /** A Web Locks stand-in shared by every tab of one browser: a named lock is
  * held while its callback runs, and `ifAvailable` hands a busy name `null`. */
+/** A `localStorage` every tab of the test's browser shares. */
+function sharedStorage(): Map<string, string> {
+  const items = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    get length() {
+      return items.size;
+    },
+    key: (i: number) => [...items.keys()][i] ?? null,
+    getItem: (k: string) => items.get(k) ?? null,
+    setItem: (k: string, v: string) => items.set(k, v),
+    removeItem: (k: string) => items.delete(k),
+  });
+  return items;
+}
+
 function fakeLocks() {
   const held = new Set<string>();
   return {
@@ -844,19 +859,27 @@ describe("Channel.onMessage", () => {
     expect(emitted("rpc.response")).toHaveLength(1);
   });
 
+  it("never runs a request again in a tab whose copy arrives after the first tab answered", async () => {
+    stubGame({ pinned: agentPubB64 });
+    vi.stubGlobal("navigator", { locks: fakeLocks() });
+    sharedStorage();
+    startChannel();
+    const firstTab = socketHandler!;
+    startChannel();
+    const secondTab = socketHandler!;
+    const raw = await sign(
+      agentEnv("rpc.request", { id: "two-tabs-late", proc: "slow" }),
+    );
+    await firstTab(raw, AGENT_USER); // runs, answers, releases the lock
+    await secondTab(raw, AGENT_USER); // the late copy: neither runs nor answers
+    expect(emitted("rpc.response")).toHaveLength(1);
+    expect(emitted("rpc.error")).toHaveLength(0);
+  });
+
   it("answers from only one tab through a localStorage claim when Web Locks are absent", async () => {
     stubGame({ pinned: agentPubB64 });
     vi.stubGlobal("navigator", {}); // plain http: no navigator.locks
-    const items = new Map<string, string>();
-    vi.stubGlobal("localStorage", {
-      get length() {
-        return items.size;
-      },
-      key: (i: number) => [...items.keys()][i] ?? null,
-      getItem: (k: string) => items.get(k) ?? null,
-      setItem: (k: string, v: string) => items.set(k, v),
-      removeItem: (k: string) => items.delete(k),
-    });
+    const items = sharedStorage();
     startChannel();
     const firstTab = socketHandler!;
     startChannel();
@@ -867,8 +890,9 @@ describe("Channel.onMessage", () => {
     await Promise.all([firstTab(raw, AGENT_USER), secondTab(raw, AGENT_USER)]);
     expect(emitted("rpc.response")).toHaveLength(1);
 
-    // A claim expires after a minute: it is pruned and the id can be taken again.
-    const later = Date.now() + 60_001;
+    // A claim expires with the replay window: it is pruned and the id can be
+    // taken again.
+    const later = Date.now() + 2 * REPLAY_WINDOW_MS + 1;
     expect(claimRequest("two-tabs-http", later - 1_000)).toBe(false);
     expect(claimRequest("other", later)).toBe(true);
     expect([...items.keys()]).toEqual([`${MODULE_ID}:req:other`]);

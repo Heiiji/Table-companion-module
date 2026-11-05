@@ -674,8 +674,12 @@ export class Channel {
    * responder, and both receive the request (recipients are user ids): without a
    * guard both ran it — a provisioning request could create the Actor twice.
    * Only the tab that takes this browser's lock for the request id answers; the
-   * others stay silent. Web Locks need a secure context: on plain-http Foundry
-   * `navigator.locks` is absent and a `localStorage` claim stands in. */
+   * others stay silent. The lock alone lasts only while the first tab runs the
+   * request, so a copy arriving later in another tab would run it again: under
+   * the lock, the tab also claims the id in `localStorage`, shared by every tab
+   * of this browser, and a claimed id is never run twice. Web Locks need a
+   * secure context: on plain-http Foundry `navigator.locks` is absent and the
+   * claim alone stands in. */
   private async handleRequest(env: Envelope, sender: string): Promise<void> {
     const locks = (globalThis as { navigator?: { locks?: LockManager } })
       .navigator?.locks;
@@ -688,7 +692,8 @@ export class Channel {
       `${MODULE_ID}:${env.id}`,
       { ifAvailable: true },
       async (lock) => {
-        if (lock) await this.dispatchRequest(env, sender);
+        if (lock && claimRequest(env.id!))
+          await this.dispatchRequest(env, sender);
       },
     );
   }
@@ -819,13 +824,17 @@ export class Channel {
 }
 
 const CLAIM_PREFIX = `${MODULE_ID}:req:`;
-const CLAIM_TTL_MS = 60_000;
+/** As long as the replay cache remembers an id: past it, the envelope is stale
+ * and refused before it gets here. */
+const CLAIM_TTL_MS = 2 * REPLAY_WINDOW_MS;
 
 /** The first tab of this browser to claim a request id answers it; claims
- * expire after a minute and are pruned on each call. Without storage (or when
- * it throws) every tab answers, as before.
- * ponytail: get-then-set is not atomic across tabs; tabs receive a socket
- * message at different moments, which is the race this closes in practice. */
+ * expire with the replay window and are pruned on each call. Without storage
+ * (or when it throws) every tab answers, as before. Under a Web Lock the
+ * get-then-set is atomic across tabs.
+ * ponytail: without Web Locks (plain http) get-then-set is not atomic across
+ * tabs; tabs receive a socket message at different moments, which is the race
+ * this closes in practice. */
 export function claimRequest(id: string, now = Date.now()): boolean {
   try {
     const store = (globalThis as { localStorage?: Storage }).localStorage;

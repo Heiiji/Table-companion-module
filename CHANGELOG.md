@@ -21,6 +21,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   renders them as HTML; markup typed in the app shows as text instead of running in the browser.
 
 ### Fixed
+- With the Gamemaster's world open in two tabs, a request whose copy reaches the second tab after
+  the first tab answered is no longer run a second time; every tab of the browser records the
+  requests already handled.
 - Knight: equipment from the companion app no longer deletes an armour, weapon or module before its
   replacement can be imported; with the Knight Compendium missing, disabled or at another version,
   or a replacement that cannot be fetched, the existing Items stay and the result is `partial`.
