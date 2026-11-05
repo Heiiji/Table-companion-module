@@ -6,6 +6,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Setup: a Gamemaster opening a world that is not linked yet (no Companion user, or no app paired)
+  is offered the setup once per session, in a prompt they can dismiss.
+
+### Changed
+- Setup: Reset password and Reset pairing ask for confirmation first and say what the app will
+  need afterwards; the password window and the pairing QR code use the Companion user's current
+  name when the Gamemaster renamed it.
+
 ### Security
 - Knight: `actor.items.v1` refuses weapon damage and violence dice with a negative or oversized
   count (at most 1000) or faces outside 1–1000, so a stored weapon can no longer freeze the next

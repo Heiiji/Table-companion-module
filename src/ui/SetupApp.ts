@@ -156,6 +156,28 @@ function companionName(name: string | null | undefined): string {
   return name || COMPANION_USER_NAME;
 }
 
+/** The Companion user's current name: the GM may have renamed it, and the
+ * app logs in under that name. */
+function currentCompanionName(): string {
+  return companionName(findCompanionUser()?.name);
+}
+
+/** Ask before a reset the app has to recover from; true only on Yes. */
+async function confirmReset(
+  kind: "resetPassword" | "resetPairing",
+): Promise<boolean> {
+  const answer = await dialogV2Class()?.confirm?.({
+    window: { title: localize(`setup.confirm.${kind}Title`) },
+    content: `<p>${escapeHtml(
+      localize(`setup.confirm.${kind}`, { name: currentCompanionName() }),
+    )}</p>`,
+    yes: { label: localize(`setup.button.${kind}`), default: false },
+    rejectClose: false,
+    modal: true,
+  });
+  return answer === true;
+}
+
 /** « Companion can see N of M »: the player characters the backend can read,
  * naming the others and offering to share them. Hidden without a Companion user
  * or without any player character. */
@@ -402,9 +424,10 @@ function wireSetupActions(channel: Channel, dialog: DialogInstance): void {
       ui.notifications?.warn(localize("setup.notify.noUser"));
       return;
     }
+    if (!(await confirmReset("resetPassword"))) return;
     try {
       const password = await resetCompanionPassword();
-      await showPassword(password);
+      await showPassword(password, true);
       await refreshStatus(channel, dialog);
     } catch (err) {
       log.error("reset password failed", err);
@@ -413,6 +436,7 @@ function wireSetupActions(channel: Channel, dialog: DialogInstance): void {
   });
   on("refresh", () => refreshStatus(channel, dialog));
   on("reset", async () => {
+    if (!(await confirmReset("resetPairing"))) return;
     await channel.resetPairing();
     ui.notifications?.info(localize("setup.notify.pairingReset"));
     await refreshStatus(channel, dialog);
@@ -483,12 +507,36 @@ export async function openSetupApp(channel: Channel): Promise<void> {
   }
 }
 
+let setupOffered = false;
+
+/** Once per session, offer a Gamemaster the setup while this world is not
+ * linked yet (no Companion user, or no backend paired). A non-modal prompt the
+ * GM can dismiss; never shown to a player. */
+export async function offerSetupIfNeeded(channel: Channel): Promise<void> {
+  if (setupOffered || !game.user?.isGM) return;
+  setupOffered = true;
+  try {
+    if (findCompanionUser() && (await channel.getPairing()).paired) return;
+    const open = await dialogV2Class()?.confirm?.({
+      window: { title: localize("setup.firstRun.title") },
+      content: `<p>${escapeHtml(localize("setup.firstRun.body"))}</p>`,
+      yes: { label: localize("setup.firstRun.open"), default: true },
+      no: { label: localize("setup.firstRun.later") },
+      rejectClose: false,
+      modal: false,
+    });
+    if (open === true) await openSetupApp(channel);
+  } catch (err) {
+    log.warn("could not offer the setup", err);
+  }
+}
+
 async function runCreate(): Promise<void> {
   try {
     const result = await ensureCompanionUser();
     if (result.existed) {
       ui.notifications?.info(
-        localize("setup.notify.exists", { name: COMPANION_USER_NAME }),
+        localize("setup.notify.exists", { name: currentCompanionName() }),
       );
       return;
     }
@@ -502,18 +550,23 @@ async function runCreate(): Promise<void> {
 /** Show the generated password once. Copy is an in-content button so a failed
  * copy never dismisses the dialog — the password stays visible to copy by hand
  * (it is shown only once). */
-async function showPassword(password: string): Promise<void> {
+async function showPassword(password: string, reset = false): Promise<void> {
+  const name = currentCompanionName();
   const content =
     `<section class="tca-password">` +
-    `<p>${localize("setup.password.intro", { name: COMPANION_USER_NAME })}</p>` +
+    `<p>${escapeHtml(
+      localize(reset ? "setup.password.introReset" : "setup.password.intro", {
+        name,
+      }),
+    )}</p>` +
     `<div class="tca-password-box"><code tabindex="0">${escapeHtml(password)}</code></div>` +
     `<button type="button" data-tca="copy" class="tca-copy">` +
     `<i class="fa-solid fa-copy" aria-hidden="true"></i> ${escapeHtml(localize("setup.password.copy"))}</button>` +
     `<p class="tca-hint tca-scan">${escapeHtml(localize("setup.password.scanHint"))}</p>` +
     `<div class="tca-qr" data-tca="qr"></div>` +
     `<p class="tca-warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ` +
-    `${localize("setup.password.warning", { name: COMPANION_USER_NAME })}</p>` +
-    `<p class="tca-hint">${localize("setup.password.recover", { name: COMPANION_USER_NAME })}</p>` +
+    `${escapeHtml(localize("setup.password.warning", { name }))}</p>` +
+    `<p class="tca-hint">${escapeHtml(localize("setup.password.recover"))}</p>` +
     `</section>`;
 
   // Close any prior password reveal so two one-time secrets never overlap on screen.
@@ -543,7 +596,7 @@ async function showPassword(password: string): Promise<void> {
       "click",
       () => void copyPassword(password, dialog.element),
     );
-  renderPairingQr(password, dialog.element);
+  renderPairingQr(name, password, dialog.element);
   selectPasswordCode(dialog.element);
 }
 
@@ -588,12 +641,16 @@ function isLoopbackOrigin(origin: string): boolean {
   );
 }
 
-function renderPairingQr(password: string, root: HTMLElement): void {
+function renderPairingQr(
+  userName: string,
+  password: string,
+  root: HTMLElement,
+): void {
   const host = root.querySelector('[data-tca="qr"]');
   if (!host) return;
   try {
     const link =
-      `tablecompanion://pair?u=${encodeURIComponent(COMPANION_USER_NAME)}` +
+      `tablecompanion://pair?u=${encodeURIComponent(userName)}` +
       `&p=${encodeURIComponent(password)}` +
       pairingHostParam();
     const qr = qrcode(0, "M");

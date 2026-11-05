@@ -4,6 +4,16 @@ import { openSetupApp } from "../src/ui/SetupApp.js";
 import { CAP_RESPONSE_SIG } from "../src/constants.js";
 import { fakeActor, stubWorld } from "./support/companionWorld.js";
 
+// The pairing QR's payload, as the app scans it.
+const qrData = vi.hoisted(() => [] as string[]);
+vi.mock("qrcode-generator", () => ({
+  default: () => ({
+    addData: (data: string) => qrData.push(data),
+    make: () => {},
+    createImgTag: () => "<img>",
+  }),
+}));
+
 // The setup dialog drives the channel's pairing window and renders the link
 // status. These tests stand in a DialogV2 that records its content, and a
 // channel object exposing only what the dialog reads.
@@ -37,9 +47,20 @@ class FakeDialog {
   rendered = false;
   readonly content: string;
   readonly host = new FakeHost();
+  /** The in-content buttons, by `data-tca` action. */
+  readonly buttons = new Map<string, () => void>();
   readonly element = {
-    querySelector: (selector: string) =>
-      selector === ".tca-status-host" ? this.host : null,
+    querySelector: (selector: string) => {
+      if (selector === ".tca-status-host") return this.host;
+      const action = /^\[data-tca="(\w+)"\]$/.exec(selector)?.[1];
+      if (!action) return null;
+      if (action === "qr")
+        return { innerHTML: "", querySelector: () => null, remove: () => {} };
+      return {
+        addEventListener: (_type: string, fn: () => void) =>
+          this.buttons.set(action, fn),
+      };
+    },
   };
   constructor(opts: { content: string }) {
     this.content = opts.content;
@@ -415,5 +436,125 @@ describe("Companion visibility", () => {
 
     expect(FakeDialog.confirm).toHaveBeenCalledTimes(1);
     expect(unseen.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("setup resets and first run", () => {
+  const i18n = {
+    localize: (k: string) => k,
+    format: (k: string, d: Record<string, string>) =>
+      `${k}(${Object.values(d).join("|")})`,
+  };
+  /** A world whose Companion user the GM renamed. */
+  function renamedCompanion() {
+    const user = { id: "comp1", name: "Table <Bot>", update: vi.fn() };
+    vi.stubGlobal("game", {
+      user: { id: "gm1", isGM: true },
+      users: { find: () => user },
+      settings: { get: () => "" },
+      i18n,
+    });
+    return user;
+  }
+  beforeEach(() => {
+    FakeDialog.confirm.mockClear();
+    qrData.length = 0;
+  });
+
+  it("resets the password only after a confirmation naming the user, then shows its current name", async () => {
+    const user = renamedCompanion();
+    FakeDialog.confirm.mockResolvedValueOnce(false);
+    await openSetupApp(fakeChannel().channel);
+    const setup = FakeDialog.instances[0];
+
+    setup.buttons.get("resetPassword")!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(FakeDialog.confirm).toHaveBeenCalledTimes(1);
+    expect(FakeDialog.confirm.mock.calls[0][0].content).toBe(
+      "<p>table-companion.setup.confirm.resetPassword(Table &lt;Bot&gt;)</p>",
+    );
+    expect(user.update).not.toHaveBeenCalled();
+
+    setup.buttons.get("resetPassword")!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(user.update).toHaveBeenCalledTimes(1);
+    const shown = FakeDialog.instances.at(-1)!.content;
+    expect(shown).toContain("setup.password.introReset(Table &lt;Bot&gt;)");
+    expect(shown).toContain("setup.password.warning(Table &lt;Bot&gt;)");
+    expect(shown).not.toContain("<Bot>");
+    expect(qrData).toHaveLength(1);
+    expect(qrData[0]).toMatch(
+      /^tablecompanion:\/\/pair\?u=Table%20%3CBot%3E&p=/,
+    );
+  });
+
+  it("resets the pairing only after a confirmation", async () => {
+    renamedCompanion();
+    const fake = fakeChannel();
+    const resetPairing = vi.fn(async () => {});
+    (
+      fake.channel as unknown as { resetPairing: () => Promise<void> }
+    ).resetPairing = resetPairing;
+    FakeDialog.confirm.mockResolvedValueOnce(false);
+    await openSetupApp(fake.channel);
+    const setup = FakeDialog.instances[0];
+
+    setup.buttons.get("reset")!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(FakeDialog.confirm.mock.calls[0][0].content).toBe(
+      "<p>table-companion.setup.confirm.resetPairing(Table &lt;Bot&gt;)</p>",
+    );
+    expect(resetPairing).not.toHaveBeenCalled();
+
+    setup.buttons.get("reset")!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(resetPairing).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers a Gamemaster the setup once per session while the world is not linked, never a player", async () => {
+    const fresh = async () => {
+      vi.resetModules();
+      return (await import("../src/ui/SetupApp.js")).offerSetupIfNeeded;
+    };
+    const unpaired = fakeChannel();
+    (await unpaired.channel.getPairing()).paired = false;
+
+    // A player: nothing.
+    vi.stubGlobal("game", {
+      user: { id: "p1", isGM: false },
+      users: { find: () => undefined },
+      settings: { get: () => "" },
+    });
+    let offer = await fresh();
+    await offer(unpaired.channel);
+    expect(FakeDialog.confirm).not.toHaveBeenCalled();
+
+    // A GM, no Companion user: offered once, non-modal; Open opens the setup.
+    renamedCompanion();
+    vi.stubGlobal("game", { ...game, users: { find: () => undefined } });
+    offer = await fresh();
+    await offer(unpaired.channel);
+    await offer(unpaired.channel);
+    expect(FakeDialog.confirm).toHaveBeenCalledTimes(1);
+    const prompt = FakeDialog.confirm.mock.calls[0][0] as unknown as {
+      content: string;
+      modal: boolean;
+    };
+    expect(prompt.content).toBe("<p>table-companion.setup.firstRun.body</p>");
+    expect(prompt.modal).toBe(false);
+    expect(FakeDialog.instances).toHaveLength(1); // the setup it opened
+
+    // A GM with the Companion user but no backend paired: offered.
+    renamedCompanion();
+    FakeDialog.confirm.mockResolvedValueOnce(false);
+    offer = await fresh();
+    await offer(unpaired.channel);
+    expect(FakeDialog.confirm).toHaveBeenCalledTimes(2);
+    expect(FakeDialog.instances).toHaveLength(1); // declined: nothing opened
+
+    // Linked (user and pairing): never offered.
+    offer = await fresh();
+    await offer(fakeChannel().channel);
+    expect(FakeDialog.confirm).toHaveBeenCalledTimes(2);
   });
 });

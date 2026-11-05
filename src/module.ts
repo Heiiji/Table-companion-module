@@ -22,7 +22,7 @@ import { appPresence } from "./setup/appPresence.js";
 import { startPresenceWatcher } from "./setup/presence.js";
 import { startKnightRollCards } from "./ui/knightRollCard.js";
 import { startKnightAttackFollowUps } from "./procedures/knightAttack.js";
-import { openSetupApp } from "./ui/SetupApp.js";
+import { offerSetupIfNeeded, openSetupApp } from "./ui/SetupApp.js";
 import { indexedDbKeyStore } from "./util/keyStore.js";
 import { localize, log } from "./util/log.js";
 
@@ -185,6 +185,8 @@ Hooks.once("ready", () => {
   // Who has the Table Companion app open, for the setup panel. The backend
   // sends this to Gamemasters only.
   if (channel && game.user?.isGM) channel.onEvent(appPresence.onEvent);
+  // A Gamemaster on a world not linked yet is offered the setup, once.
+  if (channel && game.user?.isGM) void offerSetupIfNeeded(channel);
   // Load the readable compendium indexes in the background, so the first
   // search of the session does not load them all against its deadline.
   scheduleCompendiumWarmup();

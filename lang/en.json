@@ -62,6 +62,7 @@
       "password": {
         "title": "Companion password",
         "intro": "The {name} user was created. Copy this password into the Table Companion app now — it is shown only once.",
+        "introReset": "{name} has a new password. Copy it into the Table Companion app now — it is shown only once.",
         "scanHint": "Or scan this with the Table Companion app to pair instantly:",
         "warning": "Never log in to Foundry as {name} yourself: Foundry allows one session per user, so doing so disconnects the app.",
         "copy": "Copy password",
@@ -100,6 +101,18 @@
         "worldMismatch": "Relink the app to this world, or switch Foundry back to the world it was linked to.",
         "noSigner": "This browser could not create a signing key, so the backend drops this world's replies and Knight provisioning is off. Use a current browser over https.",
         "clockOffset": "This computer's clock and the app service's differ by more than 45 seconds; past 90 seconds every message is dropped. Set the clock to update automatically on both."
+      },
+      "confirm": {
+        "resetPasswordTitle": "Reset the password?",
+        "resetPassword": "{name} gets a new password and the current one stops working: the app cannot connect to this world until you enter the new password in it, or scan the new QR code.",
+        "resetPairingTitle": "Reset pairing?",
+        "resetPairing": "This world forgets the app's backend and this browser gets a new reply key. The app must pair again: keep this setup open while it reconnects, and tap Re-pair in the Table Companion app if this setup asks for it."
+      },
+      "firstRun": {
+        "title": "Table Companion",
+        "body": "Table Companion is not linked to this world yet. Open the setup to create the Companion user and pair the app.",
+        "open": "Open setup",
+        "later": "Not now"
       }
     }
   }
