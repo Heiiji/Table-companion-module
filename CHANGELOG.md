@@ -38,6 +38,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   module's own flag counts only on a single non-Gamemaster account that owns no Actor, so Reset
   password can no longer reset a player's password. A Gamemaster is counted as present by user id,
   so a renamed Companion user raised to Gamemaster no longer counts as one.
+- The responder election and Knight attacks also tell the Companion user by id: a Gamemaster or
+  player merely named "Companion" can answer the backend, author an attack card and be counted as
+  a player, and no longer receives Gamemaster-only attack cards.
 - A message from a user other than the paired backend user is dropped before its signature is
   checked, so a flood of such messages costs no cryptography on the Gamemaster's browser.
 - Knight: `actor.items.v1` refuses weapon damage and violence dice with a negative or oversized

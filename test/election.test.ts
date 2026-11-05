@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { isResponder } from "../src/setup/election.js";
+import { SETTING_AGENT_USER } from "../src/constants.js";
 
 interface FakeUser {
   id: string;
+  name?: string;
   isGM: boolean;
   active: boolean;
 }
@@ -11,9 +13,14 @@ function setGame(opts: {
   me?: FakeUser;
   activeGM?: FakeUser | null;
   users?: FakeUser[];
+  pairedUserId?: string;
 }): void {
   vi.stubGlobal("game", {
     user: opts.me,
+    settings: {
+      get: (_scope: string, key: string) =>
+        key === SETTING_AGENT_USER ? (opts.pairedUserId ?? "") : "",
+    },
     users: {
       activeGM: opts.activeGM ?? null,
       contents: opts.users ?? [],
@@ -69,6 +76,18 @@ describe("isResponder", () => {
   it("ignores inactive GMs in the fallback", () => {
     const me = gm("b");
     setGame({ me, activeGM: null, users: [gm("a", false), me] });
+    expect(isResponder()).toBe(true);
+  });
+
+  it("never elects the paired service user, even elevated to GM", () => {
+    const me = gm("svc");
+    setGame({ me, activeGM: me, pairedUserId: "svc" });
+    expect(isResponder()).toBe(false);
+  });
+
+  it("elects a human GM who carries the service user's default name", () => {
+    const me = { ...gm("b"), name: "Companion" };
+    setGame({ me, activeGM: me, pairedUserId: "svc" });
     expect(isResponder()).toBe(true);
   });
 });

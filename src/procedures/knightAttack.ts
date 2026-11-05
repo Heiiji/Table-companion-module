@@ -8,9 +8,8 @@ import {
 } from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
-import { COMPANION_USER_NAME } from "../setup/companion-user.js";
 import { isResponder } from "../setup/election.js";
-import { companionAnchorId, pairedAgentUserId } from "../setup/identity.js";
+import { isServiceUserId } from "../setup/identity.js";
 import { log } from "../util/log.js";
 import {
   FLAG_KEYS,
@@ -274,19 +273,10 @@ function knightFlags(message: CardMessage): Dict | undefined {
     : undefined;
 }
 
-/** A user who is a person at the table: not a GM, not the app's service user. */
-/** The app's service user: the paired agent user, the one this module
- * created, or one named like it. */
-function isServiceUser(u: UserLike): boolean {
-  return (
-    (!!u.id && [pairedAgentUserId(), companionAnchorId()].includes(u.id)) ||
-    u.name === COMPANION_USER_NAME
-  );
-}
-
+/** The people at the table: not a GM, not the app's service user. */
 function players(): Player[] {
   return (contentsOf(foundryGame()?.users) as Player[]).filter(
-    (u) => !u.isGM && !isServiceUser(u),
+    (u) => !u.isGM && !isServiceUserId(u.id),
   );
 }
 
@@ -373,7 +363,7 @@ function visibilityOf(
   // world as that user, sees the card and its result; a blind roll stays GM-only.
   const readers = contentsOf(foundryGame()?.users)
     .filter(
-      (u) => u.id && (u.isGM || (visibility === "gm" && isServiceUser(u))),
+      (u) => u.id && (u.isGM || (visibility === "gm" && isServiceUserId(u.id))),
     )
     .map((u) => u.id as string);
   return { whisper: readers, blind: visibility === "blind" };

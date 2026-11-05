@@ -1,6 +1,6 @@
 import type { Channel } from "../rpc/channel.js";
 import { isResponder } from "./election.js";
-import { companionAnchorId, pairedAgentUserId } from "./identity.js";
+import { isServiceUserId } from "./identity.js";
 import { log } from "../util/log.js";
 
 /** True when at least one human GM is actually connected to this world. The
@@ -8,10 +8,10 @@ import { log } from "../util/log.js";
  * role; it is also excluded by id (the paired user, the one this module
  * created) in case a GM elevates it — never by name, which anyone can carry. */
 export function anyActiveGM(exceptUserId = ""): boolean {
-  const excluded = [pairedAgentUserId(), companionAnchorId(), exceptUserId];
   const users = game.users?.contents ?? [];
   return users.some(
-    (u) => u.active && u.isGM && !excluded.includes(u.id ?? ""),
+    (u) =>
+      u.active && u.isGM && !isServiceUserId(u.id) && u.id !== exceptUserId,
   );
 }
 

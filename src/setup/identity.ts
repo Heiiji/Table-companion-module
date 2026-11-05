@@ -58,6 +58,13 @@ export function setCompanionAnchorId(id: string): Promise<void> {
   return write(SETTING_COMPANION_ANCHOR, id);
 }
 
+/** Whether `id` is the app's service user as this module knows it: the paired
+ * agent user or the one this module created. Never decided by name, which any
+ * user can carry. */
+export function isServiceUserId(id: string | null | undefined): boolean {
+  return !!id && (id === pairedAgentUserId() || id === companionAnchorId());
+}
+
 /** Look a user up by id in the live world, tolerant of the test harness. */
 export function userById(id: string): UserLike | undefined {
   if (!id) return undefined;

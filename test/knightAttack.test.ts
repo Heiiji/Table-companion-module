@@ -11,7 +11,7 @@ import {
 } from "../src/procedures/knightAttack.js";
 import { registerBuiltinProcedures } from "../src/procedures/index.js";
 import { ProcedureRegistry } from "../src/rpc/registry.js";
-import { MODULE_ID } from "../src/constants.js";
+import { MODULE_ID, SETTING_AGENT_USER } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
 
 type Dict = Record<string, any>;
@@ -239,7 +239,11 @@ function stubWorld(over: Dict = {}): void {
           "KNIGHT.JETS.RESULTATS.VsReaction": "vs Réaction",
         })[key] ?? key,
     },
-    settings: { get: () => "" },
+    // The paired backend user is the Companion, known by id only.
+    settings: {
+      get: (_scope: string, key: string) =>
+        key === SETTING_AGENT_USER ? COMPANION : "",
+    },
     ...over,
   };
   vi.stubGlobal("game", world);
@@ -459,6 +463,16 @@ describe("knight.attack.v1 roll", () => {
     const card = world.messages.contents[0] as Message;
     expect(card.author).toBeUndefined();
     // A GM roll reaches the service user too: the backend reads the world as it.
+    expect(card.whisper).toEqual([GM, COMPANION]);
+  });
+
+  it("tells the service user by id, not by name", async () => {
+    // The real service user was renamed; a player took the default name.
+    world.users.contents[2].name = "Table app";
+    world.users.contents[1].name = "Companion";
+    await knightAttackV1(payload({ visibility: "gm" }), {} as never);
+    const card = world.messages.contents[0] as Message;
+    expect(card.author).toBe(PLAYER);
     expect(card.whisper).toEqual([GM, COMPANION]);
   });
 
