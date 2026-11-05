@@ -1,18 +1,9 @@
-import qrcode from "qrcode-generator";
 import type { Channel } from "../rpc/channel.js";
-import { signatureSupport } from "../rpc/signatureSupport.js";
 import {
-  CAP_RESPONSE_SIG,
-  CLOCK_SKEW_WARN_MS,
-  LINK_STALE_MS,
-} from "../constants.js";
-import {
-  COMPANION_USER_NAME,
   ensureCompanionUser,
   findCompanionUser,
   resetCompanionPassword,
 } from "../setup/companion-user.js";
-import { APP_PRESENCE_STALE_MS, appPresence } from "../setup/appPresence.js";
 import {
   companionVisibility,
   shareUnseenWithCompanion,
@@ -20,141 +11,20 @@ import {
 import {
   dialogV2Class,
   foundryHooks,
-  gameActors,
   type DialogInstance,
 } from "../foundry/runtime.js";
 import { escapeHtml } from "../util/html.js";
 import { localize, log } from "../util/log.js";
-
-/** A DialogV2, through the runtime gateway (resolved lazily, so the bundle
- * imports cleanly before the `foundry` global exists). Throws when the
- * Application framework is missing; every caller catches and logs. */
-function newDialog(options: unknown): DialogInstance {
-  const DialogV2 = dialogV2Class();
-  if (!DialogV2) throw new Error("Foundry's DialogV2 is unavailable");
-  return new DialogV2(options);
-}
+import {
+  currentCompanionName,
+  companionName,
+  statusHtml,
+} from "./statusPanel.js";
+import { showPassword, newDialog } from "./passwordDialog.js";
 
 // Single live setup dialog. Re-opening the sidebar button refreshes this one
 // instead of stacking a new modal each time.
 let setupDialog: DialogInstance | undefined;
-
-// Single live password reveal. Creating a fresh one each time (Create, then Reset
-// password) would stack overlapping modals each showing a different one-time
-// secret; we close the prior before opening a new one.
-let passwordDialog: DialogInstance | undefined;
-
-async function statusHtml(channel: Channel): Promise<string> {
-  const status = channel.getStatus();
-  const pairing = await channel.getPairing();
-  const companion = findCompanionUser();
-  const online = companion?.active ?? false;
-  const last = status.lastAgentHelloAt;
-  const linkLive = last !== null && Date.now() - last < LINK_STALE_MS;
-
-  const row = (label: string, value: string, ok: boolean) =>
-    `<div class="tca-status-row"><span>${escapeHtml(label)}</span>` +
-    `<b class="${ok ? "tca-ok" : "tca-off"}">${escapeHtml(value)}</b></div>`;
-
-  const agentVer = status.agentPeer?.version
-    ? ` (v${status.agentPeer.version})`
-    : "";
-
-  const pairingValue = !pairing.paired
-    ? localize("setup.status.notPaired")
-    : pairing.agentUserName
-      ? localize("setup.status.pairedAs", {
-          fingerprint: pairing.fingerprint,
-          name: pairing.agentUserName,
-        })
-      : `${localize("setup.status.paired")} · ${pairing.fingerprint}`;
-
-  // A pairing request from a user other than the one this module created waits
-  // here for the GM. The buttons live inside the status panel, which is repainted
-  // every few seconds, so their clicks are handled by delegation (wirePendingActions).
-  const pending = pairing.pending
-    ? `<div class="tca-pending" role="alert">` +
-      row(
-        localize("setup.status.pendingPairing"),
-        localize("setup.status.pendingValue", {
-          name: pairing.pending.userName,
-          fingerprint: pairing.pending.fingerprint,
-        }),
-        false,
-      ) +
-      `<p class="tca-hint">${escapeHtml(localize("setup.pendingCompare"))}</p>` +
-      `<p class="tca-hint">${escapeHtml(
-        localize("setup.pendingHint", { name: pairing.pending.userName }),
-      )}</p>` +
-      `<div class="tca-actions">` +
-      `<button type="button" data-tca-pending="trust">` +
-      `<i class="fa-solid fa-check" aria-hidden="true"></i> ${escapeHtml(localize("setup.button.trust"))}</button>` +
-      `<button type="button" data-tca-pending="ignore">` +
-      `<i class="fa-solid fa-xmark" aria-hidden="true"></i> ${escapeHtml(localize("setup.button.ignore"))}</button>` +
-      `</div></div>`
-    : "";
-
-  const { signingRows, signingHints } = replySigningHtml(channel, status, row);
-
-  // On plain http the browser has no WebCrypto, so nothing the backend sends
-  // can be verified: say so above the rows that would otherwise just wait.
-  const insecure =
-    signatureSupport() === "ok"
-      ? ""
-      : `<p class="tca-hint" role="alert">${escapeHtml(
-          localize("setup.hint.insecureContext"),
-        )}</p>`;
-
-  return (
-    insecure +
-    `<div class="tca-status">` +
-    row(
-      localize("setup.status.userExists"),
-      companion ? localize("common.yes") : localize("common.no"),
-      !!companion,
-    ) +
-    row(
-      localize("setup.status.userOnline"),
-      online ? localize("common.yes") : localize("common.no"),
-      online,
-    ) +
-    row(
-      localize("setup.status.link"),
-      linkLive
-        ? localize("setup.status.linkLive") + agentVer
-        : localize("setup.status.linkIdle"),
-      linkLive,
-    ) +
-    row(localize("setup.status.pairing"), pairingValue, pairing.paired) +
-    signingRows +
-    // A procedure this runtime withholds (e.g. sheet sync on an unsupported
-    // system version), named with its reason so a silent lane explains itself.
-    Object.entries(channel.withheldProcedures() ?? {})
-      .map(([name, reason]) => row(name, reason, false))
-      .join("") +
-    `</div>` +
-    signingHints +
-    pending +
-    (linkLive
-      ? `<p class="tca-hint tca-linked">` +
-        `<i class="fa-solid fa-circle-check" aria-hidden="true"></i> ` +
-        `${escapeHtml(localize("setup.status.linkedHint"))}</p>`
-      : "") +
-    companionVisibilityHtml(row) +
-    appPlayersHtml(row)
-  );
-}
-
-/** The display name of the Companion user, for the visibility copy. */
-function companionName(name: string | null | undefined): string {
-  return name || COMPANION_USER_NAME;
-}
-
-/** The Companion user's current name: the GM may have renamed it, and the
- * app logs in under that name. */
-function currentCompanionName(): string {
-  return companionName(findCompanionUser()?.name);
-}
 
 /** Ask before a reset the app has to recover from; true only on Yes. */
 async function confirmReset(
@@ -170,39 +40,6 @@ async function confirmReset(
     modal: true,
   });
   return answer === true;
-}
-
-/** « Companion can see N of M »: the player characters the backend can read,
- * naming the others and offering to share them. Hidden without a Companion user
- * or without any player character. */
-function companionVisibilityHtml(
-  row: (label: string, value: string, ok: boolean) => string,
-): string {
-  const visibility = companionVisibility();
-  if (!visibility?.total) return "";
-  const { companion, total, unseen } = visibility;
-  const name = companionName(companion.name);
-  const html =
-    `<div class="tca-status">` +
-    row(
-      localize("setup.visibility.label"),
-      localize("setup.visibility.value", {
-        name,
-        n: String(total - unseen.length),
-        m: String(total),
-      }),
-      unseen.length === 0,
-    ) +
-    `</div>`;
-  if (unseen.length === 0) return html;
-  const names = unseen.map((actor) => actor.name || actor.id || "").join(", ");
-  return (
-    html +
-    `<p class="tca-hint">${escapeHtml(localize("setup.visibility.unseen", { name, names }))}</p>` +
-    `<div class="tca-actions"><button type="button" data-tca-share="observer">` +
-    `<i class="fa-solid fa-eye" aria-hidden="true"></i> ` +
-    `${escapeHtml(localize("setup.visibility.share", { name }))}</button></div>`
-  );
 }
 
 /** Ask, then give the Companion user Observer on the unseen player characters. */
@@ -239,110 +76,6 @@ async function shareWithCompanion(
     ui.notifications?.error(localize("setup.visibility.shareFailed", { name }));
   }
   await refreshStatus(channel, dialog);
-}
-
-/** « Players in the app »: one row per seat the backend last reported, named
- * after the seat's Foundry Actor, else the app's label, else its position.
- * Hidden until a snapshot arrives (a backend that does not report presence);
- * past APP_PRESENCE_STALE_MS the states give way to one « unknown » hint. */
-function appPlayersHtml(
-  row: (label: string, value: string, ok: boolean) => string,
-): string {
-  const snapshot = appPresence.get();
-  if (!snapshot?.seats.length) return "";
-  const stale = Date.now() - snapshot.receivedAt > APP_PRESENCE_STALE_MS;
-  // Ordered by member id, not by arrival order, so the same seats always render
-  // the same HTML (the repaint guard) and keep their « Seat n » number.
-  const rows = [...snapshot.seats]
-    .sort((a, b) =>
-      a.memberId < b.memberId ? -1 : a.memberId > b.memberId ? 1 : 0,
-    )
-    .map((seat, i) => {
-      const name =
-        (seat.actorId && gameActors()?.get(seat.actorId)?.name) ||
-        seat.label ||
-        localize("setup.players.seat", { n: String(i + 1) });
-      return stale
-        ? `<div class="tca-status-row"><span>${escapeHtml(name)}</span></div>`
-        : row(
-            name,
-            localize(`setup.players.${seat.state}`),
-            seat.state === "inSession",
-          );
-    })
-    .join("");
-  return (
-    `<h4>${escapeHtml(localize("setup.players.title"))}</h4>` +
-    `<div class="tca-status">${rows}</div>` +
-    (stale
-      ? `<p class="tca-hint">${escapeHtml(localize("setup.players.unknown"))}</p>`
-      : "")
-  );
-}
-
-/** The « Reply signing » and « Clock offset » rows. The handshake still flows
- * when the backend drops every reply this browser signs, so « Live » alone hid a
- * total outage: on the responder, the backend's verdict comes first, then
- * whether this browser can sign at all, each with what to do. Another Gamemaster
- * browser sees whether the backend enrolled its key (a backend that lists its
- * keys enrolls one per GM browser while this setup is open). */
-function replySigningHtml(
-  channel: Channel,
-  status: ReturnType<Channel["getStatus"]>,
-  row: (label: string, value: string, ok: boolean) => string,
-): { signingRows: string; signingHints: string } {
-  const enrolled = channel.replyKeyEnrolled();
-  if (!status.isResponder) {
-    if (enrolled === null) return { signingRows: "", signingHints: "" };
-    return {
-      signingRows: row(
-        localize("setup.status.replySigning"),
-        localize(
-          enrolled
-            ? "setup.status.signingStandby"
-            : "setup.status.signingNotEnrolled",
-        ),
-        enrolled,
-      ),
-      signingHints: enrolled
-        ? ""
-        : `<p class="tca-hint">${escapeHtml(localize("setup.hint.keyNotEnrolled"))}</p>`,
-    };
-  }
-  const signs = channel.advertisedCapabilities().includes(CAP_RESPONSE_SIG);
-  const [value, hint] =
-    status.pairingIssue === "response_key_mismatch"
-      ? status.enrolledKeys !== null
-        ? ["setup.status.signingNotEnrolled", "setup.hint.keyNotEnrolled"]
-        : ["setup.status.signingKeyMismatch", "setup.hint.keyMismatch"]
-      : status.pairingIssue === "world_mismatch"
-        ? ["setup.status.signingWorldMismatch", "setup.hint.worldMismatch"]
-        : !signs
-          ? ["setup.status.signingUnavailable", "setup.hint.noSigner"]
-          : ["setup.status.signingActive", ""];
-  let signingRows = row(
-    localize("setup.status.replySigning"),
-    localize(value),
-    hint === "",
-  );
-  const hints = hint ? [localize(hint)] : [];
-  const skew = status.lastSkewMs;
-  if (skew !== null && Math.abs(skew) > CLOCK_SKEW_WARN_MS) {
-    signingRows += row(
-      localize("setup.status.clockOffset"),
-      localize("setup.status.clockOffsetValue", {
-        seconds: String(Math.round(Math.abs(skew) / 1000)),
-      }),
-      false,
-    );
-    hints.push(localize("setup.hint.clockOffset"));
-  }
-  return {
-    signingRows,
-    signingHints: hints
-      .map((h) => `<p class="tca-hint">${escapeHtml(h)}</p>`)
-      .join(""),
-  };
 }
 
 function setupContent(statusBlock: string): string {
@@ -556,185 +289,5 @@ async function runCreate(): Promise<void> {
   } catch (err) {
     log.error("companion setup failed", err);
     ui.notifications?.error(localize("setup.error.createFailed"));
-  }
-}
-
-/** Show the generated password once. Copy is an in-content button so a failed
- * copy never dismisses the dialog — the password stays visible to copy by hand
- * (it is shown only once). */
-async function showPassword(password: string, reset = false): Promise<void> {
-  const name = currentCompanionName();
-  const content =
-    `<section class="tca-password">` +
-    `<p>${escapeHtml(
-      localize(reset ? "setup.password.introReset" : "setup.password.intro", {
-        name,
-      }),
-    )}</p>` +
-    `<div class="tca-password-box"><code tabindex="0">${escapeHtml(password)}</code></div>` +
-    `<button type="button" data-tca="copy" class="tca-copy">` +
-    `<i class="fa-solid fa-copy" aria-hidden="true"></i> ${escapeHtml(localize("setup.password.copy"))}</button>` +
-    `<p class="tca-hint tca-scan">${escapeHtml(localize("setup.password.scanHint"))}</p>` +
-    `<div class="tca-qr" data-tca="qr"></div>` +
-    `<p class="tca-warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ` +
-    `${escapeHtml(localize("setup.password.warning", { name }))}</p>` +
-    `<p class="tca-hint">${escapeHtml(localize("setup.password.recover"))}</p>` +
-    `</section>`;
-
-  // Close any prior password reveal so two one-time secrets never overlap on screen.
-  if (passwordDialog?.rendered) {
-    try {
-      await passwordDialog.close();
-    } catch {
-      // Non-fatal: a failed close just means the old dialog lingers.
-    }
-  }
-
-  const dialog = newDialog({
-    window: {
-      title: localize("setup.password.title"),
-      icon: "fa-solid fa-key",
-    },
-    content,
-    buttons: [
-      { action: "done", label: localize("common.done"), default: true },
-    ],
-  });
-  passwordDialog = dialog;
-  await dialog.render({ force: true });
-  dialog.element
-    .querySelector('[data-tca="copy"]')
-    ?.addEventListener(
-      "click",
-      () => void copyPassword(password, dialog.element),
-    );
-  renderPairingQr(name, password, dialog.element);
-  selectPasswordCode(dialog.element);
-}
-
-/** Render a pairing QR the Table Companion app can scan, encoding a deep link the
- * app registers. Best-effort: if generation fails the QR block is removed and the
- * password text + Copy button remain the way to pair. (Until the app registers
- * the `tablecompanion://` scheme, a scan still yields the password verbatim.) */
-/** The Foundry server origin the GM's browser is on (e.g. "https://foundry.example.com",
- * including any non-default port), as a ready-to-append `&h=` query param — or "" if
- * unavailable. This is the same server URL the app/agent must connect to, so carrying it
- * in the pairing QR lets a single scan fully connect instead of asking the GM to retype
- * the host. Best-effort: a missing/odd `window.location` just omits the param. */
-function pairingHostParam(): string {
-  try {
-    const origin = window.location?.origin;
-    if (!origin || origin === "null") return "";
-    // A loopback origin (the GM browsing Foundry on the same machine) is useless to a
-    // phone scanning the QR — it would point the app at its own device. Omit it so the
-    // app prompts for the reachable host instead of silently failing to connect.
-    if (isLoopbackOrigin(origin)) return "";
-    return `&h=${encodeURIComponent(origin)}`;
-  } catch {
-    return "";
-  }
-}
-
-/** True for localhost / 127.0.0.0-8 / ::1 style origins that only resolve on the GM's own box. */
-function isLoopbackOrigin(origin: string): boolean {
-  let host: string;
-  try {
-    host = new URL(origin).hostname.toLowerCase();
-  } catch {
-    return false;
-  }
-  // URL keeps IPv6 hosts bracketed, e.g. "[::1]".
-  const bare = host.replace(/^\[|\]$/g, "");
-  return (
-    host === "localhost" ||
-    host.endsWith(".localhost") ||
-    bare === "::1" ||
-    /^127\./.test(bare)
-  );
-}
-
-function renderPairingQr(
-  userName: string,
-  password: string,
-  root: HTMLElement,
-): void {
-  const host = root.querySelector('[data-tca="qr"]');
-  if (!host) return;
-  try {
-    const link =
-      `tablecompanion://pair?u=${encodeURIComponent(userName)}` +
-      `&p=${encodeURIComponent(password)}` +
-      pairingHostParam();
-    const qr = qrcode(0, "M");
-    qr.addData(link);
-    qr.make();
-    host.innerHTML = qr.createImgTag(4, 8);
-    host
-      .querySelector("img")
-      ?.setAttribute("alt", localize("setup.password.scanHint"));
-  } catch (err) {
-    host.remove();
-    log.warn("could not render the pairing QR code", err);
-  }
-}
-
-/** Select the password text on open so a screen reader announces it and Ctrl-C
- * copies it without reaching for the button (it is shown only once). */
-function selectPasswordCode(root: HTMLElement): void {
-  const code = root.querySelector<HTMLElement>(".tca-password-box code");
-  if (!code) return;
-  try {
-    code.focus();
-    const range = document.createRange();
-    range.selectNodeContents(code);
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
-    sel?.addRange(range);
-  } catch {
-    // Non-fatal: selection is only a convenience.
-  }
-}
-
-/** Copy the password, trying the async Clipboard API then a legacy selection
- * copy (which works on Firefox over plain HTTP, where the Clipboard API is
- * blocked). Falls back to a "select it yourself" notice — the dialog stays open
- * either way. */
-async function copyPassword(
-  password: string,
-  root: HTMLElement,
-): Promise<void> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(password);
-      ui.notifications?.info(localize("setup.password.copied"));
-      return;
-    }
-  } catch {
-    // Fall through to the legacy path.
-  }
-
-  if (execCommandCopy(root)) {
-    ui.notifications?.info(localize("setup.password.copied"));
-    return;
-  }
-
-  ui.notifications?.warn(localize("setup.password.copyManual"));
-}
-
-/** Select the password `<code>` and copy via the legacy execCommand path. */
-function execCommandCopy(root: HTMLElement): boolean {
-  const code = root.querySelector(".tca-password-box code");
-  if (!code) return false;
-  try {
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(code);
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-    const ok = document.execCommand("copy");
-    selection?.removeAllRanges();
-    return ok;
-  } catch {
-    return false;
   }
 }
