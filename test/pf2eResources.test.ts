@@ -6,8 +6,11 @@ import {
 } from "../src/procedures/pf2eResources.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
+import { hasFixturePath } from "./support/actorUpsertHarness.js";
+import FIXTURE from "./fixtures/pf2e-8.6.1-character.json";
 
-// SYNTHETIC, shape-only: a prepared pf2e `character`, its condition items and
+// SYNTHETIC, shape-only: a prepared pf2e `character` (the fixture's actor
+// system), its condition items and
 // physical items as the pf2e 8.5.1 and 8.6.1 sources describe them (source-derived, not a
 // capture). ConditionManager, increaseCondition, createEmbeddedDocuments and
 // deleteEmbeddedDocuments follow the source's observable behaviour: dying /
@@ -90,15 +93,8 @@ function fakeCharacter(
       },
     } as Record<string, unknown>,
     system: {
-      attributes: {
-        hp: { value: 20, max: 30, temp: 0, unrecoverable: 0 },
-        dying: { value: 0, max: 4 },
-        wounded: { value: 0, max: 3 },
-        doomed: { value: 0, max: 3 },
-      },
+      ...structuredClone(FIXTURE.actor.system),
       resources: { heroPoints: { value: 1, max: heroMax } },
-      abilities: null,
-      details: { level: { value: 3 } },
     } as Record<string, unknown>,
     items: { contents: items },
     updates: [] as Record<string, unknown>[],
@@ -869,5 +865,41 @@ describe("pf2e.resources.v1 base (compare-and-set)", () => {
       "base_conflict",
     );
     expect(potion.system.quantity).toBe(5);
+  });
+});
+
+describe("pf2e.resources.v1 on the sanitized pf2e 8.6.1 character", () => {
+  it("writes only paths the character's data model has", async () => {
+    const items = FIXTURE.actor.items.map((i) =>
+      item(i.type, structuredClone(i.system) as Record<string, unknown>, {
+        _id: i._id,
+      }),
+    );
+    const mirrored = items[1];
+    const actor = fakeCharacter(items);
+    stubWorld([actor], {
+      version: FIXTURE.systemVersion,
+      generation: FIXTURE.foundryGeneration,
+    });
+    const result = (await pf2eResourcesV1(
+      request({
+        hp: 25,
+        hpTemp: 2,
+        heroPoints: 2,
+        conditions: { frightened: 0 },
+        items: { pf2eequipment001: 3 },
+      }),
+      {} as never,
+    )) as Result;
+
+    const written = actor.updates.flatMap((u) => Object.keys(u));
+    expect(written.length).toBeGreaterThanOrEqual(3);
+    for (const key of written.filter((k) => k.startsWith("system.")))
+      expect(hasFixturePath(FIXTURE.actor, key), key).toBe(true);
+    const [, equipment] = FIXTURE.actor.items;
+    expect(mirrored.update).toHaveBeenCalledWith({ "system.quantity": 3 });
+    expect(hasFixturePath(equipment, "system.quantity")).toBe(true);
+    expect(held(actor)).toEqual([]);
+    expect(result.warnings).toEqual([]);
   });
 });

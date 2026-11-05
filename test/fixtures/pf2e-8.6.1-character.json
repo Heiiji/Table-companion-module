@@ -1,0 +1,70 @@
+{
+  "_comment": "SYNTHETIC, shape-only: a prepared pf2e character as the pf2e 8.6.1 data model describes it (source-derived, not a capture). Values are placeholders; no rules text.",
+  "foundryGeneration": 14,
+  "systemId": "pf2e",
+  "systemVersion": "8.6.1",
+  "actor": {
+    "_id": "pf2eActor0000001",
+    "name": "Sanitized Pathfinder fixture",
+    "type": "character",
+    "system": {
+      "attributes": {
+        "hp": {
+          "value": 20,
+          "max": 30,
+          "temp": 0,
+          "unrecoverable": 0
+        },
+        "dying": {
+          "value": 0,
+          "max": 4,
+          "recoveryDC": 10
+        },
+        "wounded": {
+          "value": 0,
+          "max": 3
+        },
+        "doomed": {
+          "value": 0,
+          "max": 3
+        }
+      },
+      "resources": {
+        "heroPoints": {
+          "value": 1,
+          "max": 3
+        }
+      },
+      "abilities": null,
+      "details": {
+        "level": {
+          "value": 3
+        }
+      }
+    },
+    "items": [
+      {
+        "_id": "pf2econdition001",
+        "type": "condition",
+        "name": "Sanitized condition",
+        "system": {
+          "slug": "frightened",
+          "value": {
+            "isValued": true,
+            "value": 1
+          },
+          "references": {}
+        }
+      },
+      {
+        "_id": "pf2eequipment001",
+        "type": "equipment",
+        "name": "Sanitized item",
+        "system": {
+          "slug": "sanitized-item",
+          "quantity": 1
+        }
+      }
+    ]
+  }
+}

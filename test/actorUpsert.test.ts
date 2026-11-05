@@ -782,3 +782,51 @@ describe("actor.upsert.v1 base.name (compare-and-set)", () => {
     expect(actor.name).toBe("Renamed in Foundry");
   });
 });
+
+describe("actor.upsert.v1 revisions", () => {
+  async function appliedAt(revision: number): Promise<FakeActor> {
+    const actor = fakeActor();
+    const req = approved({ approvedRevision: revision });
+    binding(actor, req);
+    stubFoundry([actor]);
+    await actorUpsertV1(req, {} as never);
+    return actor;
+  }
+
+  const refusal = (payload: unknown): Promise<unknown> =>
+    Promise.resolve(actorUpsertV1(payload as never, {} as never)).catch(
+      (e: unknown) => e,
+    );
+
+  it("refuses an older approved revision with stale_revision and writes nothing", async () => {
+    const actor = await appliedAt(2);
+    const writes = actor.updates.length;
+    const error = await refusal(approved({ approvedRevision: 1 }));
+    expect(error).toBeInstanceOf(RpcError);
+    expect((error as RpcError).code).toBe("stale_revision");
+    expect(actor.updates).toHaveLength(writes);
+  });
+
+  it("refuses the same revision with other content with revision_conflict", async () => {
+    const actor = await appliedAt(2);
+    const writes = actor.updates.length;
+    const error = await refusal(
+      approved({ approvedRevision: 2, name: "Perceval" }),
+    );
+    expect(error).toBeInstanceOf(RpcError);
+    expect((error as RpcError).code).toBe("revision_conflict");
+    expect(actor.updates).toHaveLength(writes);
+    expect(actor.name).toBe("Lancelot");
+  });
+
+  it("replays the same revision and content without writing", async () => {
+    const actor = await appliedAt(2);
+    const writes = actor.updates.length;
+    const result = (await actorUpsertV1(
+      approved({ approvedRevision: 2 }),
+      {} as never,
+    )) as ActorUpsertResultV1;
+    expect(result.appliedRevision).toBe(2);
+    expect(actor.updates).toHaveLength(writes);
+  });
+});

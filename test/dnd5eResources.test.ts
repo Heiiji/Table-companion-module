@@ -6,10 +6,12 @@ import {
 } from "../src/procedures/dnd5eResources.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
+import { hasFixturePath } from "./support/actorUpsertHarness.js";
+import FIXTURE from "./fixtures/dnd5e-6.1.0-character.json";
 
-// SYNTHETIC, shape-only: a prepared dnd5e `character` and its condition
-// effects as the dnd5e 6.1.0 source describes them (source-derived, not a
-// capture). Status effects carry dnd5e's static ids; a condition effect has
+// SYNTHETIC, shape-only: a prepared dnd5e `character` (the fixture) and its
+// condition effects as the dnd5e 6.1.0 source describes them (source-derived,
+// not a capture). Status effects carry dnd5e's static ids; a condition effect has
 // `type: "condition"`, its primary id in `system.type`, and its implied ids
 // in `statuses`.
 
@@ -64,20 +66,7 @@ function fakeCharacter(effects: FakeEffect[] = []) {
         },
       },
     } as Record<string, unknown>,
-    system: {
-      attributes: {
-        hp: { value: 12, max: 20, temp: 0, tempmax: 0, effectiveMax: 20 },
-        exhaustion: 0,
-        death: { success: 0, failure: 0 },
-        inspiration: false,
-      },
-      spells: {
-        spell1: { value: 4, max: 4 },
-        spell2: { value: 2, max: 3 },
-        spell3: { value: 0, max: 0 },
-        pact: { value: 1, max: 2 },
-      },
-    } as Record<string, unknown>,
+    system: structuredClone(FIXTURE.actor.system) as Record<string, unknown>,
     effects: { contents: effects },
     updates: [] as Record<string, unknown>[],
     toggles: [] as Array<[string, boolean]>,
@@ -808,5 +797,44 @@ describe("dnd5e.resources.v1 base (compare-and-set)", () => {
       run(actor, request({ sequence: 5, hp: 6, base: { hp: 12 } })),
       "base_conflict",
     );
+  });
+});
+
+describe("dnd5e.resources.v1 on the sanitized dnd5e 6.1.0 character", () => {
+  it("writes only paths the character's data model has", async () => {
+    const actor = fakeCharacter(
+      structuredClone(FIXTURE.actor.effects) as FakeEffect[],
+    );
+    stubWorld([actor], {
+      id: FIXTURE.systemId,
+      version: FIXTURE.systemVersion,
+      generation: FIXTURE.foundryGeneration,
+    });
+    const result = (await dnd5eResourcesV1(
+      request({
+        hp: 9,
+        hpTemp: 3,
+        hpTempMax: 2,
+        slots: { ...ALL_SLOTS, spell1: 1, pact: 0 },
+        exhaustion: 1,
+        conditions: ["blinded"],
+        deathSaves: { success: 1, failure: 2 },
+        inspiration: true,
+      }),
+      {} as never,
+    )) as { warnings: string[] };
+
+    const written = actor.updates.flatMap((u) => Object.keys(u));
+    expect(written.length).toBeGreaterThanOrEqual(9);
+    for (const key of written.filter((k) => k.startsWith("system.")))
+      expect(hasFixturePath(FIXTURE.actor, key), key).toBe(true);
+    // The fixture's prone condition goes; blinded comes.
+    expect(actor.toggles).toEqual(
+      expect.arrayContaining([
+        ["blinded", true],
+        ["prone", false],
+      ]),
+    );
+    expect(result.warnings).toEqual([]);
   });
 });

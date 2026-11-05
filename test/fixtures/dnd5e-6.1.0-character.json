@@ -1,0 +1,129 @@
+{
+  "_comment": "SYNTHETIC, shape-only: a prepared dnd5e character as the dnd5e 6.1.0 data model describes it (source-derived, not a capture). Values are placeholders; no rules text.",
+  "foundryGeneration": 14,
+  "systemId": "dnd5e",
+  "systemVersion": "6.1.0",
+  "actor": {
+    "_id": "dnd5eActor000001",
+    "name": "Sanitized Fifth Edition fixture",
+    "type": "character",
+    "system": {
+      "attributes": {
+        "hp": {
+          "value": 12,
+          "max": 20,
+          "temp": 0,
+          "tempmax": 0,
+          "effectiveMax": 20,
+          "bonuses": {
+            "level": "",
+            "overall": ""
+          }
+        },
+        "exhaustion": 0,
+        "death": {
+          "success": 0,
+          "failure": 0,
+          "bonuses": {
+            "save": ""
+          },
+          "roll": {
+            "min": null,
+            "max": null,
+            "mode": 0
+          }
+        },
+        "inspiration": false
+      },
+      "spells": {
+        "spell1": {
+          "value": 4,
+          "override": null,
+          "max": 4,
+          "level": 1,
+          "type": "leveled"
+        },
+        "spell2": {
+          "value": 2,
+          "override": null,
+          "max": 3,
+          "level": 2,
+          "type": "leveled"
+        },
+        "spell3": {
+          "value": 0,
+          "override": null,
+          "max": 0,
+          "level": 3,
+          "type": "leveled"
+        },
+        "spell4": {
+          "value": 0,
+          "override": null,
+          "max": 0,
+          "level": 4,
+          "type": "leveled"
+        },
+        "spell5": {
+          "value": 0,
+          "override": null,
+          "max": 0,
+          "level": 5,
+          "type": "leveled"
+        },
+        "spell6": {
+          "value": 0,
+          "override": null,
+          "max": 0,
+          "level": 6,
+          "type": "leveled"
+        },
+        "spell7": {
+          "value": 0,
+          "override": null,
+          "max": 0,
+          "level": 7,
+          "type": "leveled"
+        },
+        "spell8": {
+          "value": 0,
+          "override": null,
+          "max": 0,
+          "level": 8,
+          "type": "leveled"
+        },
+        "spell9": {
+          "value": 0,
+          "override": null,
+          "max": 0,
+          "level": 9,
+          "type": "leveled"
+        },
+        "pact": {
+          "value": 1,
+          "override": null,
+          "max": 2,
+          "level": 1,
+          "type": "pact"
+        }
+      },
+      "details": {
+        "level": 3
+      }
+    },
+    "effects": [
+      {
+        "_id": "dnd5eprone000000",
+        "type": "condition",
+        "name": "Sanitized condition",
+        "system": {
+          "type": "prone",
+          "level": null
+        },
+        "statuses": [
+          "prone"
+        ]
+      }
+    ]
+  }
+}

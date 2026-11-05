@@ -12,15 +12,15 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html"],
       include: ["src/**"],
-      // A floor, not a target: one point under what the suite measured when it
-      // was set (statements 74.39, branches 74.14, functions 75.63, lines
-      // 75.46), so a change that drops coverage fails `npm run test:coverage`.
-      // Raise it when coverage rises.
+      // A floor, not a target: two to three points under what the suite
+      // measured when it was set (statements 93.38, branches 87.73, functions
+      // 95.65, lines 94.30), so a change that drops coverage fails
+      // `npm run test:coverage`. Raise it when coverage rises.
       thresholds: {
-        statements: 73,
-        branches: 73,
-        functions: 74,
-        lines: 74,
+        statements: 91,
+        branches: 85,
+        functions: 93,
+        lines: 92,
       },
     },
   },
