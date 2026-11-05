@@ -93,6 +93,22 @@ export const KEY_ENROLL_EVENT = "responseKey.enroll";
  * no handler. */
 export const CAP_ACTOR_RESOURCES_NAME = "actorResourcesNameV1";
 
+/** Capability token advertised with any lane that takes the optional `base`
+ * compare-and-set values (`actor.resources.v1`, `actor.upsert.v1`,
+ * `npc.upsert.v1`, `dnd5e.resources.v1`, `pf2e.resources.v1`): apps send a
+ * `base` only when the world advertises it, since an older build refuses the
+ * key. NOT a procedure name — it has no handler. */
+export const CAP_WRITE_BASE = "writeBaseV1";
+
+/** The lanes that take `base` (the `CAP_WRITE_BASE` token rides them). */
+export const WRITE_BASE_PROCEDURES = [
+  "actor.resources.v1",
+  "actor.upsert.v1",
+  "npc.upsert.v1",
+  "dnd5e.resources.v1",
+  "pf2e.resources.v1",
+] as const;
+
 /** Capability token advertised alongside `dnd5e.resources.v1` when the world
  * plays dnd5e's 2024 rules (`rulesVersion` "modern"). On a 2014-rules world
  * the lane leaves exhaustion to Foundry. NOT a procedure name — it has no

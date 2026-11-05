@@ -17,7 +17,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Live and provisioning writes (Knight `actor.resources.v1`, `actor.upsert.v1` and `npc.upsert.v1`,
   `dnd5e.resources.v1`, `pf2e.resources.v1`) take an optional `base`: the values the app last saw.
   When a field the request writes was edited in Foundry since, the whole request is refused with
-  `base_conflict` and nothing is written; without `base` nothing changes.
+  `base_conflict` and nothing is written; without `base` nothing changes. A value the module itself
+  wrote last is not a conflict, and the module advertises `writeBaseV1` so apps send `base` only to
+  a build that takes it.
 
 ### Changed
 - Setup: Reset password and Reset pairing ask for confirmation first and say what the app will
