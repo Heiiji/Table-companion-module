@@ -87,7 +87,7 @@ function setupContent(statusBlock: string): string {
 
   return (
     `<section class="tca-setup">` +
-    `<p>${localize("setup.intro")}</p>` +
+    `<p>${escapeHtml(localize("setup.intro"))}</p>` +
     `<div class="tca-status-host" role="status" aria-live="polite">${statusBlock}</div>` +
     `<div class="tca-actions">` +
     btn("create", "fa-solid fa-user-plus", localize("setup.button.create")) +
@@ -103,7 +103,7 @@ function setupContent(statusBlock: string): string {
       localize("setup.button.resetPairing"),
     ) +
     `</div>` +
-    `<p class="tca-hint">${localize("setup.ownershipHint")}</p>` +
+    `<p class="tca-hint">${escapeHtml(localize("setup.ownershipHint"))}</p>` +
     `</section>`
   );
 }

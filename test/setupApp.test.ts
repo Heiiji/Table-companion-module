@@ -169,6 +169,23 @@ describe("openSetupApp", () => {
     expect(fake.open).toBe(false); // the open dialog's own teardown still closes it
   });
 
+  it("escapes every translated sentence it writes into the dialog", async () => {
+    vi.stubGlobal("game", {
+      user: { id: "gm1", isGM: true },
+      users: { find: () => undefined, filter: () => [] },
+      settings: { get: () => "" },
+      i18n: {
+        localize: (k: string) => `${k} <b>&`,
+        format: (k: string) => `${k} <b>&`,
+      },
+    });
+    await openSetupApp(fakeChannel().channel);
+    const { content } = FakeDialog.instances[0];
+    expect(content).toContain("setup.intro &lt;b&gt;&amp;");
+    expect(content).toContain("setup.ownershipHint &lt;b&gt;&amp;");
+    expect(content).not.toContain("<b>");
+  });
+
   it("shows a pending request's fingerprint with the sentence to compare it", async () => {
     vi.stubGlobal("game", {
       user: { id: "gm1", isGM: true },
