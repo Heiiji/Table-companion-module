@@ -44,6 +44,8 @@
         "signingUnavailable": "Indisponible dans ce navigateur",
         "signingKeyMismatch": "Clé différente — l'application est appairée à un autre navigateur",
         "signingWorldMismatch": "L'application est liée à un autre monde",
+        "signingNotEnrolled": "Pas encore enregistrée pour ce navigateur",
+        "signingStandby": "Enregistrée — ce navigateur signe dès qu'il répond",
         "clockOffset": "Décalage d'horloge",
         "clockOffsetValue": "{seconds} s"
       },
@@ -97,6 +99,7 @@
       "pendingHint": "N'acceptez que si {name} est bien l'utilisateur lié dans l'application Table Companion : sinon, un joueur pourrait se faire passer pour l'application.",
       "hint": {
         "keyMismatch": "Ouvrez Foundry depuis le navigateur appairé à l'application, ou touchez « Réappairer » dans l'application Table Companion, puis cliquez sur « Actualiser ».",
+        "keyNotEnrolled": "Ce navigateur enregistre sa clé de réponse tant que cette configuration est ouverte ; cette ligne se met à jour en quelques secondes. Si cela persiste, touchez « Réappairer » dans l'application Table Companion.",
         "insecureContext": "Table Companion a besoin d'une connexion sécurisée (HTTPS, ou localhost) et d'un navigateur récent : ce navigateur ne peut pas vérifier les signatures, ce que le http simple bloque, l'application ne peut donc ni s'appairer ni se connecter.",
         "worldMismatch": "Liez à nouveau l'application à ce monde, ou rouvrez dans Foundry le monde auquel elle était liée.",
         "noSigner": "Ce navigateur n'a pas pu créer de clé de signature : le service de l'application ignore donc les réponses de ce monde et l'envoi des personnages Knight est désactivé. Utilisez un navigateur récent en https.",

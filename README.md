@@ -66,11 +66,18 @@ as. After that it only listens to that key, from that user.
   otherwise **Ignore**. A Gamemaster account, or a user who owns an Actor (a
   player account), can never pair, and one request waits at a time: another
   user's request is dropped with a notice until you decide.
+- Each Gamemaster browser signs the replies it sends with its own key, kept per
+  world and Foundry user. A browser's key is enrolled with the backend while
+  setup is open in it: a second Gamemaster, the same Gamemaster on another
+  computer, or a browser whose data was cleared opens setup there once. The
+  setup panel says whether this browser's key is enrolled.
 - **Reset pairing** forgets the backend's key in this world, rotates this
-  browser's reply key, then announces the module again, so a connected backend
-  pairs again right away (keep setup open while it does). The backend keeps its
-  own record of this browser's previous key until you tap **Re-pair** in the
-  Table Companion app; the setup panel says when that is needed.
+  browser's reply key for this world, then announces the module again, so a
+  connected backend pairs again right away (keep setup open while it does) and
+  replaces your previous keys in this world with the new one. A backend that
+  keeps a single key (older versions) keeps its record of the previous key until
+  you tap **Re-pair** in the Table Companion app; the setup panel says when that
+  is needed.
 
 Anyone you grant Foundry's *Modify Configuration Settings* permission can change
 world settings, including this pairing. By default only Assistant GMs and

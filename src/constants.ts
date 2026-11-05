@@ -79,6 +79,14 @@ export const SETTING_MODULE_KEYPAIR = "moduleResponseKeypair";
  * capModuleResponseSignatureV1. NOT a procedure name — it has no handler. */
 export const CAP_RESPONSE_SIG = "moduleResponseSignatureV1";
 
+/** Module → backend event a Gamemaster browser sends while its setup dialog is
+ * open: enroll this browser's reply key for this Foundry user (payload
+ * `{mode: "add" | "replace"}`, the key in `peer.pubKey`), so several GM
+ * browsers each sign replies the backend accepts. "replace", sent after « Reset
+ * pairing », first revokes this user's other keys. Parity-locked with the
+ * backend's enrollment event name. */
+export const KEY_ENROLL_EVENT = "responseKey.enroll";
+
 /** Capability token advertised alongside `actor.resources.v1`: this build
  * accepts the optional `name` / `previousName` fields on that procedure. Apps
  * send a name only when the world advertises it. NOT a procedure name — it has

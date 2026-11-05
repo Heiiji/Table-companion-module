@@ -286,20 +286,41 @@ function appPlayersHtml(
   );
 }
 
-/** The responder's « Reply signing » and « Clock offset » rows. The handshake
- * still flows when the backend drops every reply this browser signs, so « Live »
- * alone hid a total outage: the backend's verdict comes first, then whether this
- * browser can sign at all, each with what to do. */
+/** The « Reply signing » and « Clock offset » rows. The handshake still flows
+ * when the backend drops every reply this browser signs, so « Live » alone hid a
+ * total outage: on the responder, the backend's verdict comes first, then
+ * whether this browser can sign at all, each with what to do. Another Gamemaster
+ * browser sees whether the backend enrolled its key (a backend that lists its
+ * keys enrolls one per GM browser while this setup is open). */
 function replySigningHtml(
   channel: Channel,
   status: ReturnType<Channel["getStatus"]>,
   row: (label: string, value: string, ok: boolean) => string,
 ): { signingRows: string; signingHints: string } {
-  if (!status.isResponder) return { signingRows: "", signingHints: "" };
+  const enrolled = channel.replyKeyEnrolled();
+  if (!status.isResponder) {
+    if (enrolled === null) return { signingRows: "", signingHints: "" };
+    return {
+      signingRows: row(
+        localize("setup.status.replySigning"),
+        localize(
+          enrolled
+            ? "setup.status.signingStandby"
+            : "setup.status.signingNotEnrolled",
+        ),
+        enrolled,
+      ),
+      signingHints: enrolled
+        ? ""
+        : `<p class="tca-hint">${escapeHtml(localize("setup.hint.keyNotEnrolled"))}</p>`,
+    };
+  }
   const signs = channel.advertisedCapabilities().includes(CAP_RESPONSE_SIG);
   const [value, hint] =
     status.pairingIssue === "response_key_mismatch"
-      ? ["setup.status.signingKeyMismatch", "setup.hint.keyMismatch"]
+      ? status.enrolledKeys !== null
+        ? ["setup.status.signingNotEnrolled", "setup.hint.keyNotEnrolled"]
+        : ["setup.status.signingKeyMismatch", "setup.hint.keyMismatch"]
       : status.pairingIssue === "world_mismatch"
         ? ["setup.status.signingWorldMismatch", "setup.hint.worldMismatch"]
         : !signs

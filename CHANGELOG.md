@@ -9,6 +9,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Setup: a Gamemaster opening a world that is not linked yet (no Companion user, or no app paired)
   is offered the setup once per session, in a prompt they can dismiss.
+- Reply signing works from several Gamemaster browsers: each one pairs its own reply key with the
+  backend while its setup is open (a second Gamemaster, the same Gamemaster on another computer, or
+  a browser whose data was cleared), keys are kept per world and user so Reset pairing in one world
+  no longer changes another's, and a reply is signed even if another Gamemaster took over while it
+  ran. Needs a backend that lists its enrolled keys; an older one keeps a single key as before.
 
 ### Changed
 - Setup: Reset password and Reset pairing ask for confirmation first and say what the app will

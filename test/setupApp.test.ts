@@ -81,6 +81,8 @@ interface FakeChannel {
   status: LinkStatus;
   caps: string[];
   withheld?: Record<string, string>;
+  /** What replyKeyEnrolled() answers (null: no key, or a single-key backend). */
+  enrolled?: boolean | null;
   channel: Channel;
 }
 
@@ -96,6 +98,7 @@ function fakeChannel(
       lastAgentHelloAt: null,
       agentPeer: null,
       isResponder: true,
+      enrolledKeys: null,
       ...status,
     } as LinkStatus,
     channel: undefined as unknown as Channel,
@@ -111,6 +114,7 @@ function fakeChannel(
     getPairing: () => Promise.resolve(pairing),
     advertisedCapabilities: () => fake.caps,
     withheldProcedures: () => fake.withheld,
+    replyKeyEnrolled: () => fake.enrolled ?? null,
     openPairingWindow: () => {
       fake.open = true;
     },
@@ -193,6 +197,39 @@ describe("openSetupApp", () => {
     expect(content).toContain("setup.status.replySigning");
     expect(content).toContain("setup.status.signingKeyMismatch");
     expect(content).toContain("setup.hint.keyMismatch");
+  });
+
+  it("names a not-yet-enrolled browser when the backend enrolls several", async () => {
+    const fake = fakeChannel(
+      { pairingIssue: "response_key_mismatch", enrolledKeys: ["other-key"] },
+      [CAP_RESPONSE_SIG],
+    );
+    fake.enrolled = false;
+    await openSetupApp(fake.channel);
+    const { content } = FakeDialog.instances[0];
+    expect(content).toContain("setup.status.signingNotEnrolled");
+    expect(content).toContain("setup.hint.keyNotEnrolled");
+    expect(content).not.toContain("setup.hint.keyMismatch");
+  });
+
+  it("tells another Gamemaster browser whether its key is enrolled", async () => {
+    const standby = fakeChannel({ isResponder: false, enrolledKeys: ["k"] });
+    standby.enrolled = true;
+    await openSetupApp(standby.channel);
+    expect(FakeDialog.instances[0].content).toContain(
+      "setup.status.signingStandby",
+    );
+    expect(FakeDialog.instances[0].content).not.toContain(
+      "setup.hint.keyNotEnrolled",
+    );
+  });
+
+  it("says nothing about reply signing on a non-responder of a single-key backend", async () => {
+    const fake = fakeChannel({ isResponder: false });
+    await openSetupApp(fake.channel);
+    expect(FakeDialog.instances[0].content).not.toContain(
+      "setup.status.replySigning",
+    );
   });
 
   it("shows that reply signing is unavailable in this browser", async () => {

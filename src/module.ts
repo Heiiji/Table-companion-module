@@ -6,7 +6,10 @@ import {
   SETTING_COMPANION_ANCHOR,
   SETTING_MODULE_KEYPAIR,
 } from "./constants.js";
-import { applicationV2Class } from "./foundry/runtime.js";
+import {
+  applicationV2Class,
+  worldId as foundryWorldId,
+} from "./foundry/runtime.js";
 import { registerBuiltinProcedures } from "./procedures/index.js";
 import { scheduleCompendiumWarmup } from "./procedures/compendium.js";
 import { startDisplayListener } from "./procedures/display.js";
@@ -23,7 +26,7 @@ import { startPresenceWatcher } from "./setup/presence.js";
 import { startKnightRollCards } from "./ui/knightRollCard.js";
 import { startKnightAttackFollowUps } from "./procedures/knightAttack.js";
 import { offerSetupIfNeeded, openSetupApp } from "./ui/SetupApp.js";
-import { indexedDbKeyStore } from "./util/keyStore.js";
+import { indexedDbKeyStore, responseKeyRecord } from "./util/keyStore.js";
 import { localize, log } from "./util/log.js";
 
 let channel: Channel | undefined;
@@ -52,14 +55,22 @@ async function setKeypairJwk(jwk: JsonWebKey | null): Promise<void> {
 }
 
 /** Where this GM browser keeps its response-signing key: a non-extractable key
- * in IndexedDB, with the older client-setting JWK as migration source and
- * fallback. A fallback is surfaced once so the GM knows the key is exportable. */
+ * in IndexedDB, one per world and Foundry user — so a reset in one world, or
+ * another user of this browser, never rotates another world's key — adopting
+ * the browser-wide key of older builds, with the older client-setting JWK as
+ * migration source and fallback. A fallback is surfaced once so the GM knows
+ * the key is exportable.
+ * ponytail: the JWK fallback stays browser-wide (only a browser that cannot
+ * store a CryptoKey uses it); a GM re-enrolls from setup after its rotation. */
 function signerStorage(): SignerStorage {
   let warned = false;
   return {
     getJwk: getKeypairJwk,
     setJwk: setKeypairJwk,
-    keyStore: indexedDbKeyStore(),
+    keyStore: indexedDbKeyStore(
+      responseKeyRecord(foundryWorldId(), game.user?.id ?? ""),
+    ),
+    legacyKeyStore: indexedDbKeyStore(),
     onFallback: (reason) => {
       log.warn("response-signing key kept in browser settings instead", reason);
       if (warned) return;
@@ -77,13 +88,16 @@ async function initResponseSigner(ch: Channel): Promise<void> {
   const signer = await loadOrCreateSigner(storage);
   ch.setResponseSigner(signer);
   ch.setResponseKeyResetter(async () => {
-    // Rotate: discard the pinned identity the agent knows and mint a fresh one so
-    // a re-pair starts clean. The agent must also clear its pin (it will see the
-    // new key as a mismatch until then).
+    // Rotate: discard this world's key and mint a fresh one — never re-adopting
+    // the browser-wide legacy key — which the channel then enrolls in place of
+    // this user's old keys.
     await clearStoredSigner(storage);
-    const rotated = await loadOrCreateSigner(storage);
-    ch.setResponseSigner(rotated);
+    const rotated = await loadOrCreateSigner({
+      ...storage,
+      legacyKeyStore: null,
+    });
     log.info("rotated module response-signing key");
+    return rotated;
   });
 }
 

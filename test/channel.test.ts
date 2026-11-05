@@ -12,6 +12,7 @@ import {
   CAP_DND5E_RULES_MODERN,
   CAP_RESPONSE_SIG,
   ENVELOPE_VERSION,
+  KEY_ENROLL_EVENT,
   MAX_ENVELOPE_BYTES,
   MODULE_ID,
   REPLAY_WINDOW_MS,
@@ -1199,15 +1200,133 @@ describe("Channel response signing", () => {
     const channel = startChannel();
     const first = (await ModuleResponseSigner.generate()).signer;
     channel.setResponseSigner(first);
-    let rotated = false;
-    channel.setResponseKeyResetter(async () => {
-      rotated = true;
-      channel.setResponseSigner((await ModuleResponseSigner.generate()).signer);
-    });
+    const second = (await ModuleResponseSigner.generate()).signer;
+    channel.setResponseKeyResetter(async () => second);
+    emitSpy.mockClear();
     await channel.resetPairing();
-    expect(rotated).toBe(true);
     // The pinned agent key is also cleared (existing behaviour preserved).
     expect(setSpy).toHaveBeenCalledWith(MODULE_ID, SETTING_AGENT_KEY, "");
+    // The new key replaces this user's old ones at the backend BEFORE the
+    // hello advertises it, so it is never seen unenrolled.
+    const types = emitted().map((e) => `${e.type}:${e.proc ?? ""}`);
+    expect(types).toEqual([`event:${KEY_ENROLL_EVENT}`, "hello:"]);
+    const [enroll, hello] = emitted();
+    expect(enroll.payload).toEqual({ mode: "replace" });
+    expect((enroll.peer as Fields).pubKey).toBe(second.publicKeyB64);
+    expect(enroll.worldId).toBe("test-world");
+    expect((hello.peer as Fields).pubKey).toBe(second.publicKeyB64);
+    expect(second.publicKeyB64).not.toBe(first.publicKeyB64);
+  });
+
+  // MB4: the election moves while a request runs (another GM connects); the
+  // browser that accepted it still signs its reply, which the backend accepts.
+  it("signs a reply with the accepting browser's key after the election moved", async () => {
+    stubGame({ pinned: agentPubB64, responder: true });
+    const game = (globalThis as unknown as { game: { users: Fields } }).game;
+    const registry = new ProcedureRegistry();
+    registry.register(
+      "handoff",
+      () => {
+        game.users.activeGM = { id: "gm0" }; // another GM is elected meanwhile
+        return { ok: true };
+      },
+      { kind: "mutation" },
+    );
+    const channel = new Channel(registry, "0.0.0-test");
+    channel.start();
+    const { signer } = await ModuleResponseSigner.generate();
+    channel.setResponseSigner(signer);
+    emitSpy.mockClear();
+
+    await deliver(
+      await sign(agentEnv("rpc.request", { id: "mb4", proc: "handoff" })),
+    );
+    const resp = emitted("rpc.response")[0];
+    expect(resp.payload).toEqual({ ok: true });
+    expect(typeof resp.sig).toBe("string");
+    const message = await responseSigningString(
+      "rpc.response",
+      "mb4",
+      "test-world",
+      "handoff",
+      resp.signedAt as number,
+      resp.payload,
+    );
+    expect(
+      await verifyResponseSig(signer.publicKeyB64, resp.sig as string, message),
+    ).toBe(true);
+  });
+});
+
+// Several Gamemaster browsers: each enrolls its own reply key with the backend,
+// only while the setup dialog is open.
+describe("Channel reply-key enrollment", () => {
+  async function withKey(responder: boolean) {
+    stubGame({ pinned: agentPubB64, responder });
+    const channel = startChannel();
+    const { signer } = await ModuleResponseSigner.generate();
+    channel.setResponseSigner(signer);
+    emitSpy.mockClear();
+    return { channel, signer };
+  }
+  const enrollments = () =>
+    emitted("event").filter((e) => e.proc === KEY_ENROLL_EVENT);
+
+  it("enrolls this browser's key when the setup opens, on a non-responder too", async () => {
+    const { channel, signer } = await withKey(false);
+    channel.openPairingWindow();
+    const [enroll] = enrollments();
+    expect(enroll.payload).toEqual({ mode: "add" });
+    expect((enroll.peer as Fields).role).toBe("module");
+    expect((enroll.peer as Fields).pubKey).toBe(signer.publicKeyB64);
+    expect(enroll.worldId).toBe("test-world");
+    // Only to the paired backend user, never to the players.
+    expect(recipientsOf(enroll)).toEqual([AGENT_USER]);
+  });
+
+  it("never enrolls while the setup is closed", async () => {
+    const { channel } = await withKey(true);
+    await deliver(await sign(agentEnv("hello", { id: "h1" })));
+    channel.setResponseSigner((await ModuleResponseSigner.generate()).signer);
+    channel.openPairingWindow();
+    channel.closePairingWindow();
+    emitSpy.mockClear();
+    await deliver(await sign(agentEnv("hello", { id: "h2" })));
+    expect(enrollments()).toHaveLength(0);
+  });
+
+  it("re-enrolls on each backend hello while the setup is open, and on a late key", async () => {
+    stubGame({ pinned: agentPubB64, responder: true });
+    const channel = startChannel();
+    channel.openPairingWindow();
+    expect(enrollments()).toHaveLength(0); // no key yet: nothing to enroll
+    const { signer } = await ModuleResponseSigner.generate();
+    channel.setResponseSigner(signer);
+    expect(enrollments()).toHaveLength(1);
+    emitSpy.mockClear();
+    await deliver(await sign(agentEnv("hello", { id: "h3" })));
+    // The enrollment goes out before the hello.ack.
+    expect(emitted().map((e) => e.type)).toEqual(["event", "hello.ack"]);
+  });
+
+  it("reads from the backend's hello whether this browser's key is enrolled", async () => {
+    const { channel, signer } = await withKey(false);
+    expect(channel.replyKeyEnrolled()).toBeNull(); // never heard
+    await deliver(
+      await sign(agentEnv("hello", { id: "h4", responseKeys: ["other"] })),
+    );
+    expect(channel.replyKeyEnrolled()).toBe(false);
+    await deliver(
+      await sign(
+        agentEnv("hello", {
+          id: "h5",
+          responseKeys: ["other", signer.publicKeyB64],
+        }),
+      ),
+    );
+    expect(channel.replyKeyEnrolled()).toBe(true);
+    await deliver(await sign(agentEnv("hello", { id: "h6" }))); // single-key backend
+    expect(channel.replyKeyEnrolled()).toBeNull();
   });
 });
 

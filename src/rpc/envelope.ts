@@ -65,11 +65,16 @@ export interface Envelope {
    * on every agent envelope, inside the signed body, so an envelope signed for
    * one world is dropped in any other. */
   worldId?: string;
-  /** The backend's handshake verdict on this browser's reply key, on its hello /
-   * hello.ack (additive; absent = healthy): "response_key_mismatch" — it pinned
-   * another browser's key and drops every reply signed here — or
+  /** The backend's handshake verdict on the responder's reply key, on its
+   * hello / hello.ack (additive; absent = healthy): "response_key_mismatch" —
+   * that key is not enrolled for its user, so every reply it signs is dropped —
+   * or
    * "world_mismatch" — it is linked to a different world. */
   pairing?: string;
+  /** The reply keys the backend has enrolled for this world (base64 public
+   * keys), on its hello / hello.ack (additive; absent when none, or from a
+   * backend that keeps a single key). */
+  responseKeys?: string[];
   /** Outbound, on this module's hello / hello.ack (additive; absent when
    * nothing is withheld): the procedures it does not register on this
    * game-system version, with the reason. */
@@ -103,6 +108,9 @@ export function parseEnvelope(raw: unknown): Envelope | null {
     signedAt: typeof e.signedAt === "number" ? e.signedAt : undefined,
     worldId: typeof e.worldId === "string" ? e.worldId : undefined,
     pairing: typeof e.pairing === "string" ? e.pairing : undefined,
+    responseKeys: Array.isArray(e.responseKeys)
+      ? (e.responseKeys.filter((k) => typeof k === "string") as string[])
+      : undefined,
   };
 }
 

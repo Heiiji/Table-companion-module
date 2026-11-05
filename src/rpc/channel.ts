@@ -6,6 +6,7 @@ import {
   DISPLAY_TAG,
   DROP_WARN_INTERVAL_MS,
   ENVELOPE_VERSION,
+  KEY_ENROLL_EVENT,
   REPLAY_WINDOW_MS,
   REQUEST_TIMEOUT_MS,
   SEEN_ID_CACHE_MAX,
@@ -51,10 +52,14 @@ export interface LinkStatus {
   agentPeer: PeerInfo | null;
   /** Whether this client is the elected responder right now. */
   isResponder: boolean;
-  /** The backend's verdict on this browser's reply key from its last hello /
+  /** The backend's verdict on the responder's reply key from its last hello /
    * hello.ack ("response_key_mismatch" | "world_mismatch"), or null when
    * healthy or never heard. */
   pairingIssue: string | null;
+  /** The reply keys the backend lists as enrolled for this world in its last
+   * hello / hello.ack, or null when it listed none (nothing enrolled yet, or a
+   * backend that keeps a single key). */
+  enrolledKeys: string[] | null;
   /** This browser's clock minus the backend's, from the last backend envelope
    * that reached the freshness check (ms), or null if none yet. */
   lastSkewMs: number | null;
@@ -95,6 +100,7 @@ export class Channel {
     agentPeer: null,
     isResponder: isResponder(),
     pairingIssue: null,
+    enrolledKeys: null,
     lastSkewMs: null,
   };
   private readonly eventListeners = new Set<EventListener>();
@@ -131,10 +137,11 @@ export class Channel {
   // after `ready` via setResponseSigner(); only the responder ever signs.
   private responseSigner: ModuleResponseSigner | null = null;
 
-  // Rotates this browser's response-signing key on "Reset pairing" (wired by
-  // module.ts, which owns the key storage). null in the test harness, where
-  // reset only needs to clear the pinned agent key and user.
-  private responseKeyResetter: (() => Promise<void>) | null = null;
+  // Rotates this browser's response-signing key on "Reset pairing" and returns
+  // the new signer (wired by module.ts, which owns the key storage). null in the
+  // test harness, where reset only needs to clear the pinned agent key and user.
+  private responseKeyResetter:
+    (() => Promise<ModuleResponseSigner | null>) | null = null;
 
   constructor(
     private readonly registry: ProcedureRegistry,
@@ -156,6 +163,8 @@ export class Channel {
       );
       notify("warn", localize("setup.notify.noSigner"));
     }
+    // A key loaded while the setup is already open enrolls at once.
+    if (signer && this.pairingWindowOpen) this.sendEnrollment("add");
     if (signer && isResponder()) {
       // Re-announce so an already-connected agent picks up the capability + key
       // without waiting for its next hello.
@@ -164,9 +173,38 @@ export class Channel {
   }
 
   /** Wire the reset hook that rotates this browser's response-signing key when
-   * the GM clicks "Reset pairing". */
-  setResponseKeyResetter(fn: () => Promise<void>): void {
+   * the GM clicks "Reset pairing", resolving to the new signer. */
+  setResponseKeyResetter(fn: () => Promise<ModuleResponseSigner | null>): void {
     this.responseKeyResetter = fn;
+  }
+
+  /** Whether the backend has enrolled this browser's reply key: null when this
+   * browser has no key, or the backend listed no keys (nothing enrolled yet, or
+   * a backend that keeps a single key — then its verdict alone says). */
+  replyKeyEnrolled(): boolean | null {
+    const keys = this.status.enrolledKeys;
+    if (!this.responseSigner || !keys) return null;
+    return keys.includes(this.responseSigner.publicKeyB64);
+  }
+
+  /** Ask the backend to enroll this browser's reply key for this Gamemaster
+   * user. Sent while the setup dialog is open (on opening, and on each backend
+   * hello) and, as "replace", right after « Reset pairing »: the dialog is the
+   * explicit « this browser pairs now » moment, on any GM browser, responder or
+   * not, so whichever of them answers later signs replies the backend accepts.
+   * A backend that keeps a single key ignores it. */
+  private sendEnrollment(mode: "add" | "replace"): void {
+    const signer = this.responseSigner;
+    if (!signer) return;
+    this.emit(
+      makeEnvelope("event", {
+        proc: KEY_ENROLL_EVENT,
+        payload: { mode },
+        peer: { ...this.selfPeer(), pubKey: signer.publicKeyB64 },
+        worldId: foundryWorldId(),
+      }),
+      this.agentRecipients(),
+    );
   }
 
   /** True when this client will sign its responses (elected responder + a key). */
@@ -355,7 +393,10 @@ export class Channel {
     await setPairedAgentUserId("");
     if (this.responseKeyResetter) {
       try {
-        await this.responseKeyResetter();
+        this.responseSigner = await this.responseKeyResetter();
+        // Before the hello, so the backend never sees the new key unenrolled:
+        // it replaces this user's old keys in this world only.
+        this.sendEnrollment("replace");
       } catch (err) {
         log.warn("could not rotate the response-signing key on reset", err);
       }
@@ -369,6 +410,7 @@ export class Channel {
    * when its dialog renders and closePairingWindow() when it tears down. */
   openPairingWindow(): void {
     this.pairingWindowOpen = true;
+    this.sendEnrollment("add");
   }
 
   /** Close the explicit pairing window; an unknown agent key is no longer pinned. */
@@ -380,6 +422,9 @@ export class Channel {
     this.status.lastAgentHelloAt = Date.now();
     this.status.agentPeer = env.peer ?? null;
     this.status.pairingIssue = env.pairing ?? null;
+    this.status.enrolledKeys = env.responseKeys?.length
+      ? env.responseKeys
+      : null;
   }
 
   /** Subscribe to module-bound `event` envelopes (agent push notifications). */
@@ -422,6 +467,9 @@ export class Channel {
     switch (env.type) {
       case "hello":
         this.noteAgent(env);
+        // A backend that connects (or re-announces) while the setup is open
+        // hears this browser's enrollment; one already enrolled is a no-op.
+        if (this.pairingWindowOpen) this.sendEnrollment("add");
         if (isResponder()) {
           this.emit(
             makeEnvelope("hello.ack", {
@@ -701,11 +749,15 @@ export class Channel {
   private async dispatchRequest(env: Envelope, sender: string): Promise<void> {
     const proc = env.proc ?? "";
     const handler = env.proc ? this.registry.get(env.proc) : undefined;
+    // The reply is signed with the key of the browser that accepted the request,
+    // decided now: if the election moves while the handler runs, the write still
+    // lands, and an unsigned reply would be dropped by the backend.
+    const signer = this.canSign() ? this.responseSigner : null;
     // A procedure withheld from the advertised set (a consequential mutation on a
     // responder that cannot sign its reply) is refused exactly as if it did not
     // exist: hiding it from hello is not enough when a request names it directly.
-    if (!handler || (this.registry.isSignedOnly(proc) && !this.canSign())) {
-      await this.sendError(sender, env.id, proc, {
+    if (!handler || (this.registry.isSignedOnly(proc) && !signer)) {
+      await this.sendError(signer, sender, env.id, proc, {
         code: "unknown_procedure",
         message: `no procedure "${proc}"`,
       });
@@ -747,7 +799,7 @@ export class Channel {
           );
         }),
       ]);
-      await this.sendResponse(sender, env.id, proc, result);
+      await this.sendResponse(signer, sender, env.id, proc, result);
     } catch (err) {
       log.error(`procedure "${env.proc}" failed`, err);
       // A handler may throw a structured RpcError (permission_denied,
@@ -756,6 +808,7 @@ export class Channel {
       // stack details), so it stays in this browser's log and the wire carries a
       // generic message.
       await this.sendError(
+        signer,
         sender,
         env.id,
         proc,
@@ -768,47 +821,50 @@ export class Channel {
     }
   }
 
-  /** Emit an rpc.response to the agent that asked, signed when this client is a
-   * signing responder. */
+  /** Emit an rpc.response to the agent that asked, signed with `signer` (the
+   * key of the responder that accepted the request) when there is one. */
   private async sendResponse(
+    signer: ModuleResponseSigner | null,
     to: string,
     requestId: string | undefined,
     proc: string,
     payload: unknown,
   ): Promise<void> {
     const env = makeEnvelope("rpc.response", { id: requestId, payload });
-    await this.attachSignature(env, requestId, proc, payload);
+    await this.attachSignature(signer, env, requestId, proc, payload);
     this.emit(env, [to]);
   }
 
-  /** Emit an rpc.error, signed when this client is a signing responder. The
-   * signed body is the `error` object, so a signed error cannot be swapped for a
-   * signed response (the body hash differs). */
+  /** Emit an rpc.error, signed like sendResponse. The signed body is the
+   * `error` object, so a signed error cannot be swapped for a signed response
+   * (the body hash differs). */
   private async sendError(
+    signer: ModuleResponseSigner | null,
     to: string,
     requestId: string | undefined,
     proc: string,
     error: { code: string; message: string },
   ): Promise<void> {
     const env = makeEnvelope("rpc.error", { id: requestId, error });
-    await this.attachSignature(env, requestId, proc, error);
+    await this.attachSignature(signer, env, requestId, proc, error);
     this.emit(env, [to]);
   }
 
-  /** Attach `sig` + `signedAt` to a reply when this client signs. A signing
+  /** Attach `sig` + `signedAt` to a reply when there is a signer. A signing
    * failure logs and emits UNSIGNED; the agent (which requires a signature once
    * it has latched the capability) then drops the reply — fail-closed, the app
    * falls back to its local engine — rather than accepting an unauthenticated
    * reply. */
   private async attachSignature(
+    signer: ModuleResponseSigner | null,
     env: Envelope,
     requestId: string | undefined,
     proc: string,
     body: unknown,
   ): Promise<void> {
-    if (!this.canSign() || !requestId) return;
+    if (!signer || !requestId) return;
     try {
-      const { sig, signedAt } = await this.responseSigner!.sign(
+      const { sig, signedAt } = await signer.sign(
         env.type,
         requestId,
         foundryWorldId(),

@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import type { KeyStore, StoredKeyPair } from "../src/util/keyStore.js";
+import {
+  responseKeyRecord,
+  type KeyStore,
+  type StoredKeyPair,
+} from "../src/util/keyStore.js";
 import {
   canonicalize,
   clearStoredSigner,
@@ -420,6 +424,53 @@ describe("loadOrCreateSigner", () => {
 
     const after = await loadOrCreateSigner(storage);
     expect(after!.publicKeyB64).not.toBe(before!.publicKeyB64);
+  });
+
+  // Per world + user keys: a browser upgraded from the browser-wide key adopts
+  // it in each world (the backend's pins hold), and « Reset pairing » in one
+  // world rotates that world's key alone.
+  it("adopts the browser-wide key per world, and a reset rotates one world only", async () => {
+    const shared = memoryKeyStore();
+    const legacy = await ModuleResponseSigner.generateNonExtractable();
+    await shared.save(legacy.toStored());
+    const worldX = { ...jwkStorage(), keyStore: memoryKeyStore() };
+    const worldY = { ...jwkStorage(), keyStore: memoryKeyStore() };
+
+    const x = await loadOrCreateSigner({ ...worldX, legacyKeyStore: shared });
+    const y = await loadOrCreateSigner({ ...worldY, legacyKeyStore: shared });
+    expect(x!.publicKeyB64).toBe(legacy.publicKeyB64);
+    expect(y!.publicKeyB64).toBe(legacy.publicKeyB64);
+    expect(shared.current).not.toBeNull(); // left for the other worlds
+
+    // Reset in world X: cleared, and reloaded WITHOUT the legacy source.
+    await clearStoredSigner(worldX);
+    const rotated = await loadOrCreateSigner({
+      ...worldX,
+      legacyKeyStore: null,
+    });
+    expect(rotated!.publicKeyB64).not.toBe(legacy.publicKeyB64);
+    // X keeps its new key across reloads, even with the legacy source back.
+    const reloaded = await loadOrCreateSigner({
+      ...worldX,
+      legacyKeyStore: shared,
+    });
+    expect(reloaded!.publicKeyB64).toBe(rotated!.publicKeyB64);
+    // World Y still signs with the key the backend pinned.
+    const yAgain = await loadOrCreateSigner({
+      ...worldY,
+      legacyKeyStore: shared,
+    });
+    expect(yAgain!.publicKeyB64).toBe(legacy.publicKeyB64);
+  });
+
+  it("names one key record per world and per user", () => {
+    const records = new Set([
+      responseKeyRecord("world-a", "gm1"),
+      responseKeyRecord("world-b", "gm1"),
+      responseKeyRecord("world-a", "gm2"),
+    ]);
+    expect(records.size).toBe(3);
+    expect(records.has("moduleResponseKey")).toBe(false);
   });
 
   // The case the reset exists for: a browser that kept its key as a JWK (the

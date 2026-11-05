@@ -194,6 +194,10 @@ export interface SignerStorage {
   getJwk(): JsonWebKey | null;
   setJwk(jwk: JsonWebKey | null): Promise<void>;
   keyStore: KeyStore | null;
+  /** The browser-wide key of builds before per-world keys, adopted (never
+   * cleared: other worlds and users of this browser may adopt it too) when
+   * `keyStore` holds nothing yet, so the backend's pin keeps holding. */
+  legacyKeyStore?: KeyStore | null;
   /** Called when the key could not be kept in `keyStore` and the JWK path is
    * used instead, so the GM can be told. */
   onFallback?(reason: unknown): void;
@@ -227,7 +231,9 @@ async function loadOrCreateFromJwk(
  * Load the responder's signer, generating and persisting a fresh keypair on
  * first use.
  *
- * Preferred home: a non-extractable key in `storage.keyStore`. A JWK left in the
+ * Preferred home: a non-extractable key in `storage.keyStore`. An empty store
+ * first adopts the browser-wide key of an older build (`legacyKeyStore`), the
+ * same public key, so the backend's pin still holds. A JWK left in the
  * client setting by an older build is imported non-extractable, saved, and only
  * cleared once the store reads it back unchanged — the same public key, so the
  * agent's pin still holds and no re-pair is needed. If the store is missing or
@@ -245,6 +251,13 @@ export async function loadOrCreateSigner(
     try {
       const stored = await store.load();
       if (stored) return ModuleResponseSigner.fromStored(stored);
+
+      const shared = await storage.legacyKeyStore?.load();
+      if (shared) {
+        const adopted = ModuleResponseSigner.fromStored(shared);
+        await saveAndConfirm(store, adopted);
+        return adopted;
+      }
 
       const legacy = storage.getJwk();
       const signer =
@@ -267,7 +280,8 @@ export async function loadOrCreateSigner(
 
 /** Forget the persisted signing key everywhere it may live, so the next
  * loadOrCreateSigner mints a fresh one ("Reset pairing"). Clearing only the
- * store would let the migration path bring an old JWK back. */
+ * store would let the migration path bring an old JWK back; the browser-wide
+ * legacy key is left for other worlds, so the caller reloads without it. */
 export async function clearStoredSigner(storage: SignerStorage): Promise<void> {
   await storage.keyStore?.clear();
   await storage.setJwk(null);

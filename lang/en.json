@@ -44,6 +44,8 @@
         "signingUnavailable": "Unavailable in this browser",
         "signingKeyMismatch": "Key mismatch — the app paired with another browser",
         "signingWorldMismatch": "The app is linked to a different world",
+        "signingNotEnrolled": "Not enrolled for this browser yet",
+        "signingStandby": "Enrolled — this browser signs whenever it answers",
         "clockOffset": "Clock offset",
         "clockOffsetValue": "{seconds} s"
       },
@@ -97,6 +99,7 @@
       "pendingHint": "Only trust this if {name} is the user you linked in the Table Companion app. A player could otherwise pose as the app.",
       "hint": {
         "keyMismatch": "Open Foundry from the browser the app paired with, or tap Re-pair in the Table Companion app, then click Refresh here.",
+        "keyNotEnrolled": "This browser enrolls its reply key while this setup is open; this line updates within a few seconds. If it stays, tap Re-pair in the Table Companion app.",
         "insecureContext": "Table Companion needs a secure connection (HTTPS, or localhost) and a current browser: this browser cannot check signatures, which plain http blocks, so the app cannot pair or connect.",
         "worldMismatch": "Relink the app to this world, or switch Foundry back to the world it was linked to.",
         "noSigner": "This browser could not create a signing key, so the backend drops this world's replies and Knight provisioning is off. Use a current browser over https.",
