@@ -582,7 +582,9 @@ describe("knight.attack.v1 roll", () => {
   it("answers as soon as the card's flags land, with no timer firing (a hidden tab)", async () => {
     vi.useFakeTimers();
     let answer: unknown;
-    void knightAttackV1(payload(), {} as never).then((r) => (answer = r));
+    void Promise.resolve(knightAttackV1(payload(), {} as never)).then(
+      (r) => (answer = r),
+    );
     // Only promise jobs run: a throttled tab's timers never fire here.
     await vi.advanceTimersByTimeAsync(0);
     expect(answer).toMatchObject({ alreadyRolled: false, successes: 4 });
@@ -601,9 +603,11 @@ describe("knight.attack.v1 roll", () => {
       {} as never,
     );
     let answer: unknown;
-    void knightAttackV1(
-      payload({ eventId: "00000000-0000-4000-8000-0000000000f2" }),
-      {} as never,
+    void Promise.resolve(
+      knightAttackV1(
+        payload({ eventId: "00000000-0000-4000-8000-0000000000f2" }),
+        {} as never,
+      ),
     ).then((r) => (answer = r));
     await vi.advanceTimersByTimeAsync(ATTACK_STAMP_MS);
     expect(answer).toMatchObject({ alreadyRolled: false });
