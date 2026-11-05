@@ -27,6 +27,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   name when the Gamemaster renamed it.
 
 ### Security
+- A message from a user other than the paired backend user is dropped before its signature is
+  checked, so a flood of such messages costs no cryptography on the Gamemaster's browser.
 - Knight: `actor.items.v1` refuses weapon damage and violence dice with a negative or oversized
   count (at most 1000) or faces outside 1–1000, so a stored weapon can no longer freeze the next
   damage roll.
@@ -61,6 +63,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fetch each compendium's documents in one request, and Knight equipment fetches one request per
   compendium; Knight minor motivations are updated and created in one request each, and an
   unchanged one is no longer rewritten.
+- An expected refusal (`stale_revision`, `base_conflict`, `invalid_args`, …) is logged as one
+  information line instead of a console error with a stack; unexpected failures stay errors.
 
 ## [0.19.1] - 2026-11-04
 

@@ -602,13 +602,15 @@ export class Channel {
 
     const pinned = this.pinnedKey();
     if (pinned) {
-      if (!(await verifySignature(pinned, signed))) {
-        this.warnDrop("invalid signature");
-        return null;
-      }
+      // The paired user first: it only drops, so a player's flood of
+      // self-attributed envelopes costs no signature verify.
       const pinnedUser = pairedAgentUserId();
       if (pinnedUser && pinnedUser !== sender) {
         this.warnDrop("not sent by the paired agent user");
+        return null;
+      }
+      if (!(await verifySignature(pinned, signed))) {
+        this.warnDrop("invalid signature");
         return null;
       }
       if (!this.notReplayed(env)) return null;
@@ -807,7 +809,14 @@ export class Channel {
       ]);
       await this.sendResponse(signer, sender, env.id, proc, result);
     } catch (err) {
-      log.error(`procedure "${env.proc}" failed`, err);
+      // A refusal (stale_revision, base_conflict, invalid_args, …) is normal
+      // flow: one line, no stack. A missed deadline is worth a warning; any
+      // other exception is a fault.
+      if (err instanceof RpcError)
+        (err.code === "procedure_timeout" ? log.warn : log.info)(
+          `procedure "${env.proc}" refused: ${err.code}: ${err.message}`,
+        );
+      else log.error(`procedure "${env.proc}" failed`, err);
       // A handler may throw a structured RpcError (permission_denied,
       // invalid_args, …) whose message is written for the caller. Anything else
       // is an unexpected failure: its text can name internals (document ids,

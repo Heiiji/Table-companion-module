@@ -587,6 +587,17 @@ describe("Channel.onMessage", () => {
     expect(emitSpy).not.toHaveBeenCalled();
   });
 
+  it("drops a player's envelope before spending a signature verify", async () => {
+    stubGame({ pinned: agentPubB64, pinnedUser: AGENT_USER });
+    startChannel();
+    const verify = vi.spyOn(crypto.subtle, "verify");
+    const env = agentEnv("hello");
+    (env.peer as Fields).userId = PLAYER;
+    await deliver(await sign(env), PLAYER);
+    expect(verify).not.toHaveBeenCalled();
+    verify.mockRestore();
+  });
+
   // A world paired before the agent user was recorded has no pinned user yet, so
   // only the signed userId stands between a player's replay and the migration
   // recording that player as "the agent".
@@ -649,6 +660,27 @@ describe("Channel.onMessage", () => {
     );
     const [err] = emitted("rpc.error");
     expect(err.error).toEqual({ code: "invalid_args", message: "bad formula" });
+  });
+
+  it("logs a refusal as one info line and an unexpected failure as an error", async () => {
+    stubGame({ pinned: agentPubB64 });
+    startChannel();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const info = vi.spyOn(console, "log").mockImplementation(() => {});
+    await deliver(
+      await sign(agentEnv("rpc.request", { id: "v2", proc: "refuse" })),
+    );
+    expect(error).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith(
+      "Table Companion |",
+      'procedure "refuse" refused: invalid_args: bad formula',
+    );
+    await deliver(
+      await sign(agentEnv("rpc.request", { id: "b2", proc: "boom" })),
+    );
+    expect(error).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+    info.mockRestore();
   });
 
   it("refuses a signed-only procedure when this responder cannot sign", async () => {
