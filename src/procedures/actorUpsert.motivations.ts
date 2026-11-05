@@ -8,6 +8,7 @@ import {
   docId,
   type ActorItemLike,
   type ActorLike,
+  type Dict,
 } from "./upsertShared.js";
 
 /**
@@ -76,35 +77,46 @@ export async function applyMinorMotivations(
     }
   }
 
+  // One update and one create for the whole list; an unchanged one is skipped.
+  const updates: Dict[] = [];
+  const creates: Dict[] = [];
   for (const [index, motivation] of motivations.entries()) {
     const flag: MinorMotivationFlagV1 = { schemaVersion: 1, index };
+    const name = `Motivation mineure ${index + 1}`;
+    const description = paragraphsHtml(motivation);
     const existing = retained.get(index);
-    if (existing?.update) {
-      await existing.update({
-        name: `Motivation mineure ${index + 1}`,
-        "system.description": paragraphsHtml(motivation),
-        [`flags.${MODULE_ID}.${FLAG_KEYS.minorMotivation}`]: flag,
-      });
+    if (!existing) {
+      if (typeof actor.createEmbeddedDocuments !== "function")
+        warnings.push(`minor_motivation_unavailable:${index}`);
+      else
+        creates.push({
+          name,
+          type: "motivationMineure",
+          system: { description },
+          flags: { [MODULE_ID]: { [FLAG_KEYS.minorMotivation]: flag } },
+        });
       continue;
     }
-    if (existing) {
+    if (
+      (existing as Dict).name === name &&
+      (existing.system as Dict | undefined)?.description === description
+    )
+      continue;
+    if (
+      typeof actor.updateEmbeddedDocuments !== "function" ||
+      !foundryId.test(docId(existing))
+    ) {
       warnings.push(`minor_motivation_unavailable:${index}`);
       continue;
     }
-    if (typeof actor.createEmbeddedDocuments !== "function") {
-      warnings.push(`minor_motivation_unavailable:${index}`);
-      continue;
-    }
-    await actor.createEmbeddedDocuments("Item", [
-      {
-        name: `Motivation mineure ${index + 1}`,
-        type: "motivationMineure",
-        system: { description: paragraphsHtml(motivation) },
-        flags: {
-          [MODULE_ID]: { [FLAG_KEYS.minorMotivation]: flag },
-        },
-      },
-    ]);
+    updates.push({
+      _id: docId(existing),
+      name,
+      "system.description": description,
+      [`flags.${MODULE_ID}.${FLAG_KEYS.minorMotivation}`]: flag,
+    });
   }
+  if (updates.length > 0) await actor.updateEmbeddedDocuments!("Item", updates);
+  if (creates.length > 0) await actor.createEmbeddedDocuments!("Item", creates);
   return warnings;
 }

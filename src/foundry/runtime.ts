@@ -62,6 +62,8 @@ export interface ActorLike {
   prepareData?(): void;
   createEmbeddedDocuments?(type: "Item", data: Dict[]): Promise<unknown>;
   deleteEmbeddedDocuments?(type: "Item", ids: string[]): Promise<unknown>;
+  /** Each entry carries its Item's `_id`. */
+  updateEmbeddedDocuments?(type: "Item", data: Dict[]): Promise<unknown>;
   /** Embedded ActiveEffects (read by the Fifth Edition lane). */
   effects?: { contents?: ActiveEffectLike[] } | Iterable<ActiveEffectLike>;
   /** Foundry's status toggle (create or delete the status's effect). */
@@ -97,6 +99,13 @@ interface ActorFactoryLike {
   create(data: Dict, options?: Dict): Promise<unknown>;
 }
 
+/** A document read from a compendium pack. */
+export interface PackDocumentLike {
+  id?: string;
+  _id?: string;
+  toObject(): unknown;
+}
+
 /** A compendium pack (`game.packs` entry). */
 export interface CompendiumPackLike {
   collection: string;
@@ -104,6 +113,8 @@ export interface CompendiumPackLike {
   /** `fields` adds those (dotted) source paths to each index entry. */
   getIndex(options?: { fields?: string[] }): Promise<Iterable<Dict>>;
   getDocument(id: string): Promise<{ toObject(): unknown } | null | undefined>;
+  /** Every document matching `query` (`{ _id__in: [...] }`), in one request. */
+  getDocuments(query: Dict): Promise<PackDocumentLike[]>;
   testUserPermission?(user: unknown, permission: string): boolean;
 }
 

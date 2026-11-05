@@ -61,6 +61,7 @@ describe("actor.upsert.v1 equipment import", () => {
       system: Record<string, unknown> = {},
     ) => ({ _id: id, name: `Fixture ${id}`, type, system, flags: {} });
     const compendium: StubCompendium = {
+      requests: [],
       documents: {
         "knight-compendium.armours-base": {
           "22826f541c384281": item("22826f541c384281", "armure"),
@@ -117,6 +118,12 @@ describe("actor.upsert.v1 equipment import", () => {
     )) as ActorUpsertResultV1;
     expect(first.equipmentCompleteness).toBe("complete");
     expect(first.warnings).toEqual([]);
+    // One document request per pack, not one per Item.
+    expect(compendium.requests!.sort()).toEqual([
+      "knight-compendium.armours-base",
+      "knight-compendium.modules-standard",
+      "knight-compendium.weapons-standard",
+    ]);
     const imported = actor.items.contents.filter((candidate) =>
       ["armure", "arme", "module"].includes(String(candidate.type)),
     );

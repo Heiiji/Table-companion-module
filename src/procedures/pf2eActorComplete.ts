@@ -1,6 +1,11 @@
 import { MODULE_ID } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
-import { gameItems, gamePacks, gameUsers } from "../foundry/runtime.js";
+import {
+  gameItems,
+  gamePacks,
+  gameUsers,
+  type PackDocumentLike,
+} from "../foundry/runtime.js";
 import type { Procedure } from "../rpc/registry.js";
 import { pairedAgentUserId } from "../setup/identity.js";
 import {
@@ -18,6 +23,7 @@ import {
   integer,
   invalid,
   OWNERSHIP_OWNER,
+  packDocuments,
   parseStoredResult,
   PF2E_REQUIREMENT,
   record,
@@ -438,10 +444,14 @@ function preselect(source: Dict, choices: Record<string, string>): boolean {
   return true;
 }
 
+/** Compendium sources by slug: one index read per pack, and the documents of
+ * every slug `prefetch`ed together in one request rather than one each. */
 export class PackLookup {
   #indexes = new Map<string, Map<string, string> | null>();
+  /** Fetched documents by `pack/id`; null when the pack does not hold it. */
+  #docs = new Map<string, PackDocumentLike | null>();
 
-  async source(packId: string, wanted: string): Promise<Dict | "missing"> {
+  async prefetch(packId: string, slugs: string[]): Promise<void> {
     if (!this.#indexes.has(packId)) {
       const pack = gamePacks()?.get(packId);
       const index = pack
@@ -453,8 +463,20 @@ export class PackLookup {
           new Map(index.map((e) => [String(indexSlug(e)), String(e._id)])),
       );
     }
+    const index = this.#indexes.get(packId);
+    const ids = slugs
+      .map((s) => index?.get(s))
+      .filter((id): id is string => !!id && !this.#docs.has(`${packId}/${id}`));
+    if (ids.length === 0) return;
+    const docs = await packDocuments(packId, ids);
+    for (const id of ids)
+      this.#docs.set(`${packId}/${id}`, docs.get(id) ?? null);
+  }
+
+  async source(packId: string, wanted: string): Promise<Dict | "missing"> {
+    await this.prefetch(packId, [wanted]);
     const id = this.#indexes.get(packId)?.get(wanted);
-    const doc = id ? await gamePacks()?.get(packId)?.getDocument(id) : null;
+    const doc = id ? this.#docs.get(`${packId}/${id}`) : null;
     if (!doc) return "missing";
     // fromCompendium stamps `_stats.compendiumSource` (the Item's identity).
     return gameItems()!.fromCompendium!(doc);
@@ -582,6 +604,20 @@ export const pf2eActorCompleteV1: Procedure = async (payload) => {
             ?.value === location),
     );
   const packs = new PackLookup();
+  await Promise.all([
+    packs.prefetch(
+      PACKS.feat,
+      req.feats.map((f) => f.slug),
+    ),
+    packs.prefetch(
+      PACKS.spell,
+      req.spellcasting.flatMap((c) => c.spells.map((s) => s.slug)),
+    ),
+    packs.prefetch(
+      PACKS.equipment,
+      req.equipment.map((e) => e.slug),
+    ),
+  ]);
   const resolve = async (
     packId: string,
     s: string,

@@ -227,8 +227,8 @@ function stubWorld(
                   _id: e._id,
                   system: { slug: e.system.slug },
                 })),
-              getDocument: async (docId: string) =>
-                PACK.find((e) => e._id === docId) ?? null,
+              getDocuments: async ({ _id__in }: { _id__in: string[] }) =>
+                PACK.filter((e) => _id__in.includes(e._id)),
             }
           : undefined,
     },

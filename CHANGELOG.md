@@ -57,6 +57,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   in the background (it no longer polls on a timer the browser slows down); a roll that never
   finishes no longer blocks every later attack until reload; and an attack whose roller posted no
   card no longer takes over a different roll the Gamemaster makes from that character's sheet.
+- Fewer server round trips on large writes: Pathfinder 2e character completion and catalog adds
+  fetch each compendium's documents in one request, and Knight equipment fetches one request per
+  compendium; Knight minor motivations are updated and created in one request each, and an
+  unchanged one is no longer rewritten.
 
 ## [0.19.1] - 2026-11-04
 

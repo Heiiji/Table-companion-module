@@ -509,6 +509,10 @@ async function addSources(
 ): Promise<Array<{ add: Pf2eResourcesAddV1; source: Dict }>> {
   const out: Array<{ add: Pf2eResourcesAddV1; source: Dict }> = [];
   const lookup = new PackLookup();
+  await lookup.prefetch(
+    EQUIPMENT_PACK,
+    adds.map((a) => a.slug),
+  );
   for (const add of adds) {
     const existing = byAppKey(actor, add.key);
     if (existing) {

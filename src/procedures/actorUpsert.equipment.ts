@@ -1,5 +1,5 @@
 import { MODULE_ID } from "../constants.js";
-import { gameModules, gamePacks, systemVersion } from "../foundry/runtime.js";
+import { gameModules, systemVersion } from "../foundry/runtime.js";
 import {
   KNIGHT_COMPENDIUM_MODULE_ID,
   KNIGHT_COMPENDIUM_VERSION,
@@ -15,6 +15,7 @@ import {
   invalid,
   isAdmittedKnightSystemVersion,
   docId,
+  packDocuments,
   type ActorItemLike,
   type ActorLike,
   type Dict,
@@ -404,14 +405,27 @@ export async function applyEquipment(
     warnings.push(compendiumWarning);
     return { equipmentCompleteness: "partial", warnings };
   }
-  const packs = gamePacks();
+  const wanted = desired.filter(
+    (item) => !retainedKeys.has(desiredEquipmentKey(item)),
+  );
+  // One request per pack, every pack at once.
+  const byPack = new Map<string, string[]>();
+  for (const item of wanted)
+    byPack.set(item.mapped.pack, [
+      ...(byPack.get(item.mapped.pack) ?? []),
+      item.mapped.documentId,
+    ]);
+  const fetched = new Map(
+    await Promise.all(
+      [...byPack].map(
+        async ([pack, ids]) => [pack, await packDocuments(pack, ids)] as const,
+      ),
+    ),
+  );
   const sources: Dict[] = [];
   const unresolvedTypes = new Set<string>();
-  for (const item of desired) {
-    const key = desiredEquipmentKey(item);
-    if (retainedKeys.has(key)) continue;
-    const pack = packs?.get(item.mapped.pack);
-    const document = await pack?.getDocument(item.mapped.documentId);
+  for (const item of wanted) {
+    const document = fetched.get(item.mapped.pack)?.get(item.mapped.documentId);
     const raw = document?.toObject();
     if (
       typeof raw !== "object" ||

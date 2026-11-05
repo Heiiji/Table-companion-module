@@ -178,6 +178,9 @@ function character(): FakeActor {
   return actor;
 }
 
+/** The packs each document request went to, in order. */
+const requests: string[] = [];
+
 function stubWorld(
   actors: FakeActor[],
   options: {
@@ -187,6 +190,7 @@ function stubWorld(
   } = {},
 ): { fromCompendium: ReturnType<typeof vi.fn> } {
   const content = options.packs ?? packs();
+  requests.length = 0;
   const fromCompendium = vi.fn(
     (doc: { toObject(): Record<string, unknown> }) => ({
       ...doc.toObject(),
@@ -215,9 +219,14 @@ function stubWorld(
               _id: e._id,
               system: { slug: (e.source.system as { slug: string }).slug },
             })),
-          getDocument: async (docId: string) => {
-            const e = entries.find((x) => x._id === docId);
-            return e ? { toObject: () => structuredClone(e.source) } : null;
+          getDocuments: async ({ _id__in }: { _id__in: string[] }) => {
+            requests.push(id);
+            return entries
+              .filter((x) => _id__in.includes(x._id))
+              .map((e) => ({
+                _id: e._id,
+                toObject: () => structuredClone(e.source),
+              }));
           },
         };
       },
@@ -618,6 +627,16 @@ describe("pf2e.actor.complete.v1 writes", () => {
       digest: expect.stringMatching(/^[0-9a-f]{64}$/),
       ...result,
     });
+  });
+
+  it("fetches every pack's documents in one request, not one per slug", async () => {
+    stubWorld([character()]);
+    await run(request());
+    expect(requests.sort()).toEqual([
+      "pf2e.equipment-srd",
+      "pf2e.feats-srd",
+      "pf2e.spells-srd",
+    ]);
   });
 
   it("never writes system.abilities, a prepared path, level, HP or the ABC items' identity", async () => {

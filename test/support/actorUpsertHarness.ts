@@ -150,6 +150,7 @@ export interface FakeActor {
   prepareData(): void;
   createEmbeddedDocuments: ReturnType<typeof vi.fn>;
   deleteEmbeddedDocuments: ReturnType<typeof vi.fn>;
+  updateEmbeddedDocuments: ReturnType<typeof vi.fn>;
 }
 
 /** Gives the Actor an `armure` Item below generation 4: without one, Foundry
@@ -219,6 +220,15 @@ export function fakeActor(id = ACTOR_ID, name = "Existing"): FakeActor {
         }
       },
     ),
+    updateEmbeddedDocuments: vi.fn(
+      async (_type, data: Record<string, unknown>[]) => {
+        for (const { _id, ...changes } of data) {
+          const item = actor.items.contents.find((i) => i.id === _id);
+          for (const [key, value] of Object.entries(changes))
+            if (item) setPath(item, key, value);
+        }
+      },
+    ),
     deleteEmbeddedDocuments: vi.fn(async (_type, ids: string[]) => {
       actor.items.contents = actor.items.contents.filter(
         (item) => !ids.includes(String(item.id ?? item._id ?? "")),
@@ -243,6 +253,8 @@ export interface StubCompendium {
   active?: boolean;
   version?: string;
   documents: Record<string, Record<string, Record<string, unknown>>>;
+  /** Each server request, by pack (`pack:id` for a single-document read). */
+  requests?: string[];
 }
 
 export function stubFoundry(
@@ -275,10 +287,20 @@ export function stubFoundry(
         if (!documents) return undefined;
         return {
           getDocument: async (id: string) => {
+            compendium?.requests?.push(`${pack}:${id}`);
             const source = documents[id];
             return source
               ? { toObject: () => structuredClone(source) }
               : undefined;
+          },
+          getDocuments: async ({ _id__in }: { _id__in: string[] }) => {
+            compendium?.requests?.push(pack);
+            return _id__in
+              .filter((id) => documents[id])
+              .map((id) => ({
+                id,
+                toObject: () => structuredClone(documents[id]),
+              }));
           },
         };
       },

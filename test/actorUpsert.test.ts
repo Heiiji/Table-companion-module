@@ -55,9 +55,10 @@ describe("actor.upsert.v1", () => {
         expect(systemKeys.length).toBeGreaterThan(20);
         for (const key of systemKeys)
           expect(hasFixturePath(fixture.actor, key), key).toBe(true);
-        const motivationCreates = actor.createEmbeddedDocuments.mock.calls.map(
-          (call) => call[1][0] as Record<string, unknown>,
-        );
+        // The three motivations are created in one request.
+        expect(actor.createEmbeddedDocuments).toHaveBeenCalledTimes(1);
+        const motivationCreates = actor.createEmbeddedDocuments.mock
+          .calls[0]![1] as Record<string, unknown>[];
         expect(motivationCreates).toHaveLength(3);
         for (const created of motivationCreates) {
           expect(created.type).toBe(fixture.minorMotivationItem.type);
@@ -120,11 +121,14 @@ describe("actor.upsert.v1", () => {
     expect(createdActor!.events.indexOf("prepare")).toBeLessThan(
       createdActor!.events.lastIndexOf("update"),
     );
-    expect(createdActor!.createEmbeddedDocuments).toHaveBeenCalledTimes(3);
+    expect(createdActor!.createEmbeddedDocuments).toHaveBeenCalledTimes(1);
     expect(
-      createdActor!.createEmbeddedDocuments.mock.calls.map(
-        (call) => (call[1][0] as Record<string, unknown>).type,
-      ),
+      (
+        createdActor!.createEmbeddedDocuments.mock.calls[0]![1] as Record<
+          string,
+          unknown
+        >[]
+      ).map((source) => source.type),
     ).toEqual(["motivationMineure", "motivationMineure", "motivationMineure"]);
     expect(createdActor!.items.contents[0]).toMatchObject({
       name: "Foreign item",

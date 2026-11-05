@@ -76,6 +76,50 @@ describe("actor.upsert.v1 minor motivations", () => {
     );
   });
 
+  it("writes the changed motivations in one request and skips an unchanged one", async () => {
+    const actor = fakeActor();
+    const managed = (id: string, index: number, description: string) => ({
+      id,
+      name: `Motivation mineure ${index + 1}`,
+      type: "motivationMineure",
+      system: { description },
+      flags: {
+        [MODULE_ID]: {
+          actorUpsertMinorMotivationV1: { schemaVersion: 1, index },
+        },
+      },
+    });
+    actor.items.contents.push(
+      managed("motivation000001", 0, "<p>Same</p>"),
+      managed("motivation000002", 1, "<p>Old</p>"),
+      managed("motivation000003", 2, "<p>Old</p>"),
+    );
+    stubFoundry([actor]);
+    await actorUpsertV1(
+      approved({
+        assignedActorId: actor.id,
+        equipment: undefined,
+        profile: {
+          ...approved().profile!,
+          minorMotivations: ["Same", "New", "Newer"],
+        },
+      }),
+      {} as never,
+    );
+    expect(actor.updateEmbeddedDocuments).toHaveBeenCalledTimes(1);
+    expect(
+      (
+        actor.updateEmbeddedDocuments.mock.calls[0]![1] as Record<
+          string,
+          unknown
+        >[]
+      ).map((u) => [u._id, u["system.description"]]),
+    ).toEqual([
+      ["motivation000002", "<p>New</p>"],
+      ["motivation000003", "<p>Newer</p>"],
+    ]);
+  });
+
   it("escapes app text written into the Knight sheet's HTML fields", async () => {
     const actor = fakeActor();
     stubFoundry([actor]);

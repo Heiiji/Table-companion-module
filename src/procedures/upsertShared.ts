@@ -5,11 +5,13 @@ import {
   foundryGame,
   foundryGeneration,
   gameActors,
+  gamePacks,
   systemId,
   systemVersion,
   type ActorLike,
   type ActorsLike,
   type Dict,
+  type PackDocumentLike,
 } from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
 import { pairedAgentUserId } from "../setup/identity.js";
@@ -318,6 +320,19 @@ export function docId(
   doc: { id?: string; _id?: string } | null | undefined,
 ): string {
   return doc?.id ?? doc?._id ?? "";
+}
+
+/** The documents of `ids` in the pack `packId`, by id, fetched in ONE server
+ * request; an id the pack does not hold (or a missing pack) is absent. */
+export async function packDocuments(
+  packId: string,
+  ids: Iterable<string>,
+): Promise<Map<string, PackDocumentLike>> {
+  const wanted = [...new Set(ids)];
+  const pack = gamePacks()?.get(packId);
+  if (!pack || wanted.length === 0) return new Map();
+  const docs = await pack.getDocuments({ _id__in: wanted });
+  return new Map(docs.map((doc) => [docId(doc), doc]));
 }
 
 /** The keys this module stores under `flags["table-companion"]`. */
