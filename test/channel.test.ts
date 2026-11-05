@@ -1222,7 +1222,7 @@ describe("Channel response signing", () => {
     expect(second.publicKeyB64).not.toBe(first.publicKeyB64);
   });
 
-  // MB4: the election moves while a request runs (another GM connects); the
+  // The election moves while a request runs (another GM connects); the
   // browser that accepted it still signs its reply, which the backend accepts.
   it("signs a reply with the accepting browser's key after the election moved", async () => {
     stubGame({ pinned: agentPubB64, responder: true });
