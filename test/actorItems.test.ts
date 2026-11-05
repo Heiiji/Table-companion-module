@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { actorItemsV1 } from "../src/procedures/actorItems.js";
+import { readWeaponAttacks } from "../src/procedures/actorItems.read.js";
 import {
-  actorItemsV1,
-  readWeaponAttacks,
   validateKnightActorItemsV1,
   type AttackProfileV1,
-} from "../src/procedures/actorItems.js";
+} from "../src/procedures/actorItems.validate.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
 import {
