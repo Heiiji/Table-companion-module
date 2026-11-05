@@ -53,6 +53,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Knight: equipment from the companion app no longer deletes an armour, weapon or module before its
   replacement can be imported; with the Knight Compendium missing, disabled or at another version,
   or a replacement that cannot be fetched, the existing Items stay and the result is `partial`.
+- Knight: an attack answers as soon as its card lands, even when the Gamemaster's Foundry tab is
+  in the background (it no longer polls on a timer the browser slows down); a roll that never
+  finishes no longer blocks every later attack until reload; and an attack whose roller posted no
+  card no longer takes over a different roll the Gamemaster makes from that character's sheet.
 
 ## [0.19.1] - 2026-11-04
 

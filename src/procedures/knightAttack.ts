@@ -1,4 +1,4 @@
-import { MODULE_ID } from "../constants.js";
+import { MODULE_ID, REQUEST_TIMEOUT_MS } from "../constants.js";
 import {
   canvasTokens,
   foundryGame,
@@ -46,10 +46,11 @@ export const ATTACK_LANE = "knight.attack";
 export const ATTACK_WAIT_MS = 8_000;
 /** How long the card is still watched, after an unanswered call, to stamp its
  * result for a later import. */
-// ponytail: a card whose flags land after this is never stamped; a hook on
-// updateChatMessage would cover any delay if that ever shows up.
+// ponytail: a card whose flags land after this is never stamped; widen it if
+// a slower roller ever shows up.
 export const ATTACK_STAMP_MS = 60_000;
-const POLL_MS = 100;
+/** The chat events after which a card may have changed. */
+const CHAT_HOOKS = ["createChatMessage", "updateChatMessage"] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const FOUNDRY_ID = /^[A-Za-z0-9]{16}$/;
@@ -378,17 +379,39 @@ function visibilityOf(
   return { whisper: readers, blind: visibility === "blind" };
 }
 
-async function poll<T>(
+/** `read()` once it is truthy, re-read on every chat create or update rather
+ * than on a timer chain a hidden tab would throttle; null at the deadline. */
+function waitFor<T>(
   read: () => T | null | undefined,
   ms: number,
 ): Promise<T | null> {
-  const end = Date.now() + ms;
-  for (;;) {
-    const value = read();
-    if (value) return value;
-    if (Date.now() >= end) return null;
-    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-  }
+  const now = read();
+  if (now) return Promise.resolve(now);
+  const hooks = foundryHooks();
+  return new Promise((resolve) => {
+    const finish = (value: T | null | undefined) => {
+      clearTimeout(timer);
+      ids.forEach(([name, id]) => hooks?.off?.(name, id));
+      resolve(value ?? null);
+    };
+    const check = () => {
+      const value = read();
+      if (value) finish(value);
+    };
+    const ids = CHAT_HOOKS.map(
+      (name) => [name, hooks?.on(name, check)] as const,
+    );
+    const timer = setTimeout(() => finish(read()), ms);
+  });
+}
+
+/** `promise`'s value, or null once `ms` has passed. */
+function within<T>(promise: Promise<T | null>, ms: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<null>((resolve) => (timer = setTimeout(resolve, ms, null))),
+  ]).finally(() => clearTimeout(timer));
 }
 
 function cardTimeout(): RpcError {
@@ -517,7 +540,7 @@ const flagsLanded = (eventId: string) => {
 
 /** A retry of an attack already on the chat: its stored result, never a new roll. */
 async function replay(eventId: string): Promise<KnightAttackResultV1> {
-  const card = await poll(() => {
+  const card = await waitFor(() => {
     const c = cardOf(eventId);
     return c && (storedResult(c) || Array.isArray(knightFlags(c)?.content))
       ? c
@@ -552,7 +575,7 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
   // timed out, its stamping hook still armed): join it, never roll again.
   const inFlight = rolling.get(req.eventId);
   if (inFlight) {
-    const result = await poll(() => inFlight.result, ATTACK_WAIT_MS);
+    const result = await within(inFlight, ATTACK_WAIT_MS);
     if (!result) throw cardTimeout();
     return { ...result, alreadyRolled: true };
   }
@@ -598,7 +621,8 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
   const hookId = hooks?.on("preCreateChatMessage", (doc: CardMessage) => {
     if (
       doc.speaker?.actor !== actor.id ||
-      pending.get(req.actorId)?.id !== hookId
+      pending.get(req.actorId)?.id !== hookId ||
+      !rollsPool(doc, req.dice)
     )
       return;
     dropHook(req.actorId);
@@ -624,8 +648,9 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
   const previous = gmTargetIds();
   const lend =
     readsUserTargets(weapon) && source !== "gm" && !!layer?.setTargets;
-  const entry: { result: KnightAttackResultV1 | null } = { result: null };
-  rolling.set(req.eventId, entry);
+  let settle!: (result: KnightAttackResultV1 | null) => void;
+  const done = new Promise<KnightAttackResultV1 | null>((r) => (settle = r));
+  rolling.set(req.eventId, done);
   try {
     if (lend) layer.setTargets!(ids, { mode: "replace" });
     await new RollKnight(actor, {
@@ -647,25 +672,43 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
   } catch (error) {
     dropHook(req.actorId); // the roller failed: no card is coming
     rolling.delete(req.eventId);
+    settle(null);
     throw error;
   } finally {
     if (lend) layer.setTargets!(previous, { mode: "replace" });
   }
   // doRoll does not await the card; it is created, then its Knight flags
   // written. Keep watching past the answer so a late card is still stamped.
-  void poll(() => flagsLanded(req.eventId), ATTACK_STAMP_MS)
+  void waitFor(() => flagsLanded(req.eventId), ATTACK_STAMP_MS)
     .then((card) => (card ? stamp(card, source) : null))
-    .then((r) => (entry.result = r))
-    .catch((error: unknown) => log.warn(`${PROCEDURE}: stamping failed`, error))
+    .catch((error: unknown) => {
+      log.warn(`${PROCEDURE}: stamping failed`, error);
+      return null;
+    })
+    .then(settle)
     .finally(() => rolling.delete(req.eventId));
-  const result = await poll(() => entry.result, ATTACK_WAIT_MS);
+  const result = await within(done, ATTACK_WAIT_MS);
   if (!result) throw cardTimeout();
   return result;
 }
 
-/** Attacks rolled whose card may still land, by eventId: the result once
- * the card is stamped. Lives until the late-stamp window closes. */
-const rolling = new Map<string, { result: KnightAttackResultV1 | null }>();
+/** Attacks rolled whose card may still land, by eventId: settles with the
+ * result once the card is stamped, or null when the late-stamp window closes. */
+const rolling = new Map<string, Promise<KnightAttackResultV1 | null>>();
+
+/** Whether `doc` is the card of a `dice`-die attack: the roller's first roll
+ * is the pool itself (`${dice}D6`), so a roll of another size from the same
+ * actor is not this attack's card. */
+// ponytail: a GM's own roll of the same actor with the same pool, made while an
+// app attack that posted no card still waits, would match; the system gives the
+// card no other mark before it exists.
+function rollsPool(doc: CardMessage, dice: number): boolean {
+  try {
+    return !!doc.rolls?.length && facesOf(doc.rolls[0]).length === dice;
+  } catch {
+    return false;
+  }
+}
 
 /** The unfired stamping hook of each actor's latest attack. */
 const pending = new Map<
@@ -683,11 +726,18 @@ function dropHook(actorId: string): void {
 
 let queue: Promise<unknown> = Promise.resolve();
 
-/** One attack at a time: the scoped hook and the lent targets are per call. */
+/** One attack at a time: the scoped hook and the lent targets are per call.
+ * A roll that never settles holds the queue only as long as the backend
+ * waits for an answer, so it cannot block every later attack. */
 export const knightAttackV1: Procedure = (payload) => {
   const req = validateKnightAttackV1(payload);
   const run = queue.then(() => attack(req));
-  queue = run.catch(() => undefined);
+  queue = queue.then(() =>
+    within(
+      run.catch(() => null),
+      REQUEST_TIMEOUT_MS,
+    ),
+  );
   return run;
 };
 

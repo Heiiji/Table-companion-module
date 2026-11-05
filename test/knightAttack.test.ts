@@ -94,7 +94,13 @@ class Message implements CardMessage {
   }
   async setFlag(ns: string, key: string, value: unknown) {
     (this.flags[ns] ??= {})[key] = value;
+    fire("updateChatMessage", this);
   }
+}
+
+/** Run a hook's handlers the way Foundry's `Hooks.callAll` does. */
+function fire(name: string, ...args: unknown[]): void {
+  for (const fn of [...(hooks.get(name)?.values() ?? [])]) fn(...args);
 }
 
 /** What the fake roller writes: its rolls, and the per-target lines of
@@ -145,9 +151,9 @@ class FakeRollKnight {
     );
     // Like #sendRollWeapon: not awaited by doRoll; create, then addFlags.
     const create = async () => {
-      for (const fn of hooks.get("preCreateChatMessage")?.values() ?? [])
-        fn(msg, {}, {}, GM);
+      fire("preCreateChatMessage", msg, {}, {}, GM);
       world.messages.contents.push(msg);
+      fire("createChatMessage", msg);
       if (scenario.landFlags === false) return;
       await Promise.resolve();
       msg.flags.knight = {
@@ -164,6 +170,7 @@ class FakeRollKnight {
         surprise: this.data.surprise,
         weapon: this.data.weapon,
       };
+      fire("updateChatMessage", msg); // addFlags is a document update
     };
     if (scenario.createAfterMs)
       setTimeout(() => void create(), scenario.createAfterMs);
@@ -570,6 +577,54 @@ describe("knight.attack.v1 roll", () => {
     expect(rollCalls).toHaveLength(1);
     expect(world.messages.contents).toHaveLength(1);
     expect(card.flags[MODULE_ID].eventId).toBe(EVENT);
+  });
+
+  it("answers as soon as the card's flags land, with no timer firing (a hidden tab)", async () => {
+    vi.useFakeTimers();
+    let answer: unknown;
+    void knightAttackV1(payload(), {} as never).then((r) => (answer = r));
+    // Only promise jobs run: a throttled tab's timers never fire here.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(answer).toMatchObject({ alreadyRolled: false, successes: 4 });
+  });
+
+  it("does not let a roll that never settles block later attacks", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    world.knight.RollKnight = class extends FakeRollKnight {
+      override doRoll(updates: Dict): Promise<number> {
+        return calls++ === 0 ? new Promise(() => {}) : super.doRoll(updates);
+      }
+    };
+    void knightAttackV1(
+      payload({ eventId: "00000000-0000-4000-8000-0000000000f1" }),
+      {} as never,
+    );
+    let answer: unknown;
+    void knightAttackV1(
+      payload({ eventId: "00000000-0000-4000-8000-0000000000f2" }),
+      {} as never,
+    ).then((r) => (answer = r));
+    await vi.advanceTimersByTimeAsync(ATTACK_STAMP_MS);
+    expect(answer).toMatchObject({ alreadyRolled: false });
+  });
+
+  it("never stamps another roll of the actor when the roller posted no card", async () => {
+    vi.useFakeTimers();
+    world.knight.RollKnight = class extends FakeRollKnight {
+      override async doRoll(): Promise<number> {
+        return 0; // resolves, but no card is ever created
+      }
+    };
+    const first = rejection(knightAttackV1(payload(), {} as never));
+    await vi.advanceTimersByTimeAsync(ATTACK_WAIT_MS + 200);
+    expect(await first).toMatchObject({ code: "attack_card_timeout" });
+    // The GM rolls a smaller pool from the same PC's sheet within the minute.
+    const own = new Message("own0000000000001", PC, [roll([2, 4, 6])]);
+    own.author = GM;
+    fire("preCreateChatMessage", own, {}, {}, GM);
+    expect(own.flags[MODULE_ID]).toBeUndefined();
+    expect(own.author).toBe(GM);
   });
 
   it("drops an older unfired hook when a new attack starts for the actor", async () => {
