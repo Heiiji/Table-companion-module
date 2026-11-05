@@ -18,6 +18,7 @@ Requirements: Node.js 24 or later.
 npm ci
 npm run lint          # ESLint + TypeScript type-check (src, tests and config files)
 npm test              # Vitest, no Foundry needed
+npm run test:coverage # Vitest with the coverage floor (vitest.config.ts) CI enforces
 npm run build         # bundles into dist/, a drop-in module folder
 npm run format        # Prettier
 ```
@@ -27,12 +28,15 @@ v13 or v14 install.
 
 ## Before you open a pull request
 
-- `npm run lint`, `npm run format:check`, `npm test` and `npm run build` pass. CI runs the same.
+- `npm run format:check`, `npm run lint`, `npm run test:coverage` and `npm run build` pass, as
+  CI runs them after `npm ci`. Plain `npm test` skips the coverage floor.
 - **Changelog.** Any change to behaviour, security, compatibility, setup, the manifest or the
   release packaging adds a line under `## [Unreleased]` in `CHANGELOG.md`, in the same pull
   request. Pure refactors, tests and documentation do not need one.
 - **Tests.** Every procedure and the socket channel have a spec under `test/`. A behaviour change
   comes with a test that fails without it.
+- **Versions.** `package.json`, `package-lock.json` and `module.json` carry the same version (CI
+  compares them); only a release changes it.
 - **Fixtures.** Test fixtures describe document *shapes* only. Never commit rulebook text, a real
   world's data, or anything from a player.
 

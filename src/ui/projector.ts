@@ -14,7 +14,7 @@ import { localize, log } from "../util/log.js";
  */
 
 // Single live projector popout. A new show REPLACES the prior — the spotlight is a
-// singleton ("push a 2nd clears the 1st"), matching the app's NowShowing model.
+// singleton ("push a 2nd clears the 1st"), as in the app.
 let projectorDialog: DialogInstance | undefined;
 
 // Every show and clear runs after the previous one has settled: a clear (or a

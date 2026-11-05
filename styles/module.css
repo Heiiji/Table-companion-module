@@ -91,7 +91,7 @@
   color: var(--color-level-success, #18520b);
 }
 
-/* Shared-screen / projector display (PNJ refactor, decision #3). Dedicated
+/* Shared-screen / projector display (`display.show`). Dedicated
    high-contrast, large-type theme for a screen read across the room — NOT the
    app's near-black surface. Near-white on near-black is ~19:1 contrast (WCAG AAA,
    well past the AA-large floor). Status is a TEXT label ("En jeu"), never

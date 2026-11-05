@@ -74,10 +74,6 @@ export async function showPassword(
   selectPasswordCode(dialog.element);
 }
 
-/** Render a pairing QR the Table Companion app can scan, encoding a deep link the
- * app registers. Best-effort: if generation fails the QR block is removed and the
- * password text + Copy button remain the way to pair. (Until the app registers
- * the `tablecompanion://` scheme, a scan still yields the password verbatim.) */
 /** The Foundry server origin the GM's browser is on (e.g. "https://foundry.example.com",
  * including any non-default port), as a ready-to-append `&h=` query param — or "" if
  * unavailable. This is the same server URL the app/agent must connect to, so carrying it
@@ -115,6 +111,9 @@ function isLoopbackOrigin(origin: string): boolean {
   );
 }
 
+/** Render a pairing QR the Table Companion app can scan, encoding a
+ * `tablecompanion://pair` deep link. Best-effort: if generation fails the QR
+ * block is removed and the password text + Copy button remain the way to pair. */
 function renderPairingQr(
   userName: string,
   password: string,
