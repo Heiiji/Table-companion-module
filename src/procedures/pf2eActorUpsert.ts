@@ -15,6 +15,7 @@ import {
   bindingId,
   bindingOf,
   canonicalDigest,
+  contentsOf,
   createActorDocument,
   docId,
   FLAG_KEYS,
@@ -219,13 +220,25 @@ export function hasUnresolvedChoice(source: Dict): boolean {
 }
 
 /** Resolve each requested ABC slug to a compendium Item source. Returns the
- * kept sources (in ABC order) and one warning per slug not kept. */
+ * kept sources (in ABC order) and one warning per slug not kept. A kind whose
+ * Item is already embedded with that slug (a re-send after the embed went
+ * through but the result flag did not) is not embedded again. */
 async function abcSources(
   req: Pf2eActorUpsertV1,
+  actor: ActorLike,
 ): Promise<{ sources: Dict[]; warnings: string[] }> {
   const sources: Dict[] = [];
   const warnings: string[] = [];
-  const requested = ABC_KINDS.filter((kind) => req.pf2e[kind] !== undefined);
+  const embedded = contentsOf(actor.items);
+  const requested = ABC_KINDS.filter(
+    (kind) =>
+      req.pf2e[kind] !== undefined &&
+      !embedded.some(
+        (item) =>
+          item.type === kind &&
+          (item.system as Dict | undefined)?.slug === req.pf2e[kind],
+      ),
+  );
   if (requested.length === 0) return { sources, warnings };
   const items = gameItems();
   if (typeof items?.fromCompendium !== "function")
@@ -357,7 +370,7 @@ export const pf2eActorUpsertV1: Procedure = async (payload) => {
   if (outcome === "created") {
     // ABC items only ever on the Actor this lane created: an adopted or bound
     // Actor keeps its build, and its level is never rewritten.
-    const abc = await abcSources(req);
+    const abc = await abcSources(req, actor);
     warnings.push(...abc.warnings);
     if (abc.sources.length > 0) {
       if (typeof actor.createEmbeddedDocuments !== "function")

@@ -287,7 +287,10 @@ beforeEach(() => {
   };
   stubWorld();
 });
-afterEach(() => {
+afterEach(async () => {
+  // Let every late-stamp window close, so no attack is still in flight for
+  // the next test's same eventId.
+  if (vi.isFakeTimers()) await vi.runAllTimersAsync();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -546,6 +549,27 @@ describe("knight.attack.v1 roll", () => {
       alreadyRolled: true,
     });
     expect(rollCalls).toHaveLength(1);
+  });
+
+  it("joins a same-eventId retry while the first card is still on its way, never rolling twice", async () => {
+    vi.useFakeTimers();
+    scenario.createAfterMs = ATTACK_WAIT_MS + 3_000;
+    const first = rejection(knightAttackV1(payload(), {} as never));
+    await vi.advanceTimersByTimeAsync(ATTACK_WAIT_MS + 200);
+    expect(await first).toMatchObject({ code: "attack_card_timeout" });
+    expect(world.messages.contents).toHaveLength(0);
+
+    // The backend retries the timed-out call before the late card lands.
+    const retry = knightAttackV1(payload(), {} as never);
+    await vi.advanceTimersByTimeAsync(4_000);
+    const card = world.messages.contents[0] as Message;
+    expect(await retry).toMatchObject({
+      messageId: card.id,
+      alreadyRolled: true,
+    });
+    expect(rollCalls).toHaveLength(1);
+    expect(world.messages.contents).toHaveLength(1);
+    expect(card.flags[MODULE_ID].eventId).toBe(EVENT);
   });
 
   it("drops an older unfired hook when a new attack starts for the actor", async () => {

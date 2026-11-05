@@ -609,4 +609,37 @@ describe("pf2e.actor.upsert.v1 replay", () => {
       `flags.${MODULE_ID}.pf2eUpsertV1`,
     ]);
   });
+
+  it("never re-embeds the ABC Items when the retry follows an embed that went through", async () => {
+    const world = stubWorld();
+    const create = world.create.getMockImplementation()!;
+    world.create.mockImplementationOnce(
+      async (data: Record<string, unknown>) => {
+        const actor = (await create(data)) as FakeActor;
+        const update = actor.update;
+        // The embed lands; the final result-flag write is lost.
+        actor.update = async (changes) => {
+          if (`flags.${MODULE_ID}.pf2eUpsertV1` in changes) {
+            actor.update = update;
+            throw new Error("socket closed");
+          }
+          return update(changes);
+        };
+        return actor;
+      },
+    );
+    await expect(run(draft())).rejects.toThrow("socket closed");
+    const actor = world.actors[0];
+    expect(actor.createEmbeddedDocuments).toHaveBeenCalledTimes(1);
+    expect(storedFlag(actor)).toBeUndefined();
+
+    const retry = await run(draft());
+    expect(retry.outcome).toBe("created");
+    expect(retry.equipmentCompleteness).toBe("complete");
+    expect(actor.createEmbeddedDocuments).toHaveBeenCalledTimes(1);
+    const types = actor.items.contents.map((item) => item.type);
+    expect(types.sort()).toEqual(
+      ["ancestry", "background", "class", "heritage"].sort(),
+    );
+  });
 });

@@ -548,6 +548,14 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
       `${PROCEDURE}: game.knight.RollKnight is unavailable`,
     );
   if (cardOf(req.eventId)) return replay(req.eventId);
+  // A retry while this attack's card is still on its way (the first call
+  // timed out, its stamping hook still armed): join it, never roll again.
+  const inFlight = rolling.get(req.eventId);
+  if (inFlight) {
+    const result = await poll(() => inFlight.result, ATTACK_WAIT_MS);
+    if (!result) throw cardTimeout();
+    return { ...result, alreadyRolled: true };
+  }
 
   const actor = actorCollection().get(req.actorId);
   if (!actor)
@@ -616,6 +624,8 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
   const previous = gmTargetIds();
   const lend =
     readsUserTargets(weapon) && source !== "gm" && !!layer?.setTargets;
+  const entry: { result: KnightAttackResultV1 | null } = { result: null };
+  rolling.set(req.eventId, entry);
   try {
     if (lend) layer.setTargets!(ids, { mode: "replace" });
     await new RollKnight(actor, {
@@ -636,23 +646,26 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
     }).doRoll({});
   } catch (error) {
     dropHook(req.actorId); // the roller failed: no card is coming
+    rolling.delete(req.eventId);
     throw error;
   } finally {
     if (lend) layer.setTargets!(previous, { mode: "replace" });
   }
   // doRoll does not await the card; it is created, then its Knight flags
   // written. Keep watching past the answer so a late card is still stamped.
-  let answer: KnightAttackResultV1 | null = null;
   void poll(() => flagsLanded(req.eventId), ATTACK_STAMP_MS)
     .then((card) => (card ? stamp(card, source) : null))
-    .then((r) => (answer = r))
-    .catch((error: unknown) =>
-      log.warn(`${PROCEDURE}: stamping failed`, error),
-    );
-  const result = await poll(() => answer, ATTACK_WAIT_MS);
+    .then((r) => (entry.result = r))
+    .catch((error: unknown) => log.warn(`${PROCEDURE}: stamping failed`, error))
+    .finally(() => rolling.delete(req.eventId));
+  const result = await poll(() => entry.result, ATTACK_WAIT_MS);
   if (!result) throw cardTimeout();
   return result;
 }
+
+/** Attacks rolled whose card may still land, by eventId: the result once
+ * the card is stamped. Lives until the late-stamp window closes. */
+const rolling = new Map<string, { result: KnightAttackResultV1 | null }>();
 
 /** The unfired stamping hook of each actor's latest attack. */
 const pending = new Map<
