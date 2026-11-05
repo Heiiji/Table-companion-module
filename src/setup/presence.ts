@@ -1,16 +1,16 @@
 import type { Channel } from "../rpc/channel.js";
 import { isResponder } from "./election.js";
-import { COMPANION_USER_NAME } from "./companion-user.js";
+import { companionAnchorId, pairedAgentUserId } from "./identity.js";
 import { log } from "../util/log.js";
 
 /** True when at least one human GM is actually connected to this world. The
  * Companion service user is created with a non-GM role, so it is excluded by
- * role; we also exclude it by name as defense-in-depth in case a GM elevates it. */
+ * role; it is also excluded by id (the paired user, the one this module
+ * created) in case a GM elevates it — never by name, which anyone can carry. */
 export function anyActiveGM(): boolean {
+  const service = [pairedAgentUserId(), companionAnchorId()];
   const users = game.users?.contents ?? [];
-  return users.some(
-    (u) => u.active && u.isGM && u.name !== COMPANION_USER_NAME,
-  );
+  return users.some((u) => u.active && u.isGM && !service.includes(u.id ?? ""));
 }
 
 /**

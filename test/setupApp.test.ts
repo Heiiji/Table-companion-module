@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Channel, LinkStatus, Pairing } from "../src/rpc/channel.js";
 import { openSetupApp } from "../src/ui/SetupApp.js";
-import { CAP_RESPONSE_SIG } from "../src/constants.js";
+import {
+  CAP_RESPONSE_SIG,
+  SETTING_COMPANION_ANCHOR,
+} from "../src/constants.js";
 import { fakeActor, stubWorld } from "./support/companionWorld.js";
 
 // The pairing QR's payload, as the app scans it.
@@ -135,7 +138,7 @@ beforeEach(() => {
   });
   vi.stubGlobal("game", {
     user: { id: "gm1", isGM: true },
-    users: { find: () => undefined },
+    users: { find: () => undefined, filter: () => [] },
     settings: { get: () => "" },
   });
 });
@@ -169,7 +172,7 @@ describe("openSetupApp", () => {
   it("shows a pending request's fingerprint with the sentence to compare it", async () => {
     vi.stubGlobal("game", {
       user: { id: "gm1", isGM: true },
-      users: { find: () => undefined },
+      users: { find: () => undefined, filter: () => [] },
       settings: { get: () => "" },
       i18n: {
         localize: (k: string) => k,
@@ -297,7 +300,7 @@ describe("Players in the app", () => {
     const actors = new Map([["actor1", { name: "Aria <the Bold>" }]]);
     vi.stubGlobal("game", {
       user: { id: "gm1", isGM: true },
-      users: { find: () => undefined },
+      users: { find: () => undefined, filter: () => [] },
       settings: { get: () => "" },
       actors: { get: (id: string) => actors.get(id) },
       i18n: {
@@ -487,8 +490,12 @@ describe("setup resets and first run", () => {
     const user = { id: "comp1", name: "Table <Bot>", update: vi.fn() };
     vi.stubGlobal("game", {
       user: { id: "gm1", isGM: true },
-      users: { find: () => user },
-      settings: { get: () => "" },
+      users: { find: () => user, filter: () => [] },
+      // The user this module created.
+      settings: {
+        get: (_scope: string, key: string) =>
+          key === SETTING_COMPANION_ANCHOR ? "comp1" : "",
+      },
       i18n,
     });
     return user;
@@ -559,7 +566,7 @@ describe("setup resets and first run", () => {
     // A player: nothing.
     vi.stubGlobal("game", {
       user: { id: "p1", isGM: false },
-      users: { find: () => undefined },
+      users: { find: () => undefined, filter: () => [] },
       settings: { get: () => "" },
     });
     let offer = await fresh();
@@ -568,7 +575,10 @@ describe("setup resets and first run", () => {
 
     // A GM, no Companion user: offered once, non-modal; Open opens the setup.
     renamedCompanion();
-    vi.stubGlobal("game", { ...game, users: { find: () => undefined } });
+    vi.stubGlobal("game", {
+      ...game,
+      users: { find: () => undefined, filter: () => [] },
+    });
     offer = await fresh();
     await offer(unpaired.channel);
     await offer(unpaired.channel);

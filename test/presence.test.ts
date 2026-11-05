@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Channel } from "../src/rpc/channel.js";
 import { anyActiveGM, startPresenceWatcher } from "../src/setup/presence.js";
+import { SETTING_AGENT_USER } from "../src/constants.js";
 
 interface FakeUser {
   id: string;
@@ -21,6 +22,11 @@ function setGame(users: FakeUser[], me: FakeUser): void {
   vi.stubGlobal("game", {
     user: me,
     users: { activeGM: me, contents: users },
+    // The paired backend user is "comp".
+    settings: {
+      get: (_scope: string, key: string) =>
+        key === SETTING_AGENT_USER ? "comp" : "",
+    },
   });
 }
 
@@ -59,13 +65,16 @@ afterEach(() => {
 });
 
 describe("anyActiveGM", () => {
-  it("counts an active human GM but excludes an elevated Companion by name", () => {
+  it("counts an active human GM but excludes an elevated Companion by id, not name", () => {
     setGame([gm("a")], gm("a"));
     expect(anyActiveGM()).toBe(true);
 
-    // Even if the Companion were somehow a GM, it must not count.
-    setGame([{ ...companion, isGM: true }], gm("a"));
+    // Even if the Companion were somehow a GM, it must not count, renamed or not.
+    setGame([{ ...companion, isGM: true, name: "Table bot" }], gm("a"));
     expect(anyActiveGM()).toBe(false);
+    // A human GM who happens to be called "Companion" is a GM.
+    setGame([{ ...gm("h"), name: "Companion" }], gm("a"));
+    expect(anyActiveGM()).toBe(true);
   });
 
   it("is false when no GM is active", () => {

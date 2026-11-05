@@ -1,4 +1,6 @@
 import { MODULE_ID } from "../constants.js";
+import { gameActors } from "../foundry/runtime.js";
+import { contentsOf, OWNERSHIP_OWNER } from "../procedures/upsertShared.js";
 import { generatePassword } from "../util/password.js";
 import { localize, log } from "../util/log.js";
 import {
@@ -34,9 +36,14 @@ interface CompanionResult {
 
 /** Find the Companion service user. Trusted sources first: the user the paired
  * agent actually sends as, then the user this module created (both GM-written
- * world settings). The flag and the name are fallbacks for worlds set up before
- * those existed — neither proves identity, since a player can set a flag on
- * their own User. */
+ * world settings).
+ *
+ * Legacy fallback, for a Companion created before those settings existed and
+ * never paired since (pairing records the paired user, which then wins): the
+ * module's flag, never the name. A player can set that flag on their own User,
+ * so the match must also look like the service account — not a Gamemaster,
+ * owning no Actor — and be the only one; otherwise there is none, and setup
+ * offers to create it. */
 export function findCompanionUser(): User | undefined {
   const users = game.users;
   if (!users) return undefined;
@@ -45,15 +52,15 @@ export function findCompanionUser(): User | undefined {
     const byId = users.find((u) => u.id === id);
     if (byId) return byId;
   }
-  return (
-    users.find(
-      (u) =>
-        (u as unknown as FlagReader).getFlag(MODULE_ID, COMPANION_FLAG) ===
-        true,
-    ) ??
-    users.find((u) => u.name === COMPANION_USER_NAME) ??
-    undefined
+  const actors = contentsOf(gameActors());
+  const legacy = users.filter(
+    (u) =>
+      (u as unknown as FlagReader).getFlag(MODULE_ID, COMPANION_FLAG) ===
+        true &&
+      !u.isGM &&
+      !actors.some((a) => a.ownership?.[u.id ?? ""] === OWNERSHIP_OWNER),
   );
+  return legacy.length === 1 ? legacy[0] : undefined;
 }
 
 /**

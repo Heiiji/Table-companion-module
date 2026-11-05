@@ -3,18 +3,27 @@ import {
   COMPANION_USER_NAME,
   ensureCompanionUser,
   findCompanionUser,
+  resetCompanionPassword,
 } from "../src/setup/companion-user.js";
-import { MODULE_ID } from "../src/constants.js";
+import { MODULE_ID, SETTING_COMPANION_ANCHOR } from "../src/constants.js";
 
 afterEach(() => vi.unstubAllGlobals());
 
 interface FakeUser {
   id: string;
   name: string;
+  isGM?: boolean;
   getFlag(scope: string, key: string): unknown;
+  update?: ReturnType<typeof vi.fn>;
 }
 
-function stubFoundry(existing: FakeUser[] = []): {
+const flagged = (scope: string, key: string) =>
+  scope === MODULE_ID && key === "companion";
+
+function stubFoundry(
+  existing: FakeUser[] = [],
+  world: { anchor?: string; actors?: Array<{ ownership: object }> } = {},
+): {
   createSpy: ReturnType<typeof vi.fn>;
 } {
   const createSpy = vi.fn(async (data: { name: string }) => ({
@@ -29,6 +38,13 @@ function stubFoundry(existing: FakeUser[] = []): {
   vi.stubGlobal("game", {
     users: {
       find: (fn: (u: FakeUser) => boolean) => existing.find(fn),
+      filter: (fn: (u: FakeUser) => boolean) => existing.filter(fn),
+    },
+    actors: { contents: world.actors ?? [] },
+    settings: {
+      get: (_scope: string, key: string) =>
+        key === SETTING_COMPANION_ANCHOR ? (world.anchor ?? "") : "",
+      set: async () => {},
     },
   });
   return { createSpy };
@@ -63,32 +79,57 @@ describe("companion-user least-privilege creation", () => {
     const existing: FakeUser = {
       id: "u-old",
       name: "Renamed Companion",
-      getFlag: (scope, key) => scope === MODULE_ID && key === "companion",
+      getFlag: flagged,
     };
-    const { createSpy } = stubFoundry([existing]);
+    const { createSpy } = stubFoundry([existing], { anchor: "u-old" });
     const result = await ensureCompanionUser();
 
     expect(result).toEqual({ userId: "u-old", existed: true });
     expect(createSpy).not.toHaveBeenCalled();
   });
 
-  it("findCompanionUser prefers the module flag over the name", async () => {
-    const flagged: FakeUser = {
-      id: "u-flag",
-      name: "Totally Renamed",
-      getFlag: (scope, key) => scope === MODULE_ID && key === "companion",
-    };
-    stubFoundry([flagged]);
+  it("finds a legacy Companion by the module flag alone: not a GM, owning no Actor, the only one", () => {
+    stubFoundry([
+      { id: "u-flag", name: "Totally Renamed", getFlag: flagged },
+      { id: "u-alice", name: "Alice", getFlag: () => undefined },
+    ]);
     expect((findCompanionUser() as unknown as FakeUser).id).toBe("u-flag");
   });
 
-  it("findCompanionUser falls back to the name for pre-flag users", async () => {
-    const named: FakeUser = {
+  it("never takes a player named like it, a flagged Gamemaster, a flagged character owner, or one of two", () => {
+    const named = {
       id: "u-name",
       name: COMPANION_USER_NAME,
       getFlag: () => undefined,
     };
-    stubFoundry([named]);
-    expect((findCompanionUser() as unknown as FakeUser).id).toBe("u-name");
+    const gm = { id: "u-gm", name: "GM", isGM: true, getFlag: flagged };
+    const owner = { id: "u-alice", name: "Alice", getFlag: flagged };
+    for (const [users, actors] of [
+      [[named], []],
+      [[gm], []],
+      [[owner], [{ ownership: { "u-alice": 3 } }]],
+      [
+        [
+          { id: "u-a", name: "A", getFlag: flagged },
+          { id: "u-b", name: "B", getFlag: flagged },
+        ],
+        [],
+      ],
+    ] as const) {
+      stubFoundry([...users], { actors: [...actors] });
+      expect(findCompanionUser()).toBeUndefined();
+    }
+  });
+
+  it("never resets the password of a player who carries the name", async () => {
+    const player: FakeUser = {
+      id: "u-name",
+      name: COMPANION_USER_NAME,
+      getFlag: () => undefined,
+      update: vi.fn(),
+    };
+    stubFoundry([player]);
+    await expect(resetCompanionPassword()).rejects.toThrow();
+    expect(player.update).not.toHaveBeenCalled();
   });
 });
