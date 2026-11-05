@@ -1,5 +1,6 @@
 import {
   foundryGame,
+  foundryHooks,
   gamePacks,
   type CompendiumPackLike,
   type CompendiumPacksLike,
@@ -7,6 +8,8 @@ import {
 } from "../foundry/runtime.js";
 import type { Procedure } from "../rpc/registry.js";
 import { RpcError, assertPayloadWithinCap } from "../rpc/errors.js";
+import { MODULE_ID, SETTING_AGENT_USER } from "../constants.js";
+import { isResponder } from "../setup/election.js";
 import { pairedAgentUser } from "../setup/identity.js";
 import { log } from "../util/log.js";
 
@@ -93,9 +96,11 @@ const WARM_DELAY_MS = 15_000;
  * Load the index of every pack the paired service user may read, one pack after another, so the
  * first `compendium.index` of a session finds Foundry's own index cache warm instead of loading
  * every pack against the request deadline. Sequential on purpose: it runs in the background and
- * must not compete with the table. Never throws; a pack that fails is left for the request to load.
+ * must not compete with the table. Only on the responder, the one browser that answers a request.
+ * Never throws; a pack that fails is left for the request to load.
  */
 export async function warmCompendiumIndexes(): Promise<void> {
+  if (!isResponder()) return;
   const agent = pairedAgentUser();
   for (const pack of gamePacks() ?? []) {
     try {
@@ -107,10 +112,17 @@ export async function warmCompendiumIndexes(): Promise<void> {
 }
 
 /** Start the warm-up WARM_DELAY_MS after `ready`, on a Gamemaster's browser only: only a GM ever
- * answers a request, and a player's browser has no reason to load the packs. */
+ * answers a request, and a player's browser has no reason to load the packs. A world paired after
+ * that (no paired user yet, so nothing was readable) warms again once the paired user is recorded. */
 export function scheduleCompendiumWarmup(): void {
   if (!foundryGame()?.user?.isGM) return;
   setTimeout(() => void warmCompendiumIndexes(), WARM_DELAY_MS);
+  const onSetting = (setting: { key?: unknown }) => {
+    if (setting?.key === `${MODULE_ID}.${SETTING_AGENT_USER}`)
+      void warmCompendiumIndexes();
+  };
+  foundryHooks()?.on("createSetting", onSetting);
+  foundryHooks()?.on("updateSetting", onSetting);
 }
 
 export const compendiumIndex: Procedure = async (payload) => {

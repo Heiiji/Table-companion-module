@@ -40,25 +40,34 @@ function hidden(pack: FakePack): FakePack {
  * models a world whose agent has not paired yet. */
 function stubWorld(
   list: FakePack[],
-  opts: { paired?: boolean; gm?: boolean } = {},
+  opts: { paired?: boolean; gm?: boolean; responder?: boolean } = {},
 ): void {
   const packs = [...list] as FakePack[] & {
     get: (c: string) => FakePack | undefined;
   };
   packs.get = (c) => list.find((p) => p.collection === c);
   const paired = opts.paired ?? true;
+  const user = { id: "gm1", isGM: opts.gm ?? true };
   vi.stubGlobal("game", {
-    user: { id: "gm1", isGM: opts.gm ?? true },
+    user,
     packs,
-    users: { get: (id: string) => (id === AGENT.id ? AGENT : undefined) },
+    users: {
+      get: (id: string) => (id === AGENT.id ? AGENT : undefined),
+      // The elected responder, unless another GM is.
+      activeGM: opts.responder === false ? { id: "gm2" } : user,
+    },
     settings: {
       get: (ns: string, key: string) =>
-        paired && ns === MODULE_ID && key === SETTING_AGENT_USER
+        world.paired && ns === MODULE_ID && key === SETTING_AGENT_USER
           ? AGENT.id
           : "",
     },
   });
+  world.paired = paired;
 }
+
+/** Mutable world state the stub reads live (pairing can land later). */
+const world = { paired: true };
 
 function setGame(): void {
   const bestiary: FakePack = {
@@ -429,6 +438,45 @@ describe("compendium index warm-up", () => {
       vi.advanceTimersByTime(14_999);
       expect(getIndex).not.toHaveBeenCalled();
       vi.advanceTimersByTime(1);
+      expect(getIndex).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("warms on the responder only, and again once a world is paired after page load", async () => {
+    vi.useFakeTimers();
+    const hooks = new Map<string, (s: { key: string }) => void>();
+    vi.stubGlobal("Hooks", {
+      on: (name: string, fn: (s: { key: string }) => void) =>
+        hooks.set(name, fn),
+    });
+    try {
+      const getIndex = vi.fn(async () => []);
+      const pack = (): FakePack =>
+        shared({
+          collection: "world.a",
+          metadata: { id: "a", label: "A", type: "Actor" },
+          getIndex,
+          getDocument: async () => null,
+        });
+      // Another GM's tab answers the backend: this one loads nothing.
+      stubWorld([pack()], { responder: false });
+      scheduleCompendiumWarmup();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(getIndex).not.toHaveBeenCalled();
+
+      // The responder, not paired at ready: nothing readable then.
+      stubWorld([pack()], { paired: false });
+      scheduleCompendiumWarmup();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(getIndex).not.toHaveBeenCalled();
+      // The GM pairs the backend: the paired user is recorded.
+      world.paired = true;
+      hooks.get("createSetting")!({
+        key: `${MODULE_ID}.${SETTING_AGENT_USER}`,
+      });
+      await vi.advanceTimersByTimeAsync(0);
       expect(getIndex).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();

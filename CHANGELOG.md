@@ -72,6 +72,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   information line instead of a console error with a stack; unexpected failures stay errors.
 - When the last Gamemaster closes the Foundry tab that answers the backend, the module tells the
   backend no Gamemaster is left on the way out, so app calls stop waiting for Foundry sooner.
+- Compendium search: the index warm-up now also runs for a world paired after Foundry loaded, and
+  only in the Gamemaster tab that answers the backend instead of in every Gamemaster tab.
 
 ## [0.19.1] - 2026-11-04
 
