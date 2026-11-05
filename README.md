@@ -92,16 +92,16 @@ Gamemaster can open setup from the console with
 ## Compatibility
 
 - **Foundry VTT:** v13 and later (verified on v14; newer versions are accepted, not refused)
-- **Game systems:** system-agnostic baseline; Knight 3.58.33 or later on Foundry 13 or later has an
+- **Game systems:** system-agnostic baseline; Knight 3.58.33 or a later 3.x on Foundry 13 or later has an
   additive, constrained actor-provisioning integration. Exact equipment materialization optionally
   uses Knight Compendium 14.0.1; other/missing versions remain safely partial.
 - **Live resources:** on Knight, the current resources a character spends in the app (health, armour,
   energy and the like) are written to its linked Foundry Actor as they change (`actor.resources.v1`).
-- **Fifth Edition live counters:** on dnd5e 6.1.0 or later on Foundry 14 or later, a linked
+- **Fifth Edition live counters:** on dnd5e 6.1.0 or a later 6.x on Foundry 14 or later, a linked
   character's hit points, temporary hit points, spell slots, exhaustion, conditions, death saves
   and inspiration are written from the app (`dnd5e.resources.v1`), which reports back the
   character's prepared maximum hit points.
-- **Pathfinder 2e character drafts:** on pf2e 8.6.1 or later on Foundry 14, a character made in the
+- **Pathfinder 2e character drafts:** on pf2e 8.6.1 or a later 8.x on Foundry 14, a character made in the
   app can be created in Foundry as a draft — name, ownership, level, and the ancestry, heritage,
   background and class found by slug in the system's compendiums — for the GM to complete there
   (`pf2e.actor.upsert.v1`).
@@ -110,7 +110,7 @@ Gamemaster can open setup from the console with
   in the system's compendiums (`pf2e.actor.complete.v1`). It only adds: nothing already on the Actor is
   removed or rewritten, the level is never changed, an item that would open a choice dialog is skipped
   with a warning, and the completing user must own the Actor in Foundry at the time it applies.
-- **Pathfinder 2e live counters:** on pf2e 8.5.1 or later on Foundry 14, a linked character's hit points, temporary
+- **Pathfinder 2e live counters:** on pf2e 8.5.1 or a later 8.x on Foundry 14, a linked character's hit points, temporary
   hit points, hero points, conditions and inventory are written from the app (`pf2e.resources.v1`):
   quantities of the items the app mirrors (0 deletes), and items added in the app found by slug in the
   system's equipment compendium, never stacked onto another item. A condition another item grants or
