@@ -289,7 +289,13 @@ describe("actor.upsert.v1", () => {
 
     // The last Knight release below the floor, and version strings that only
     // look like an admitted one.
-    for (const version of ["3.58.32", "3.57.99", "v3.58.36", "3.58.3", "4.0.0"]) {
+    for (const version of [
+      "3.58.32",
+      "3.57.99",
+      "v3.58.36",
+      "3.58.3",
+      "4.0.0",
+    ]) {
       vi.unstubAllGlobals();
       stubFoundry([], undefined, 14, undefined, version);
       await expect(
