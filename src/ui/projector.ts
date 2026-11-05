@@ -23,6 +23,18 @@ interface DialogInstance {
 // singleton ("push a 2nd clears the 1st"), matching the app's NowShowing model.
 let projectorDialog: DialogInstance | undefined;
 
+// Every show and clear runs after the previous one has settled: a clear (or a
+// second show) arriving while a popout is still rendering would otherwise find
+// it not yet `rendered`, skip it, and leave it open with nothing tracking it.
+// ponytail: a render that never settles blocks later shows/clears until reload.
+let queue: Promise<unknown> = Promise.resolve();
+
+function serialized<T>(op: () => Promise<T>): Promise<T> {
+  const run = queue.then(op, op);
+  queue = run.catch(() => undefined);
+  return run;
+}
+
 /** Open (or replace) the projector popout with pre-built, already-escaped content.
  *
  * Returns whether it actually rendered. Best-effort remains the POLICY — if the
@@ -31,35 +43,41 @@ let projectorDialog: DialogInstance | undefined;
  * — but the caller is told, rather than the failure being swallowed into a
  * blanket success. The GM is the one who has to know the projector did not come
  * up, because they are standing in front of a screen that is still blank. */
-export async function openProjector(
+export function openProjector(
   title: string,
   contentHtml: string,
 ): Promise<boolean> {
-  const Ctor = dialogV2Class();
-  if (!Ctor) return false;
-  await closeProjector();
-  try {
-    const dialog = new Ctor({
-      // A dedicated class hook for the high-contrast projector theme (styles/module.css).
-      classes: ["tca-projector"],
-      window: { title, icon: "fa-solid fa-tv" },
-      content: contentHtml,
-      buttons: [
-        { action: "close", label: localize("common.close"), default: true },
-      ],
-    }) as DialogInstance;
-    projectorDialog = dialog;
-    await dialog.render({ force: true });
-    return true;
-  } catch (err) {
-    projectorDialog = undefined;
-    log.error("could not open the projector display", err);
-    return false;
-  }
+  return serialized(async () => {
+    const Ctor = dialogV2Class();
+    if (!Ctor) return false;
+    await closeNow();
+    try {
+      const dialog = new Ctor({
+        // A dedicated class hook for the high-contrast projector theme (styles/module.css).
+        classes: ["tca-projector"],
+        window: { title, icon: "fa-solid fa-tv" },
+        content: contentHtml,
+        buttons: [
+          { action: "close", label: localize("common.close"), default: true },
+        ],
+      }) as DialogInstance;
+      projectorDialog = dialog;
+      await dialog.render({ force: true });
+      return true;
+    } catch (err) {
+      projectorDialog = undefined;
+      log.error("could not open the projector display", err);
+      return false;
+    }
+  });
 }
 
 /** Close the projector popout if open. Idempotent — pairs every spotlight clear. */
-export async function closeProjector(): Promise<void> {
+export function closeProjector(): Promise<void> {
+  return serialized(closeNow);
+}
+
+async function closeNow(): Promise<void> {
   const dialog = projectorDialog;
   projectorDialog = undefined;
   if (dialog?.rendered) {
