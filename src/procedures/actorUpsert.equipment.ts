@@ -395,17 +395,21 @@ export async function applyEquipment(
     }
     stale.push(item);
   }
-  if (!(await deleteManagedEquipment(actor, stale, warnings))) {
-    return { equipmentCompleteness: "partial", warnings };
-  }
-
+  // Resolve every replacement before deleting anything: an import that cannot
+  // happen (compendium missing or a different version, a document that does
+  // not match the fixture) must never cost the actor the Item it replaces.
   const compendiumWarning =
     desired.length === 0 ? null : compendiumAvailabilityWarning();
-  if (compendiumWarning) warnings.push(compendiumWarning);
+  if (compendiumWarning) {
+    warnings.push(compendiumWarning);
+    return { equipmentCompleteness: "partial", warnings };
+  }
   const packs = gamePacks();
+  const sources: Dict[] = [];
+  const unresolvedTypes = new Set<string>();
   for (const item of desired) {
     const key = desiredEquipmentKey(item);
-    if (retainedKeys.has(key) || compendiumWarning) continue;
+    if (retainedKeys.has(key)) continue;
     const pack = packs?.get(item.mapped.pack);
     const document = await pack?.getDocument(item.mapped.documentId);
     const raw = document?.toObject();
@@ -417,6 +421,7 @@ export async function applyEquipment(
       typeof actor.createEmbeddedDocuments !== "function"
     ) {
       warnings.push(`equipment_unavailable:${item.catalogIds.join("+")}`);
+      unresolvedTypes.add(item.mapped.itemType);
       continue;
     }
     const source = { ...(raw as Dict) };
@@ -427,6 +432,7 @@ export async function applyEquipment(
         !applyModuleSlots(source, item.slotAlternativeId)
       ) {
         warnings.push(`equipment_unavailable:${item.catalogIds.join("+")}`);
+        unresolvedTypes.add(item.mapped.itemType);
         continue;
       }
     }
@@ -468,8 +474,17 @@ export async function applyEquipment(
     } satisfies EquipmentCatalogSourceV1;
     sourceFlags[MODULE_ID] = tcFlags;
     source.flags = sourceFlags;
-    await actor.createEmbeddedDocuments("Item", [source]);
+    sources.push(source);
   }
+  // An unresolved replacement keeps every stale Item of its type (the armour
+  // slot, the weapons, the modules) until a later revision can import it.
+  const deletable = stale.filter(
+    (item) => !unresolvedTypes.has(String(item.type)),
+  );
+  if (!(await deleteManagedEquipment(actor, deletable, warnings))) {
+    return { equipmentCompleteness: "partial", warnings };
+  }
+  if (sources.length > 0) await actor.createEmbeddedDocuments!("Item", sources);
   return {
     equipmentCompleteness: warnings.length === 0 ? "complete" : "partial",
     warnings,

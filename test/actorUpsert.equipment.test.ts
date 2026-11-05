@@ -272,6 +272,102 @@ describe("actor.upsert.v1 equipment import", () => {
     ).toBe(false);
   });
 
+  it("never deletes a managed Item whose replacement cannot be imported", async () => {
+    const fixture = (id: string, type: string) => ({
+      _id: id,
+      name: `Fixture ${id}`,
+      type,
+      system: {},
+      flags: {},
+    });
+    const warrior = fixture("22826f541c384281", "armure");
+    const pistol = fixture("df9dd63546eda43e", "arme");
+    const full: StubCompendium = {
+      documents: {
+        "knight-compendium.armours-base": { [warrior._id]: warrior },
+        "knight-compendium.weapons-standard": {
+          [pistol._id]: pistol,
+          "448e9e2430dceff8": { ...pistol, _id: "448e9e2430dceff8" },
+        },
+      },
+    };
+    const pistolSelection = {
+      catalogId: "knight.weapon.pistolet-de-service",
+      quantity: 1,
+      slotAlternativeId: "handheld",
+    };
+    const armour = (actor: ReturnType<typeof fakeActor>) =>
+      actor.items.contents.filter((c) => c.type === "armure");
+    const weapons = (actor: ReturnType<typeof fakeActor>) =>
+      actor.items.contents.filter((c) => c.type === "arme");
+    const seeded = async () => {
+      vi.unstubAllGlobals();
+      const actor = fakeActor();
+      stubFoundry([actor], undefined, 14, full);
+      await actorUpsertV1(
+        approved({
+          assignedActorId: actor.id,
+          equipment: {
+            selections: [
+              { catalogId: "knight.armour.warrior", quantity: 1 },
+              pistolSelection,
+            ],
+          },
+        }),
+        {} as never,
+      );
+      expect(armour(actor)).toHaveLength(1);
+      expect(weapons(actor)).toHaveLength(2);
+      actor.deleteEmbeddedDocuments.mockClear();
+      return actor;
+    };
+    const switchToRogue = (actor: ReturnType<typeof fakeActor>) =>
+      actorUpsertV1(
+        approved({
+          assignedActorId: actor.id,
+          approvedRevision: 2,
+          equipment: {
+            selections: [{ catalogId: "knight.armour.rogue", quantity: 1 }],
+          },
+        }),
+        {} as never,
+      ) as Promise<ActorUpsertResultV1>;
+
+    // The GM disabled the Knight Compendium: nothing can be imported, so
+    // nothing is deleted.
+    let actor = await seeded();
+    vi.unstubAllGlobals();
+    stubFoundry([actor], undefined, 14, { ...full, active: false });
+    let result = await switchToRogue(actor);
+    expect(result.equipmentCompleteness).toBe("partial");
+    expect(result.warnings).toContain("equipment_compendium_missing");
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+    expect(armour(actor)).toHaveLength(1);
+    expect(weapons(actor)).toHaveLength(2);
+
+    // A different compendium version: same refusal.
+    actor = await seeded();
+    vi.unstubAllGlobals();
+    stubFoundry([actor], undefined, 14, { ...full, version: "14.0.2" });
+    result = await switchToRogue(actor);
+    expect(result.warnings).toContain(
+      "equipment_compendium_unsupported:14.0.2",
+    );
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+    expect(armour(actor)).toHaveLength(1);
+
+    // The compendium is there but the rogue armour cannot be fetched: the
+    // warrior stays, while the dropped weapons (no import needed) go.
+    actor = await seeded();
+    result = await switchToRogue(actor);
+    expect(result.equipmentCompleteness).toBe("partial");
+    expect(result.warnings).toContain(
+      "equipment_unavailable:knight.armour.rogue",
+    );
+    expect(armour(actor)).toHaveLength(1);
+    expect(weapons(actor)).toHaveLength(0);
+  });
+
   it("reconciles only module-stamped equipment and keeps unmapped identities partial", async () => {
     const actor = fakeActor();
     actor.items.contents.push(

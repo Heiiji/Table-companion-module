@@ -4,6 +4,13 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Knight: equipment from the companion app no longer deletes an armour, weapon or module before its
+  replacement can be imported; with the Knight Compendium missing, disabled or at another version,
+  or a replacement that cannot be fetched, the existing Items stay and the result is `partial`.
+
 ## [0.19.1] - 2026-11-04
 
 ### Fixed
