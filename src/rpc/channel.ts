@@ -34,7 +34,7 @@ import {
 import { localize, log } from "../util/log.js";
 import { Envelope, makeEnvelope, parseEnvelope, PeerInfo } from "./envelope.js";
 import { ProcedureRegistry, RpcContext } from "./registry.js";
-import { RpcError } from "./errors.js";
+import { RpcError, type RpcErrorCode } from "./errors.js";
 import { fingerprint, parseSignedMessage, verifySignature } from "./signing.js";
 import type { ModuleResponseSigner } from "./responseSigning.js";
 import { contentsOf, OWNERSHIP_OWNER } from "../procedures/upsertShared.js";
@@ -858,7 +858,7 @@ export class Channel {
     to: string,
     requestId: string | undefined,
     proc: string,
-    error: { code: string; message: string },
+    error: { code: RpcErrorCode; message: string },
   ): Promise<void> {
     const env = makeEnvelope("rpc.error", { id: requestId, error });
     await this.attachSignature(signer, env, requestId, proc, error);

@@ -51,6 +51,38 @@ working together:
 - **Security posture.** Every backend message is signed and must come from the paired service
   user; the elected Gamemaster's replies are signed too. Please do not weaken these checks.
 
+## Error codes
+
+A refused request answers an `rpc.error` whose `code` is one of `RpcErrorCode`
+(`src/rpc/errors.ts`). The backend and the apps switch on these codes: never rename or merge one;
+a new code is an additive change.
+
+| Code | Meaning |
+|---|---|
+| `unknown_procedure` | No procedure of that name is registered in this world (system or version not supported). |
+| `procedure_failed` | The procedure threw an unexpected error; the detail stays in the Gamemaster's browser log. |
+| `procedure_timeout` | The procedure did not finish within the request deadline. |
+| `payload_too_large` | The response would exceed the envelope size cap. |
+| `invalid_args` | The payload failed the procedure's validation. |
+| `permission_denied` | The responder is not a Gamemaster, or the paired user lacks the ownership the read needs. |
+| `unsupported_runtime` | This Foundry or game-system version, or a system API the procedure needs, is not available. |
+| `not_found` | The compendium entry does not exist or is not visible to the paired user (deliberately indistinguishable). |
+| `actor_not_found` | The Actor the request assigns does not exist. |
+| `binding_collision` | More than one Actor carries the same Table Companion binding. |
+| `binding_conflict` | The binding or the expected Actor points at a different Actor than the request. |
+| `deleted_link` | The previously linked Actor no longer exists. |
+| `stale_revision` | The Actor already carries a newer revision than the request. |
+| `revision_conflict` | The same revision was sent again with different content. |
+| `name_conflict` | The Actor was renamed in Foundry since the app last saw it; nothing is written. |
+| `base_conflict` | A field the request writes was edited in Foundry since the app's `base`; nothing is written. |
+| `level_mismatch` | A Pathfinder 2e completion whose level differs from the Actor's; nothing is written. |
+| `item_conflict` | A Knight Item moved, was renamed or is of another kind in Foundry; nothing is written. |
+| `item_missing` | The Knight Item the request updates is gone. |
+| `knight_api_missing` | The Knight system's roller is not available. |
+| `weapon_not_found` | No weapon on the Actor is bound to the attack's entry. |
+| `weapon_unsupported` | The Knight weapon has no attack roll (an active barrage). |
+| `attack_card_timeout` | The Knight attack card did not complete in time; a late card is still stamped with its result. |
+
 ## Licence
 
 By contributing you agree that your contribution is licensed under the [MIT licence](LICENSE).

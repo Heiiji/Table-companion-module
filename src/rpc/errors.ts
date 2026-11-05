@@ -1,37 +1,46 @@
 /**
  * Structured RPC errors. A thrown `RpcError` carries a stable machine `code` the
- * channel copies verbatim into the `rpc.error` envelope, so the agent (and the
- * apps behind it) can branch on the failure kind instead of parsing a message.
- *
- * Codes in use: `permission_denied` (the paired Companion user lacks the required
- * per-actor ownership), `payload_too_large` (a response would exceed the envelope
- * cap), `procedure_timeout` (a handler exceeded the per-request deadline),
- * `invalid_args` (the request payload failed procedure-specific validation),
- * `not_found` (the requested compendium entry does not exist or is not shared
- * with the service user — deliberately indistinguishable),
- * `unsupported_runtime` (the connected Foundry/system version does not support the
- * procedure), `binding_collision` (more than one Actor carries the same Table
- * Companion binding), `deleted_link` (the previously linked Actor no longer
- * exists), `binding_conflict` (the binding or assignedActorId points at a
- * different Actor than expected), `actor_not_found` (assignedActorId does not
- * identify an existing Actor), `stale_revision` (the Actor already carries a newer
- * approved revision), `revision_conflict` (the same approved revision was
- * resubmitted with different content), `name_conflict` (an
- * `actor.resources.v1` rename whose `previousName` no longer matches: the Actor
- * was renamed in Foundry first; nothing is written), `base_conflict` (a live
- * or provisioning write whose optional `base` no longer matches Foundry: a
- * field it writes was edited in Foundry first; nothing is written), and
- * `level_mismatch` (a
- * `pf2e.actor.complete.v1` build whose level differs from the Actor's; nothing
- * is written). Handlers that throw a plain `Error` map
- * to the generic `procedure_failed` with a generic message; the detail stays in
- * the GM browser's log.
+ * channel copies verbatim into the `rpc.error` envelope, so the backend (and
+ * the apps behind it) can branch on the failure kind instead of parsing a
+ * message. Codes are a shared contract: never rename or merge one. Each is
+ * described in CONTRIBUTING.md « Error codes ».
  */
 import { MAX_ENVELOPE_BYTES } from "../constants.js";
 
+/** Every code the module answers in an `rpc.error`. */
+export type RpcErrorCode =
+  // Answered by the channel for any procedure.
+  | "unknown_procedure"
+  | "procedure_failed"
+  | "procedure_timeout"
+  | "payload_too_large"
+  // Common to the procedures.
+  | "invalid_args"
+  | "permission_denied"
+  | "unsupported_runtime"
+  | "not_found"
+  // Binding and identity of the written Actor.
+  | "actor_not_found"
+  | "binding_collision"
+  | "binding_conflict"
+  | "deleted_link"
+  // Ordering and compare-and-set guards.
+  | "stale_revision"
+  | "revision_conflict"
+  | "name_conflict"
+  | "base_conflict"
+  | "level_mismatch"
+  | "item_conflict"
+  | "item_missing"
+  // Knight attacks.
+  | "knight_api_missing"
+  | "weapon_not_found"
+  | "weapon_unsupported"
+  | "attack_card_timeout";
+
 export class RpcError extends Error {
   constructor(
-    readonly code: string,
+    readonly code: RpcErrorCode,
     message: string,
   ) {
     super(message);
