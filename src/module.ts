@@ -25,7 +25,7 @@ import {
 import { appPresence } from "./setup/appPresence.js";
 import { startPresenceWatcher } from "./setup/presence.js";
 import { startKnightRollCards } from "./ui/knightRollCard.js";
-import { startKnightAttackFollowUps } from "./procedures/knightAttack.js";
+import { startKnightAttackFollowUps } from "./procedures/knightAttackFollowUps.js";
 import { offerSetupIfNeeded, openSetupApp } from "./ui/SetupApp.js";
 import { indexedDbKeyStore, responseKeyRecord } from "./util/keyStore.js";
 import { localize, log } from "./util/log.js";

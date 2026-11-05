@@ -8,7 +8,6 @@ import {
 } from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
-import { isResponder } from "../setup/election.js";
 import { isServiceUserId } from "../setup/identity.js";
 import { log } from "../util/log.js";
 import { waitFor, within } from "../util/wait.js";
@@ -44,7 +43,7 @@ import {
  * result with `alreadyRolled: true`, and the attack is never rolled twice.
  */
 
-const PROCEDURE = "knight.attack.v1";
+export const PROCEDURE = "knight.attack.v1";
 export const ATTACK_LANE = "knight.attack";
 /** How long the call waits for the card's Knight flags before answering. */
 export const ATTACK_WAIT_MS = 8_000;
@@ -137,7 +136,7 @@ interface Player extends UserLike {
   targets?: Iterable<TokenObj>;
 }
 
-interface RollLike {
+export interface RollLike {
   formula?: string;
   total?: number;
   dice?: { results?: { result: number; active?: boolean }[] }[];
@@ -237,11 +236,11 @@ function tokens(): TokenLayer | undefined {
   return canvasTokens() as TokenLayer | undefined;
 }
 
-function messages(): CardMessage[] {
+export function messages(): CardMessage[] {
   return (foundryGame()?.messages?.contents ?? []) as CardMessage[];
 }
 
-function laneFlags(message: CardMessage): Dict | undefined {
+export function laneFlags(message: CardMessage): Dict | undefined {
   const ns = message.flags?.[MODULE_ID];
   return typeof ns === "object" && ns !== null ? (ns as Dict) : undefined;
 }
@@ -253,7 +252,7 @@ function cardOf(eventId: string): CardMessage | undefined {
   });
 }
 
-function knightFlags(message: CardMessage): Dict | undefined {
+export function knightFlags(message: CardMessage): Dict | undefined {
   const knight = message.flags?.knight;
   return typeof knight === "object" && knight !== null
     ? (knight as Dict)
@@ -365,7 +364,7 @@ function cardTimeout(): RpcError {
 
 // ---------------------------------------------------------------- results
 
-function facesOf(roll: unknown): number[] {
+export function facesOf(roll: unknown): number[] {
   const r = (
     typeof roll === "string" ? (JSON.parse(roll) as unknown) : roll
   ) as RollLike | null;
@@ -686,67 +685,3 @@ export const knightAttackV1: Procedure = (payload) => {
   );
   return run;
 };
-
-// ------------------------------------------------------------ follow-ups
-
-function rollKey(rolls: unknown[]): string {
-  return rolls
-    .map((roll) => {
-      const r = (
-        typeof roll === "string" ? (JSON.parse(roll) as unknown) : roll
-      ) as RollLike | null;
-      return `${r?.formula ?? ""}:${r?.total ?? ""}:${facesOf(r).join(",")}`;
-    })
-    .join("|");
-}
-
-const DICE_TOTAL = /class="[^"]*\bdice-total\b[^"]*"[^>]*>\s*(-?\d+(?:\.\d+)?)/;
-
-/** Stamp a damage / violence card rolled from a lane attack card with that
- * attack's `eventId`; true when it did. Responder GM only. */
-export async function stampFollowUp(message: CardMessage): Promise<boolean> {
-  if (!isResponder()) return false;
-  const knight = knightFlags(message);
-  const attaque = knight?.attaque;
-  if (!Array.isArray(attaque) || attaque.length === 0) return false;
-  const own = laneFlags(message);
-  if (own?.followUp || own?.eventId) return false;
-  const key = rollKey(attaque);
-  const card = [...messages()]
-    .reverse()
-    .find(
-      (m) =>
-        laneFlags(m)?.lane === ATTACK_LANE &&
-        (m.rolls?.length ?? 0) > 0 &&
-        rollKey(m.rolls!) === key,
-    );
-  const attackEventId = card ? laneFlags(card)?.eventId : undefined;
-  if (typeof attackEventId !== "string") return false;
-  const rollType = (knight?.weapon as { rollType?: unknown } | undefined)
-    ?.rollType;
-  const kind =
-    rollType === "damage" || rollType === "violence"
-      ? rollType
-      : /violence/i.test(message.flavor ?? "")
-        ? "violence"
-        : "damage";
-  const match = DICE_TOTAL.exec(message.content ?? "");
-  await message.setFlag?.(MODULE_ID, "followUp", {
-    attackEventId,
-    kind,
-    total: match ? Number(match[1]) : null,
-  });
-  return true;
-}
-
-/** Watch the chat for follow-ups on a Knight world the lane runs on. */
-export function startKnightAttackFollowUps(): void {
-  if (!supportsKnightAttackV1Runtime()) return;
-  const onMessage = (message: CardMessage) => {
-    void stampFollowUp(message).catch((error: unknown) =>
-      log.warn(`${PROCEDURE}: follow-up stamp failed`, error),
-    );
-  };
-  foundryHooks()?.on("createChatMessage", onMessage);
-  foundryHooks()?.on("updateChatMessage", onMessage);
-}

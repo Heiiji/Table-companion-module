@@ -5,10 +5,10 @@ import {
   ATTACK_WAIT_MS,
   buildAttackResult,
   knightAttackV1,
-  stampFollowUp,
   validateKnightAttackV1,
   type CardMessage,
 } from "../src/procedures/knightAttack.js";
+import { stampFollowUp } from "../src/procedures/knightAttackFollowUps.js";
 import { registerBuiltinProcedures } from "../src/procedures/index.js";
 import { ProcedureRegistry } from "../src/rpc/registry.js";
 import { MODULE_ID, SETTING_AGENT_USER } from "../src/constants.js";
