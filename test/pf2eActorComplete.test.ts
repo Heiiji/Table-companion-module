@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MODULE_ID, SETTING_AGENT_USER } from "../src/constants.js";
+import { pf2eActorCompleteV1 } from "../src/procedures/pf2eActorComplete.js";
 import {
-  pf2eActorCompleteV1,
   validatePf2eActorCompleteV1,
   type Pf2eActorCompleteResultV1,
   type Pf2eActorCompleteV1,
-} from "../src/procedures/pf2eActorComplete.js";
+} from "../src/procedures/pf2eActorComplete.validate.js";
 import {
   fakeActor,
   setPath,

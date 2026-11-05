@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { validatePf2eActorCompleteV1 } from "../src/procedures/pf2eActorComplete.js";
+import { validatePf2eActorCompleteV1 } from "../src/procedures/pf2eActorComplete.validate.js";
 import { RpcError } from "../src/rpc/errors.js";
 
 // The shared contract vectors for `pf2e.actor.complete.v1`, byte-identical to
@@ -86,7 +86,9 @@ describe("pf2e.actor.complete.v1 shared vectors", () => {
       expect(body, name).not.toBeNull();
       return codes(body![0]);
     };
-    const procedure = read("../src/procedures/pf2eActorComplete.ts");
+    const procedure =
+      read("../src/procedures/pf2eActorComplete.ts") +
+      read("../src/procedures/pf2eActorComplete.validate.ts");
     const helpers = ["invalid", "assertLaneAuthority", "actorCollection"];
     for (const name of helpers) expect(procedure).toMatch(`${name}(`);
     // The lane gate refuses a non-GM responder through assertGMResponder.
