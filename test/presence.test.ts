@@ -48,9 +48,16 @@ const companion: FakeUser = {
   name: "Companion",
 };
 
+/** Window event listeners (`pagehide`), by event name. */
+const pageListeners = new Map<string, Array<() => void>>();
+
 beforeEach(() => {
   vi.useFakeTimers();
   for (const k of Object.keys(handlers)) delete handlers[k];
+  pageListeners.clear();
+  vi.stubGlobal("addEventListener", (name: string, fn: () => void) =>
+    pageListeners.set(name, [...(pageListeners.get(name) ?? []), fn]),
+  );
   vi.stubGlobal("Hooks", {
     on: (hook: string, fn: () => void) => {
       (handlers[hook] ??= []).push(fn);
@@ -125,13 +132,58 @@ describe("startPresenceWatcher", () => {
     fire("userConnected");
     vi.advanceTimersByTime(1000);
     expect(emit).toHaveBeenCalledTimes(1);
+  });
 
-    // GM leaves -> activeGm flips to false -> one more emit.
-    users.length = 0;
-    fire("userConnected"); // a leave fires userConnected too
+  it("observes a GM leaving from another GM's client, which takes over and reports a GM present", () => {
+    const a = gm("a");
+    const me = gm("b");
+    const users = { activeGM: a, contents: [a, me] };
+    vi.stubGlobal("game", { user: me, users, settings: { get: () => "" } });
+    const { channel, emit } = fakeChannel();
+
+    startPresenceWatcher(channel);
     vi.advanceTimersByTime(1000);
-    expect(emit).toHaveBeenCalledTimes(2);
-    expect(emit).toHaveBeenLastCalledWith("presence", { activeGm: false });
+    expect(emit).not.toHaveBeenCalled(); // "a" answers the backend
+
+    // "a" closes the tab: Foundry marks it inactive and elects "b".
+    a.active = false;
+    users.activeGM = me;
+    fire("userConnected");
+    vi.advanceTimersByTime(1000);
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit).toHaveBeenCalledWith("presence", { activeGm: true });
+  });
+
+  it("says no GM is left when the last GM's responder tab goes away", () => {
+    const me = gm("a");
+    setGame([me, companion], me);
+    const { channel, emit } = fakeChannel();
+    startPresenceWatcher(channel);
+    vi.advanceTimersByTime(1000);
+    emit.mockClear();
+
+    for (const fn of pageListeners.get("pagehide") ?? []) fn();
+    expect(emit).toHaveBeenCalledWith("presence", { activeGm: false });
+  });
+
+  it("says nothing on the way out while another GM is still here, or off the responder", () => {
+    const me = gm("a");
+    setGame([me, gm("b")], me);
+    const { channel, emit } = fakeChannel();
+    startPresenceWatcher(channel);
+    vi.advanceTimersByTime(1000);
+    emit.mockClear();
+    for (const fn of pageListeners.get("pagehide") ?? []) fn();
+    expect(emit).not.toHaveBeenCalled();
+
+    const other = gm("b");
+    vi.stubGlobal("game", {
+      user: other,
+      users: { activeGM: me, contents: [other] },
+      settings: { get: () => "" },
+    });
+    for (const fn of pageListeners.get("pagehide") ?? []) fn();
+    expect(emit).not.toHaveBeenCalled();
   });
 
   it("does not emit when this client is not the responder", () => {

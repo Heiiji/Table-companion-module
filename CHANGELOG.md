@@ -28,7 +28,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 - Setup no longer mistakes another account for the Companion user in a world set up before the
-  module recorded it: a player or Gamemaster merely named « Companion » is never selected, and the
+  module recorded it: a player or Gamemaster merely named "Companion" is never selected, and the
   module's own flag counts only on a single non-Gamemaster account that owns no Actor, so Reset
   password can no longer reset a player's password. A Gamemaster is counted as present by user id,
   so a renamed Companion user raised to Gamemaster no longer counts as one.
@@ -70,6 +70,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   unchanged one is no longer rewritten.
 - An expected refusal (`stale_revision`, `base_conflict`, `invalid_args`, …) is logged as one
   information line instead of a console error with a stack; unexpected failures stay errors.
+- When the last Gamemaster closes the Foundry tab that answers the backend, the module tells the
+  backend no Gamemaster is left on the way out, so app calls stop waiting for Foundry sooner.
 
 ## [0.19.1] - 2026-11-04
 

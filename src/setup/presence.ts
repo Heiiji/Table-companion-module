@@ -7,10 +7,12 @@ import { log } from "../util/log.js";
  * Companion service user is created with a non-GM role, so it is excluded by
  * role; it is also excluded by id (the paired user, the one this module
  * created) in case a GM elevates it — never by name, which anyone can carry. */
-export function anyActiveGM(): boolean {
-  const service = [pairedAgentUserId(), companionAnchorId()];
+export function anyActiveGM(exceptUserId = ""): boolean {
+  const excluded = [pairedAgentUserId(), companionAnchorId(), exceptUserId];
   const users = game.users?.contents ?? [];
-  return users.some((u) => u.active && u.isGM && !service.includes(u.id ?? ""));
+  return users.some(
+    (u) => u.active && u.isGM && !excluded.includes(u.id ?? ""),
+  );
 }
 
 /**
@@ -44,6 +46,13 @@ export function startPresenceWatcher(channel: Channel): void {
     on(hook: string, fn: () => void): number;
   };
   hooks.on("userConnected", schedule);
+  // The last GM closing the tab: no GM client is left to observe the leave,
+  // so say it on the way out. Best effort (the backend also learns it from
+  // Foundry itself); a duplicate signal is harmless.
+  globalThis.addEventListener?.("pagehide", () => {
+    if (!isResponder() || anyActiveGM(game.user?.id ?? "")) return;
+    channel.emitEvent("presence", { activeGm: false });
+  });
   // Emit the initial state shortly after the channel starts so an already-live
   // agent learns the current GM presence without waiting for a connect event.
   schedule();
