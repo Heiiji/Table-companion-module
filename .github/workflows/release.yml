@@ -33,13 +33,18 @@ jobs:
       - name: Set version from tag
         run: npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
 
+      - run: npm run format:check
       - run: npm run lint
-      - run: npm run test
+      - run: npm run test:coverage
       - run: npm run build
 
       # The zip must carry the licences of what it bundles.
       - name: Check licence files are packaged
         run: test -f dist/LICENSE && test -f dist/THIRD-PARTY-NOTICES.md
+
+      # Match CI's runtime-dependency gate before publishing a release.
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
 
       # Package the drop-in module folder: built JS/CSS + manifest + i18n +
       # licences. Exclude sourcemaps so they don't ship to end users.
