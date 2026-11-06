@@ -4,6 +4,12 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Release builds now enforce the same formatting, coverage and runtime-dependency audit gates as
+  CI before publishing the module.
+
 ## [0.20.0] - 2026-11-05
 
 ### Added
