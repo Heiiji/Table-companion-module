@@ -1,5 +1,7 @@
 import { MODULE_ID } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
+import { canonicalize } from "../util/canonicalJson.js";
+import { escapeHtml } from "../util/html.js";
 import type { Procedure } from "../rpc/registry.js";
 import {
   gameItems,
@@ -19,12 +21,15 @@ import {
   docId,
   documentId,
   finiteAt,
+  hasPf2eCurrencyApis,
   identifier,
   integer,
   invalid,
   linkedActor,
+  list,
   liveHeader,
   liveSequence,
+  oneOf,
   parseStoredResult,
   record,
   supportsPf2eResourcesV1Runtime,
@@ -42,15 +47,18 @@ import {
  * Live counters of a Pathfinder 2e player character (`pf2e.resources.v1`):
  * hit points, temporary hit points, hero points, valued conditions, the
  * quantity of the inventory items the app mirrors, and catalog items the app
- * added. A FULL snapshot of what the app holds, not a list of operations: a
+ * added; with the `pf2eSheetWritesV1` token also the purse (`coins`), items
+ * born in the app without a compendium slug (`customAdds`) and the spell slots,
+ * focus points and innate uses (`spellcasting`). A FULL snapshot of what the app holds, not a list of operations: a
  * re-send converges by sequence and digest, and a newer snapshot supersedes an
  * older one.
  *
- * Every pf2e path and behaviour below is source-derived (pf2e 8.6.1), never
- * confirmed against a live world. The writes run in the GM responder's client
- * through pf2e's own APIs, so its clamps and follow-ups run as for a GM edit.
- * Never touched: prepared values, `system.abilities`, the level, ABC items,
- * coins, and any condition another item grants or locks.
+ * Every pf2e path and behaviour below is source-derived (pf2e 8.6.1; the
+ * sheet groups' paths are identical at 8.5.1), never confirmed against a live
+ * world. The writes run in the GM responder's client through pf2e's own APIs,
+ * so its clamps and follow-ups run as for a GM edit. Never touched: prepared
+ * values, `system.abilities`, the level, ABC items, coins through `items`,
+ * and any condition another item grants or locks.
  */
 
 const PROCEDURE = "pf2e.resources.v1";
@@ -129,10 +137,70 @@ const MAX_QUANTITY = 999_999;
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/** The denominations `coins` names, in write order. Credits and upb are
+ * pf2e's Starfinder units: never read, never written. */
+const DENOMINATIONS = ["pp", "gp", "sp", "cp"] as const;
+type Denomination = (typeof DENOMINATIONS)[number];
+const MAX_CUSTOM_ADDS = 50;
+const CUSTOM_ITEM_TYPES = [
+  "equipment",
+  "consumable",
+  "backpack",
+  "treasure",
+] as const;
+const RARITIES = ["common", "uncommon", "rare", "unique"] as const;
+const MAX_SPELL_ENTRIES = 16;
+const MAX_PREPARED = 30;
+const MAX_INNATE = 100;
+/** pf2e's `slot0`..`slot10` (source-derived, pf2e 8.5.1 and 8.6.1
+ * `item/spellcasting-entry/data.ts:8-9`). */
+const RANKS = Array.from({ length: 11 }, (_, r) => String(r));
+/** C0 and C1 control characters, DEL included. */
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
+/** The same, but a tab, line feed or carriage return (notes are prose). */
+const CONTROL_IN_NOTES =
+  /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/;
+
 export interface Pf2eResourcesAddV1 {
   key: string;
   slug: string;
   quantity: number;
+}
+
+/** The absolute TOTAL of each denomination the request names. */
+export type Pf2eCoinsV1 = Partial<Record<Denomination, number>>;
+
+/** An item born in the app with no compendium slug. */
+export interface Pf2eResourcesCustomAddV1 {
+  key: string;
+  name: string;
+  itemType: (typeof CUSTOM_ITEM_TYPES)[number];
+  quantity: number;
+  level: number;
+  priceCopper: number;
+  bulkTenths: number;
+  rarity: (typeof RARITIES)[number];
+  notes?: string;
+}
+
+export interface Pf2ePreparedSlotV1 {
+  id: string | null;
+  expended: boolean;
+}
+
+/** The absolute targets of one rank of a spellcasting entry. */
+export interface Pf2eSlotTargetV1 {
+  value?: number;
+  /** The FULL prepared array of that rank. */
+  prepared?: Pf2ePreparedSlotV1[];
+}
+
+export interface Pf2eSpellcastingV1 {
+  /** By spellcasting-entry Item id, then rank "0".."10". */
+  entries?: Record<string, Record<string, Pf2eSlotTargetV1>>;
+  focus?: number;
+  /** By innate spell Item id. */
+  innateUses?: Record<string, number>;
 }
 
 export interface Pf2eActorResourcesV1 extends LiveHeaderV1<"character"> {
@@ -146,9 +214,13 @@ export interface Pf2eActorResourcesV1 extends LiveHeaderV1<"character"> {
   items?: Record<string, number>;
   /** Catalog items born in the app, idempotent by `key`. */
   adds?: Pf2eResourcesAddV1[];
+  coins?: Pf2eCoinsV1;
+  /** Items without a slug, idempotent by `key`, never in `base`. */
+  customAdds?: Pf2eResourcesCustomAddV1[];
+  spellcasting?: Pf2eSpellcastingV1;
   /** The values the app last saw in Foundry, same keys and bounds as the
-   * counters above (never `adds`): the compare-and-set guard of every value
-   * both name. */
+   * counters above (never `adds` / `customAdds`): the compare-and-set guard
+   * of every value both name. */
   base?: Pf2eCountersV1;
 }
 
@@ -159,11 +231,13 @@ const COUNTER_KEYS = [
   "heroPoints",
   "conditions",
   "items",
+  "coins",
+  "spellcasting",
 ] as const;
 type Pf2eCountersV1 = Pick<Pf2eActorResourcesV1, (typeof COUNTER_KEYS)[number]>;
 
 export interface Pf2eResourcesResultV1 extends StoredResultV1 {
-  /** The Foundry Item id of every `adds` key on the Actor. */
+  /** The Foundry Item id of every `adds` and `customAdds` key on the Actor. */
   created: Record<string, string>;
 }
 
@@ -212,7 +286,121 @@ function parseCounters(p: Dict, at: string): Pf2eCountersV1 {
       (k) => documentId.test(k),
       MAX_QUANTITY,
     );
+  if (p.coins !== undefined) out.coins = parseCoins(p.coins, `${at}coins`);
+  if (p.spellcasting !== undefined)
+    out.spellcasting = parseSpellcasting(p.spellcasting, `${at}spellcasting`);
   return out;
+}
+
+function parseCoins(value: unknown, path: string): Pf2eCoinsV1 {
+  const c = record(value, path, DENOMINATIONS);
+  const out: Pf2eCoinsV1 = {};
+  for (const d of DENOMINATIONS)
+    if (c[d] !== undefined)
+      out[d] = integer(c[d], `${path}.${d}`, 0, MAX_QUANTITY);
+  if (Object.keys(out).length === 0)
+    invalid(`${path} needs at least one denomination`);
+  return out;
+}
+
+function parseSpellcasting(value: unknown, path: string): Pf2eSpellcastingV1 {
+  const s = record(value, path, ["entries", "focus", "innateUses"]);
+  const out: Pf2eSpellcastingV1 = {};
+  if (s.entries !== undefined) {
+    const entries = record(
+      s.entries,
+      `${path}.entries`,
+      Object.keys((s.entries ?? {}) as Dict),
+    );
+    const ids = Object.keys(entries);
+    if (ids.length > MAX_SPELL_ENTRIES)
+      invalid(`${path}.entries holds more than ${MAX_SPELL_ENTRIES} entries`);
+    out.entries = {};
+    for (const id of ids) {
+      const at = `${path}.entries.${id}`;
+      if (!documentId.test(id)) invalid(`${at} is not allowed`);
+      const ranks = record(entries[id], at, RANKS);
+      const parsed: Record<string, Pf2eSlotTargetV1> = {};
+      for (const [rank, raw] of Object.entries(ranks)) {
+        const r = record(raw, `${at}.${rank}`, ["value", "prepared"]);
+        const slot: Pf2eSlotTargetV1 = {};
+        if (r.value !== undefined)
+          slot.value = integer(r.value, `${at}.${rank}.value`, 0, 99);
+        if (r.prepared !== undefined)
+          slot.prepared = list(
+            r.prepared,
+            `${at}.${rank}.prepared`,
+            MAX_PREPARED,
+          ).map((rawSlot, i) => {
+            const where = `${at}.${rank}.prepared[${i}]`;
+            const p = record(rawSlot, where, ["id", "expended"]);
+            if (typeof p.expended !== "boolean")
+              invalid(`${where}.expended must be a boolean`);
+            return {
+              id:
+                p.id === null
+                  ? null
+                  : identifier(p.id, `${where}.id`, documentId),
+              expended: p.expended,
+            };
+          });
+        parsed[rank] = slot;
+      }
+      out.entries[id] = parsed;
+    }
+  }
+  if (s.focus !== undefined)
+    out.focus = integer(s.focus, `${path}.focus`, 0, 3);
+  if (s.innateUses !== undefined)
+    out.innateUses = map(
+      s.innateUses,
+      `${path}.innateUses`,
+      MAX_INNATE,
+      (k) => documentId.test(k),
+      99,
+    );
+  if (
+    out.entries === undefined &&
+    out.focus === undefined &&
+    out.innateUses === undefined
+  )
+    invalid(`${path} needs at least one member`);
+  return out;
+}
+
+const CUSTOM_ADD_KEYS = [
+  "key",
+  "name",
+  "itemType",
+  "quantity",
+  "level",
+  "priceCopper",
+  "bulkTenths",
+  "rarity",
+  "notes",
+] as const;
+
+function parseCustomAdd(raw: unknown, i: number): Pf2eResourcesCustomAddV1 {
+  const at = `customAdds[${i}]`;
+  const a = record(raw, at, CUSTOM_ADD_KEYS);
+  const name = text(a.name, `${at}.name`, 120, true);
+  if (CONTROL.test(name)) invalid(`${at}.name contains a control character`);
+  const add: Pf2eResourcesCustomAddV1 = {
+    key: identifier(a.key, `${at}.key`, uuid),
+    name,
+    itemType: oneOf(a.itemType, `${at}.itemType`, CUSTOM_ITEM_TYPES),
+    quantity: integer(a.quantity, `${at}.quantity`, 1, MAX_QUANTITY),
+    level: integer(a.level, `${at}.level`, 0, 30),
+    priceCopper: integer(a.priceCopper, `${at}.priceCopper`, 0, 1_000_000_000),
+    bulkTenths: integer(a.bulkTenths, `${at}.bulkTenths`, 0, 1_000_000),
+    rarity: oneOf(a.rarity, `${at}.rarity`, RARITIES),
+  };
+  if (a.notes !== undefined) {
+    add.notes = text(a.notes, `${at}.notes`, 4000);
+    if (CONTROL_IN_NOTES.test(add.notes))
+      invalid(`${at}.notes contains a control character`);
+  }
+  return add;
 }
 
 export function validatePf2eActorResourcesV1(
@@ -227,6 +415,9 @@ export function validatePf2eActorResourcesV1(
     "conditions",
     "items",
     "adds",
+    "coins",
+    "customAdds",
+    "spellcasting",
     "base",
   ]);
   const req: Pf2eActorResourcesV1 = {
@@ -236,11 +427,12 @@ export function validatePf2eActorResourcesV1(
   Object.assign(req, parseCounters(p, ""));
   if (p.base !== undefined)
     req.base = parseCounters(record(p.base, "base", COUNTER_KEYS), "base.");
+  // One key space across `adds` and `customAdds`: both land as flagged Items.
+  const keys = new Set<string>();
   if (p.adds !== undefined) {
     if (!Array.isArray(p.adds)) invalid("adds must be an array");
     if (p.adds.length > MAX_ADDS)
       invalid(`adds holds more than ${MAX_ADDS} entries`);
-    const keys = new Set<string>();
     req.adds = (p.adds as unknown[]).map((raw, i) => {
       const a = record(raw, `adds[${i}]`, ["key", "slug", "quantity"]);
       const key = identifier(a.key, `adds[${i}].key`, uuid);
@@ -258,13 +450,28 @@ export function validatePf2eActorResourcesV1(
       return { key, slug, quantity };
     });
   }
+  if (p.customAdds !== undefined) {
+    if (!Array.isArray(p.customAdds)) invalid("customAdds must be an array");
+    if (p.customAdds.length > MAX_CUSTOM_ADDS)
+      invalid(`customAdds holds more than ${MAX_CUSTOM_ADDS} entries`);
+    req.customAdds = (p.customAdds as unknown[]).map((raw, i) => {
+      const add = parseCustomAdd(raw, i);
+      if (keys.has(add.key))
+        invalid("adds and customAdds hold a duplicate key");
+      keys.add(add.key);
+      return add;
+    });
+  }
   if (
     req.hp === undefined &&
     req.hpTemp === undefined &&
     req.heroPoints === undefined &&
     req.conditions === undefined &&
     req.items === undefined &&
-    req.adds === undefined
+    req.adds === undefined &&
+    req.coins === undefined &&
+    req.customAdds === undefined &&
+    req.spellcasting === undefined
   )
     invalid("pf2eResources needs at least one value");
   return req;
@@ -334,6 +541,19 @@ function counterPatch(
     }
     set("resources.heroPoints.value", hero);
   }
+  // source-derived (pf2e 8.5.1 creature/document.ts:493-494, 949-950; 8.6.1
+  // :506-507, 979-980): the prepared focus max is clamped to its cap, and an
+  // update above it is clamped; pre-clamped here so the warning is seen.
+  const focus = req.spellcasting?.focus;
+  if (focus !== undefined) {
+    let value = focus;
+    const max = finiteAt(actor.system, "resources.focus.max");
+    if (max !== undefined && value > max) {
+      value = Math.max(Math.floor(max), 0);
+      warnings.push("focus_clamped");
+    }
+    set("resources.focus.value", value);
+  }
   return patch;
 }
 
@@ -344,6 +564,7 @@ const COUNTER_PATHS: Record<string, string> = {
   hp: "attributes.hp.value",
   hpTemp: "attributes.hp.temp",
   heroPoints: "resources.heroPoints.value",
+  "spellcasting.focus": "resources.focus.value",
 };
 
 /** Foundry's current value of a `base` field, in the request's terms; a
@@ -366,6 +587,27 @@ function currentValue(actor: ActorLike, field: string): unknown {
     return !item || !PHYSICAL_TYPES.has(String(item.type)) || isCoin(item)
       ? undefined
       : valueAt(item.system, "quantity");
+  }
+  if (group === "coins") {
+    const { totals, addressable } = purseOf(actor);
+    return addressable ? totals[key as Denomination] : undefined;
+  }
+  if (group === "spellcasting") {
+    // spellcasting.entries.<entry>.<rank>.(value|prepared) or
+    // spellcasting.innateUses.<spell>; focus falls through to its path.
+    const [member, id, rank, leaf] = key.split(".");
+    const doc = itemsOf(actor).find((i) => docId(i) === id);
+    if (member === "entries") {
+      if (doc?.type !== "spellcastingEntry") return undefined;
+      const at = `slots.slot${rank}`;
+      return leaf === "prepared"
+        ? preparedOf(doc.system, at)
+        : valueAt(doc.system, `${at}.value`);
+    }
+    if (member === "innateUses")
+      return innateSpell(actor, id) === undefined
+        ? undefined
+        : valueAt(doc!.system, "location.uses.value");
   }
   const path = COUNTER_PATHS[field];
   return path === undefined ? undefined : valueAt(actor.system, path);
@@ -431,8 +673,66 @@ function conditionWrites(
   return writes;
 }
 
-const isCoin = (item: ActorItemLike) =>
-  item.type === "treasure" && valueAt(item.system, "category") === "coin";
+/** The stored source of an embedded Item's system data, when the runtime
+ * exposes it (`_source`), else its prepared data: pf2e's prepare step
+ * rewrites a coin's price to one unit of one denomination (source-derived,
+ * pf2e 8.5.1 and 8.6.1 `item/treasure/document.ts:31-44`), and the app reads
+ * the stored price. Spell slots are read prepared: the app reads them as pf2e
+ * normalises them (`item/spellcasting-entry/document.ts:90-110`: null slots
+ * last, padded to the max), and so does the base it sends. */
+const sourceSystem = (item: ActorItemLike): unknown =>
+  valueAt(item, "_source.system") ?? item.system;
+
+/** A coin: `treasure` with `category` "coin", or a legacy `stackGroup`
+ * "coins" (source-derived, pf2e 8.5.1 and 8.6.1 `item/treasure/document.ts:11-13`,
+ * `item/treasure/data.ts:132`). */
+const isCoin = (item: ActorItemLike) => {
+  if (item.type !== "treasure") return false;
+  const s = sourceSystem(item);
+  return (
+    valueAt(s, "category") === "coin" || valueAt(s, "stackGroup") === "coins"
+  );
+};
+
+const isInt = (v: unknown): v is number => Number.isSafeInteger(v);
+
+/** The purse: per denomination the sum of `price.value.<d>` × `quantity` over
+ * the coin items (pf2e's `inventory.currency` for plain coins, source-derived,
+ * pf2e 8.5.1 and 8.6.1 `actor/inventory/index.ts:34-38`). It is addressable —
+ * pf2e's add / remove by denomination move exactly that total — only when
+ * every coin item is worth exactly 1 of one denomination per unit, sits in no
+ * container of the Actor, and is a `category` coin (pf2e's `isCurrency`
+ * ignores a legacy `stackGroup` one, `item/treasure/document.ts:16-18`). */
+function purseOf(actor: ActorLike): {
+  totals: Record<Denomination, number>;
+  addressable: boolean;
+} {
+  const totals = { pp: 0, gp: 0, sp: 0, cp: 0 };
+  let addressable = true;
+  const ids = new Set(itemsOf(actor).map(docId));
+  for (const item of itemsOf(actor).filter(isCoin)) {
+    const s = sourceSystem(item);
+    const raw = valueAt(s, "quantity");
+    const quantity = isInt(raw) ? raw : 1;
+    const named = DENOMINATIONS.filter((d) => {
+      const per = valueAt(s, `price.value.${d}`);
+      return isInt(per) && per !== 0;
+    });
+    for (const d of named)
+      totals[d] += (valueAt(s, `price.value.${d}`) as number) * quantity;
+    const per = valueAt(s, "price.per");
+    if (
+      named.length !== 1 ||
+      valueAt(s, `price.value.${named[0]}`) !== 1 ||
+      (per !== undefined && per !== null && per !== 1) ||
+      // pf2e clears a container id naming no item of the Actor.
+      ids.has(String(valueAt(s, "containerId"))) ||
+      valueAt(s, "category") !== "coin"
+    )
+      addressable = false;
+  }
+  return { totals, addressable };
+}
 
 /** Quantity writes on the mirrored physical items; 0 deletes. */
 function itemWrites(
@@ -467,6 +767,201 @@ function itemWrites(
     }
   }
   return writes;
+}
+
+/** Purse writes, pp → cp: pf2e adds coins to (or creates) the denomination's
+ * stack, and removes exactly that denomination or nothing (source-derived,
+ * pf2e 8.5.1 and 8.6.1 `actor/inventory/index.ts:94-133` addCurrency,
+ * `:135-250` removeCurrency: with `byValue` false it returns false before
+ * any write when the denomination falls short, `:142`, `:158`). */
+function coinWrites(
+  actor: ActorLike,
+  coins: Pf2eCoinsV1,
+  warnings: string[],
+): Write[] {
+  const { totals, addressable } = purseOf(actor);
+  if (!addressable) {
+    warnings.push("coins_unaddressable");
+    return [];
+  }
+  const inventory = actor.inventory!;
+  const writes: Write[] = [];
+  for (const d of DENOMINATIONS) {
+    const target = coins[d];
+    if (target === undefined) continue;
+    const delta = target - totals[d];
+    if (delta > 0)
+      writes.push(async () => {
+        await inventory.addCurrency!({ [d]: delta });
+      });
+    else if (delta < 0)
+      writes.push(async () => {
+        const removed = await inventory.removeCurrency!(
+          { [d]: -delta },
+          { byValue: false },
+        );
+        if (removed !== true) warnings.push(`coins_refused:${d}`);
+      });
+  }
+  return writes;
+}
+
+/** A rank's stored prepared array, as the request writes it. */
+function preparedOf(system: unknown, at: string): Pf2ePreparedSlotV1[] {
+  const raw = valueAt(system, `${at}.prepared`);
+  const slots = Array.isArray(raw)
+    ? (raw as unknown[])
+    : typeof raw === "object" && raw !== null
+      ? Object.values(raw)
+      : [];
+  return slots.map((slot) => {
+    const id = valueAt(slot, "id");
+    return {
+      id: typeof id === "string" ? id : null,
+      expended: valueAt(slot, "expended") === true,
+    };
+  });
+}
+
+/** The innate spell `id`, or undefined: a `spell` Item whose entry
+ * (`system.location.value`) is an innate spellcasting entry (source-derived,
+ * pf2e 8.5.1 and 8.6.1 `item/spell/data.ts:37-46`,
+ * `item/spellcasting-entry/document.ts:66-68`). */
+function innateSpell(actor: ActorLike, id: string): ActorItemLike | undefined {
+  const items = itemsOf(actor);
+  const spell = items.find((i) => docId(i) === id && i.type === "spell");
+  if (!spell) return undefined;
+  const entryId = valueAt(spell.system, "location.value");
+  const entry = items.find(
+    (i) => docId(i) === entryId && i.type === "spellcastingEntry",
+  );
+  return entry && valueAt(entry.system, "prepared.value") === "innate"
+    ? spell
+    : undefined;
+}
+
+/** Spell slot and innate-use writes: ONE update per entry carrying every
+ * rank's paths (`system.slots.slot<N>.value` / `.prepared`, source-derived,
+ * pf2e 8.5.1 and 8.6.1 `item/spellcasting-entry/data.ts:19-28`), and one
+ * update per innate spell (`system.location.uses.value`, as pf2e's own
+ * `consume` writes it, `item/spellcasting-entry/document.ts:334-341`). */
+function spellWrites(
+  actor: ActorLike,
+  spellcasting: Pf2eSpellcastingV1,
+  warnings: string[],
+): Write[] {
+  const writes: Write[] = [];
+  const items = itemsOf(actor);
+  const entries = spellcasting.entries ?? {};
+  for (const entryId of Object.keys(entries).sort()) {
+    const entry = items.find(
+      (i) => docId(i) === entryId && i.type === "spellcastingEntry",
+    );
+    if (!entry) {
+      warnings.push(`spell_entry_unavailable:${entryId}`);
+      continue;
+    }
+    const stored = entry.system;
+    const patch: Dict = {};
+    const ranks = entries[entryId];
+    for (const rank of Object.keys(ranks).sort((a, b) => +a - +b)) {
+      const { value, prepared } = ranks[rank];
+      const at = `slots.slot${rank}`;
+      if (value !== undefined) {
+        const max = Math.max(Math.floor(finiteAt(stored, `${at}.max`) ?? 0), 0);
+        const clamped = Math.min(value, max);
+        if (clamped < value)
+          warnings.push(`spell_slot_clamped:${entryId}:${rank}`);
+        if (valueAt(stored, `${at}.value`) !== clamped)
+          patch[`system.${at}.value`] = clamped;
+      }
+      if (prepared !== undefined) {
+        const missing = new Set(
+          prepared
+            .map((p) => p.id)
+            .filter(
+              (id): id is string =>
+                id !== null &&
+                !items.some(
+                  (i) =>
+                    docId(i) === id &&
+                    i.type === "spell" &&
+                    valueAt(i.system, "location.value") === entryId,
+                ),
+            ),
+        );
+        if (missing.size > 0) {
+          for (const id of missing) warnings.push(`spell_unavailable:${id}`);
+          continue;
+        }
+        if (canonicalize(preparedOf(stored, at)) !== canonicalize(prepared))
+          patch[`system.${at}.prepared`] = prepared.map((p) => ({ ...p }));
+      }
+    }
+    if (Object.keys(patch).length > 0)
+      writes.push(async () => {
+        await entry.update!(patch);
+      });
+  }
+  const uses = spellcasting.innateUses ?? {};
+  for (const spellId of Object.keys(uses).sort()) {
+    const spell = innateSpell(actor, spellId);
+    if (!spell) {
+      warnings.push(`spell_unavailable:${spellId}`);
+      continue;
+    }
+    const stored = spell.system;
+    let value = uses[spellId];
+    const max = finiteAt(stored, "location.uses.max");
+    if (max !== undefined && value > max) {
+      value = Math.max(Math.floor(max), 0);
+      warnings.push(`spell_uses_clamped:${spellId}`);
+    }
+    if (valueAt(stored, "location.uses.value") !== value)
+      writes.push(async () => {
+        await spell.update!({ "system.location.uses.value": value });
+      });
+  }
+  return writes;
+}
+
+/** Notes as HTML paragraphs: a run of blank lines separates two, a single
+ * line break stays a `<br>`, every character escaped. */
+function notesHtml(notes: string): string {
+  return notes
+    .replace(/\r\n/g, "\n")
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter((p) => p !== "")
+    .map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+/** The Foundry source of an app-born item without a slug (source-derived,
+ * pf2e 8.5.1 and 8.6.1 `item/physical/data.ts:19-30` level, quantity, bulk,
+ * price; `item/base/data/system.ts:45-50` traits): price in gp / sp / cp,
+ * zero members omitted; bulk in pf2e's units (0.1 is light). */
+export function customAddSource(add: Pf2eResourcesCustomAddV1): Dict {
+  const c = add.priceCopper;
+  const price: Dict = {};
+  if (Math.floor(c / 100) > 0) price.gp = Math.floor(c / 100);
+  if (Math.floor(c / 10) % 10 > 0) price.sp = Math.floor(c / 10) % 10;
+  if (c % 10 > 0) price.cp = c % 10;
+  return {
+    name: add.name,
+    type: add.itemType,
+    system: {
+      quantity: add.quantity,
+      level: { value: add.level },
+      price: { value: price },
+      bulk: { value: add.bulkTenths / 10 },
+      traits: { rarity: add.rarity },
+      description: {
+        value: add.notes === undefined ? "" : notesHtml(add.notes),
+      },
+    },
+    flags: { [MODULE_ID]: { appInstanceId: add.key } },
+  };
 }
 
 /** Catalog adds: compendium sources by slug, each flagged with its app key.
@@ -551,6 +1046,11 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
       "unsupported_runtime",
       "the pf2e Actor condition and item APIs are unavailable",
     );
+  if (req.coins !== undefined && !hasPf2eCurrencyApis(actor))
+    throw new RpcError(
+      "unsupported_runtime",
+      "the pf2e inventory currency APIs are unavailable",
+    );
 
   const stored = parseStoredResult(actor, FLAG_KEYS.pf2eResources);
   const previous = stored?.result ?? null;
@@ -584,15 +1084,25 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
   const warnings: string[] = [];
   const created: Record<string, string> = {};
   const patch = counterPatch(actor, req, warnings);
+  // The contract's order: conditions, items, purse, spells, then the adds and
+  // custom adds in one create, then the one counters update.
   const writes = [
     ...(req.conditions
       ? conditionWrites(actor, req.conditions, refusedBefore, warnings)
       : []),
     ...(req.items ? itemWrites(actor, req.items, warnings) : []),
+    ...(req.coins ? coinWrites(actor, req.coins, warnings) : []),
+    ...(req.spellcasting ? spellWrites(actor, req.spellcasting, warnings) : []),
   ];
-  const adds = req.adds
-    ? await addSources(actor, req.adds, created, warnings)
-    : [];
+  const adds: Array<{ key: string; label: string; source: Dict }> = (
+    req.adds ? await addSources(actor, req.adds, created, warnings) : []
+  ).map(({ add, source }) => ({ key: add.key, label: add.slug, source }));
+  for (const add of req.customAdds ?? []) {
+    const existing = byAppKey(actor, add.key);
+    if (existing) created[add.key] = docId(existing);
+    else
+      adds.push({ key: add.key, label: add.key, source: customAddSource(add) });
+  }
 
   const result: Pf2eResourcesResultV1 = {
     schemaVersion: 1,
@@ -613,19 +1123,20 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
   )
     return result;
 
-  // Item and condition writes first, then ONE update carrying the counters
-  // and the result flag: a failure part-way leaves the sequence unrecorded,
-  // so the retry recomputes and finishes (adds are found again by their key).
+  // Item, condition, purse and spell writes first, then ONE update carrying
+  // the counters and the result flag: a failure part-way leaves the sequence
+  // unrecorded, so the retry recomputes and finishes (the purse and slots are
+  // absolute targets; adds are found again by their key).
   for (const write of writes) await write();
   if (adds.length > 0) {
     await actor.createEmbeddedDocuments!(
       "Item",
       adds.map((a) => a.source),
     );
-    for (const { add } of adds) {
-      const made = byAppKey(actor, add.key);
-      if (made) created[add.key] = docId(made);
-      else warnings.push(`item_refused:${add.slug}`);
+    for (const { key, label } of adds) {
+      const made = byAppKey(actor, key);
+      if (made) created[key] = docId(made);
+      else warnings.push(`item_refused:${label}`);
     }
   }
   await actor.update({

@@ -4,6 +4,18 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Pathfinder 2e live counters (`pf2e.resources.v1`) take three optional groups, advertised by the
+  new `pf2eSheetWritesV1` capability: the coin purse (`coins`, a target total per denomination,
+  written through pf2e's own currency functions and skipped with `coins_unaddressable` when a coin
+  stack is not plain), custom items created in the app without a compendium entry (`customAdds`,
+  idempotent by their key), and spellcasting (`spellcasting`: slot values and prepared spells per
+  entry and rank, focus points, innate uses, each clamped to its maximum with a warning). `base`
+  takes `coins` and `spellcasting`. An older module refuses the new keys; apps send them only when
+  the capability is advertised.
+
 ## [0.20.0] - 2026-11-05
 
 ### Added

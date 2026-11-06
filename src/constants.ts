@@ -100,6 +100,14 @@ export const CAP_ACTOR_RESOURCES_NAME = "actorResourcesNameV1";
  * key. NOT a procedure name — it has no handler. */
 export const CAP_WRITE_BASE = "writeBaseV1";
 
+/** Capability token advertised alongside `pf2e.resources.v1` when pf2e's
+ * currency APIs are present: this build accepts the optional `coins`,
+ * `customAdds` and `spellcasting` groups (and `base.coins` /
+ * `base.spellcasting`) on that procedure. Apps send them only when the world
+ * advertises it, since an older build refuses the keys. NOT a procedure name —
+ * it has no handler. */
+export const CAP_PF2E_SHEET_WRITES = "pf2eSheetWritesV1";
+
 /** The lanes that take `base` (the `CAP_WRITE_BASE` token rides them). */
 export const WRITE_BASE_PROCEDURES = [
   "actor.resources.v1",

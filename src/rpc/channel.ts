@@ -3,6 +3,7 @@ import {
   CAP_WRITE_BASE,
   WRITE_BASE_PROCEDURES,
   CAP_DND5E_RULES_MODERN,
+  CAP_PF2E_SHEET_WRITES,
   CAP_RESPONSE_SIG,
   CHANNEL,
   DISPLAY_TAG,
@@ -15,6 +16,7 @@ import {
   SETTING_AGENT_KEY,
 } from "../constants.js";
 import { MODULE_ID } from "../constants.js";
+import { supportsPf2eSheetWritesV1Runtime } from "../procedures/upsertShared.js";
 import { isResponder } from "../setup/election.js";
 import {
   companionAnchorId,
@@ -217,8 +219,9 @@ export class Channel {
   /** Capabilities advertised in hello / hello.ack: the registered procedures,
    * plus the response-signing token when this client signs, and the
    * resources-name token whenever `actor.resources.v1` is advertised, the
-   * write-base token with any lane that takes `base`, and the
-   * 2024-rules token with `dnd5e.resources.v1` on a world playing them.
+   * write-base token with any lane that takes `base`, the
+   * 2024-rules token with `dnd5e.resources.v1` on a world playing them, and
+   * the Pathfinder 2e sheet-writes token with `pf2e.resources.v1`.
    *
    * Public because this — not the raw registry — is what the agent actually
    * sees, so it is the only honest answer to "what does this module offer?".
@@ -241,6 +244,13 @@ export class Channel {
     // The rules generation rides the Fifth Edition lane the same way.
     if (caps.includes("dnd5e.resources.v1") && dnd5eRulesVersion() === "modern")
       caps.push(CAP_DND5E_RULES_MODERN);
+    // The Pathfinder 2e sheet groups ride that lane, where pf2e's currency
+    // APIs exist.
+    if (
+      caps.includes("pf2e.resources.v1") &&
+      supportsPf2eSheetWritesV1Runtime()
+    )
+      caps.push(CAP_PF2E_SHEET_WRITES);
     return caps.sort();
   }
 

@@ -385,6 +385,28 @@ export function supportsPf2eResourcesV1Runtime(): boolean {
   );
 }
 
+/** pf2e's currency APIs on an Actor's prepared inventory (source-derived,
+ * pf2e 8.5.1 and 8.6.1 `actor/inventory/index.ts:94-133` addCurrency,
+ * `:135-250` removeCurrency; the inventory is built in `actor/base.ts`
+ * prepareBaseData). */
+export function hasPf2eCurrencyApis(actor: ActorLike): boolean {
+  return (
+    typeof actor.inventory?.addCurrency === "function" &&
+    typeof actor.inventory?.removeCurrency === "function"
+  );
+}
+
+/** Gate of the `pf2eSheetWritesV1` token: the resources lane's runtime, with
+ * pf2e's currency APIs. They live on each Actor's prepared inventory, so a
+ * character of the world answers; a world without one answers by the lane's
+ * verified range, and the handler probes the written Actor again before
+ * touching it. */
+export function supportsPf2eSheetWritesV1Runtime(): boolean {
+  if (!supportsPf2eResourcesV1Runtime()) return false;
+  const pc = contentsOf(gameActors()).find((a) => a.type === "character");
+  return pc === undefined || hasPf2eCurrencyApis(pc);
+}
+
 /** Every world-writing procedure runs only in a GM responder's browser. */
 export function assertGMResponder(procedure: string): void {
   if (!foundryGame()?.user?.isGM)

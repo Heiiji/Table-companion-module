@@ -76,6 +76,15 @@ export interface ActorLike {
     slug: string,
     options: { value: number },
   ): Promise<unknown>;
+  /** pf2e's prepared inventory: its currency APIs (`removeCurrency` answers
+   * false, writing nothing, when the coins are not there). */
+  inventory?: {
+    addCurrency?(coins: Record<string, number>): Promise<unknown>;
+    removeCurrency?(
+      coins: Record<string, number>,
+      options: { byValue: boolean },
+    ): Promise<boolean>;
+  };
 }
 
 /** An ActiveEffect embedded in an Actor. */

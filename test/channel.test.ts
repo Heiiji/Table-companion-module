@@ -11,6 +11,7 @@ import {
   CAP_ACTOR_RESOURCES_NAME,
   CAP_WRITE_BASE,
   CAP_DND5E_RULES_MODERN,
+  CAP_PF2E_SHEET_WRITES,
   CAP_RESPONSE_SIG,
   ENVELOPE_VERSION,
   KEY_ENROLL_EVENT,
@@ -1149,6 +1150,40 @@ describe("Channel response signing", () => {
     expect(legacy).toContain("dnd5e.resources.v1");
     expect(legacy).not.toContain(CAP_DND5E_RULES_MODERN);
     expect(capsOn(undefined)).not.toContain(CAP_DND5E_RULES_MODERN);
+  });
+
+  it("advertises the Pathfinder 2e sheet-writes token with its lane, where pf2e has the currency APIs", async () => {
+    const { signer } = await ModuleResponseSigner.generate();
+    const capsOn = (system: string, actors: unknown[]) => {
+      stubGame({ pinned: agentPubB64, responder: true });
+      vi.stubGlobal("game", {
+        ...(globalThis as unknown as { game: object }).game,
+        system: { id: system, version: system === "pf2e" ? "8.5.1" : "6.1.0" },
+        release: { generation: 14 },
+        actors: { contents: actors },
+      });
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      const channel = new Channel(registry, "0.0.0-test");
+      channel.start();
+      emitSpy.mockClear();
+      channel.setResponseSigner(signer);
+      return emitted("hello").at(-1)!.capabilities as string[];
+    };
+    const apis = {
+      addCurrency: async () => {},
+      removeCurrency: async () => true,
+    };
+    const pc = (inventory: object) => ({ type: "character", inventory });
+    const live = capsOn("pf2e", [{ type: "npc" }, pc(apis)]);
+    expect(live).toContain("pf2e.resources.v1");
+    expect(live).toContain(CAP_PF2E_SHEET_WRITES);
+    // No character to probe: the lane's verified range answers.
+    expect(capsOn("pf2e", [])).toContain(CAP_PF2E_SHEET_WRITES);
+    const old = capsOn("pf2e", [pc({ addCurrency: apis.addCurrency })]);
+    expect(old).toContain("pf2e.resources.v1");
+    expect(old).not.toContain(CAP_PF2E_SHEET_WRITES);
+    expect(capsOn("dnd5e", [pc(apis)])).not.toContain(CAP_PF2E_SHEET_WRITES);
   });
 
   it("does not advertise/sign when a signer is set but this client is NOT the responder", async () => {

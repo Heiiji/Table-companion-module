@@ -113,8 +113,12 @@ Gamemaster can open setup from the console with
 - **Pathfinder 2e live counters:** on pf2e 8.5.1 or later on Foundry 14, a linked character's hit points, temporary
   hit points, hero points, conditions and inventory are written from the app (`pf2e.resources.v1`):
   quantities of the items the app mirrors (0 deletes), and items added in the app found by slug in the
-  system's equipment compendium, never stacked onto another item. A condition another item grants or
-  locks, coins, the level and the attributes are never touched.
+  system's equipment compendium, never stacked onto another item. Where the module advertises
+  `pf2eSheetWritesV1`, the app also writes the coin purse (per denomination, through pf2e's own
+  currency functions; skipped with a warning when a coin stack is not worth exactly one coin of
+  one denomination, is sold in lots, is kept in a container, or is a legacy coin pf2e does not count), custom items it created without a compendium entry, and
+  spell slots, prepared spells, focus points and innate uses. A condition another item grants or
+  locks, the level and the attributes are never touched.
 - **Knight attacks:** on the same Knight releases, a weapon attack started in the app is rolled by the
   Knight system itself (`knight.attack.v1`): the native card with its targets, hit or miss, effects
   and damage / violence buttons, and the result sent back to the app. The app composes the dice pool;
