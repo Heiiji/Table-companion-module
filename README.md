@@ -119,6 +119,10 @@ Gamemaster can open setup from the console with
   one denomination, is sold in lots, is kept in a container, or is a legacy coin pf2e does not count), custom items it created without a compendium entry, and
   spell slots, prepared spells, focus points and innate uses. A condition another item grants or
   locks, the level and the attributes are never touched.
+- **Pathfinder 2e prepared statistics:** on the same releases, the app reads a character's or NPC's
+  armor class, perception, saves, skills, class DC, spellcasting attack and DC, and strikes (attack
+  modifiers with the multiple attack penalty, damage formulas) as pf2e prepared them
+  (`pf2e.statistics.v1`), to roll with Foundry's own numbers. Nothing is written or rolled in Foundry.
 - **Knight attacks:** on the same Knight releases, a weapon attack started in the app is rolled by the
   Knight system itself (`knight.attack.v1`): the native card with its targets, hit or miss, effects
   and damage / violence buttons, and the result sent back to the app. The app composes the dice pool;

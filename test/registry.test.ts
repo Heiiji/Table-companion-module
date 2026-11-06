@@ -159,7 +159,11 @@ describe("ProcedureRegistry", () => {
       const registry = new ProcedureRegistry();
       registerBuiltinProcedures(registry);
       expect(registry.capabilities()).toEqual(
-        ["pf2e.resources.v1", ...BASE_CAPABILITIES].sort(),
+        [
+          "pf2e.resources.v1",
+          "pf2e.statistics.v1",
+          ...BASE_CAPABILITIES,
+        ].sort(),
       );
       expect(registry.mutations()).toEqual(["pf2e.resources.v1"]);
       expect(registry.isSignedOnly("pf2e.resources.v1")).toBe(true);
@@ -182,7 +186,7 @@ describe("ProcedureRegistry", () => {
       // Still no combat mirror: only the draft and completion lanes join the
       // floor.
       expect(registry.capabilities(), version).toEqual(
-        [...PF2E_LANES, ...BASE_CAPABILITIES].sort(),
+        [...PF2E_LANES, "pf2e.statistics.v1", ...BASE_CAPABILITIES].sort(),
       );
       expect(registry.isSignedOnly("pf2e.resources.v1"), version).toBe(true);
       expect(registry.isSignedOnly("pf2e.actor.upsert.v1"), version).toBe(true);

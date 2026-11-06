@@ -15,6 +15,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   entry and rank, focus points, innate uses, each clamped to its maximum with a warning). `base`
   takes `coins` and `spellcasting`. An older module refuses the new keys; apps send them only when
   the capability is advertised.
+- Pathfinder 2e prepared statistics (`pf2e.statistics.v1`, a signed read on pf2e 8.5.1 or later on
+  Foundry 14): a character's or NPC's armor class, perception, saves, skills and lores, class DC,
+  spellcasting attack and DC, and strikes with their three multiple-attack-penalty modifiers and
+  damage formulas, as pf2e prepared them, so the app rolls with Foundry's own numbers. It never
+  writes, rolls or posts to chat.
 
 ### Fixed
 - Pathfinder 2e live counters: prepared spell slots are compared and written in pf2e's own order

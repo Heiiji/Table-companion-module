@@ -14,6 +14,10 @@ import { pf2eActorUpsertV1 } from "./pf2eActorUpsert.js";
 import { pf2eActorCompleteV1 } from "./pf2eActorComplete.js";
 import { pf2eResourcesV1 } from "./pf2eResources.js";
 import {
+  pf2eStatisticsV1,
+  supportsPf2eStatisticsV1Runtime,
+} from "./pf2eStatistics.js";
+import {
   MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION,
   combatSyncV1,
   supportsCombatSyncV1Runtime,
@@ -179,6 +183,21 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
     registry.markUnsupported(
       "pf2e.resources.v1",
       `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT}`,
+    );
+  }
+  // Foundry's prepared numbers of a Pathfinder 2e Actor (armor class,
+  // perception, saves, skills, class DC, spellcasting, strikes) for the app
+  // to roll with. A read, signed like the other pf2e procedures, on the
+  // resources lane's floor with pf2e's prepared statistics present.
+  if (supportsPf2eStatisticsV1Runtime()) {
+    registry.register("pf2e.statistics.v1", pf2eStatisticsV1, {
+      kind: "read",
+      signedOnly: true,
+    });
+  } else if (systemId() === "pf2e") {
+    registry.markUnsupported(
+      "pf2e.statistics.v1",
+      `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT} with prepared statistics`,
     );
   }
 }
