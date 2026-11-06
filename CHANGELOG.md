@@ -16,6 +16,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   takes `coins` and `spellcasting`. An older module refuses the new keys; apps send them only when
   the capability is advertised.
 
+### Fixed
+- Pathfinder 2e live counters: prepared spell slots are compared and written in pf2e's own order
+  (prepared spells first, empty slots last), so a retry after a write that failed part-way no
+  longer reports its own earlier slot write as a `base_conflict`; a change made in Foundry in
+  between is still refused.
+
 ## [0.20.0] - 2026-11-05
 
 ### Added

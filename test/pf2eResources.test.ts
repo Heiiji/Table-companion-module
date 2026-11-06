@@ -1716,6 +1716,102 @@ describe("pf2e.resources.v1 spellcasting", () => {
   });
 });
 
+describe("pf2e.resources.v1 retry after a partial spell write", () => {
+  // pf2e reads a prepared rank with its spells first and its empty slots last
+  // (source-derived, pf2e 8.5.1 and 8.6.1 spellcasting-entry/document.ts
+  // 91-111): the fake entry shows its slots in that order after every write.
+  function normalisingEntry(entry: FakeItem) {
+    const write = entry.update.getMockImplementation() as (
+      changes: Record<string, unknown>,
+    ) => Promise<void>;
+    entry.update = vi.fn(async (changes: Record<string, unknown>) => {
+      await write(changes);
+      const slots = entry.system.slots as Record<
+        string,
+        { prepared: { id: string | null }[] }
+      >;
+      for (const slot of Object.values(slots))
+        slot.prepared = [
+          ...slot.prepared.filter((p) => p.id !== null),
+          ...slot.prepared.filter((p) => p.id === null),
+        ];
+    });
+  }
+  const clearFirst = (base: { id: string | null; expended: boolean }[]) =>
+    request({
+      spellcasting: {
+        entries: {
+          [ENTRY]: {
+            "1": {
+              prepared: [
+                { id: null, expended: false },
+                { id: OTHER_SPELL, expended: false },
+              ],
+            },
+          },
+        },
+        focus: 0,
+      },
+      base: {
+        spellcasting: {
+          entries: { [ENTRY]: { "1": { prepared: base } } },
+          focus: 1,
+        },
+      },
+    } as never);
+  const before = [
+    { id: SPELL, expended: false },
+    { id: OTHER_SPELL, expended: false },
+  ];
+
+  it("recognises its own normalised write when the counters update failed, and finishes", async () => {
+    const { actor, entry } = spellcaster();
+    (
+      entry.system.slots as Record<string, Record<string, unknown>>
+    ).slot1.prepared = structuredClone(before);
+    normalisingEntry(entry);
+    actor.update.mockRejectedValueOnce(new Error("socket dropped"));
+    await expect(run(actor, clearFirst(before))).rejects.toThrow(
+      "socket dropped",
+    );
+    const slots = entry.system.slots as Record<string, Record<string, unknown>>;
+    expect(slots.slot1.prepared).toEqual([
+      { id: OTHER_SPELL, expended: false },
+      { id: null, expended: false },
+    ]);
+    const result = await run(actor, clearFirst(before));
+    expect(result.warnings).toEqual([]);
+    expect(entry.update).toHaveBeenCalledTimes(1);
+    expect(
+      (actor.system.resources as Record<string, { value: number }>).focus.value,
+    ).toBe(0);
+    const flag = (
+      actor.flags[MODULE_ID] as Record<string, { appliedRevision: number }>
+    ).pf2eResourcesV1;
+    expect(flag.appliedRevision).toBe(3);
+  });
+
+  it("still refuses a third party's change made between the failure and the retry", async () => {
+    const { actor, entry } = spellcaster();
+    const slots = entry.system.slots as Record<string, Record<string, unknown>>;
+    slots.slot1.prepared = structuredClone(before);
+    normalisingEntry(entry);
+    actor.update.mockRejectedValueOnce(new Error("socket dropped"));
+    await expect(run(actor, clearFirst(before))).rejects.toThrow(
+      "socket dropped",
+    );
+    slots.slot1.prepared = [
+      { id: SPELL, expended: true },
+      { id: null, expended: false },
+    ]; // the GM prepared and spent another spell there in Foundry
+    await rejects(run(actor, clearFirst(before)), "base_conflict");
+    expect(slots.slot1.prepared).toEqual([
+      { id: SPELL, expended: true },
+      { id: null, expended: false },
+    ]);
+  });
+});
+
 describe("pf2e.resources.v1 focus base", () => {
   it("refuses a focus write when the GM moved focus in Foundry, and passes its own last write", async () => {
     const { actor } = spellcaster();

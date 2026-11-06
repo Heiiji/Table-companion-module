@@ -814,13 +814,52 @@ function preparedOf(system: unknown, at: string): Pf2ePreparedSlotV1[] {
     : typeof raw === "object" && raw !== null
       ? Object.values(raw)
       : [];
-  return slots.map((slot) => {
-    const id = valueAt(slot, "id");
-    return {
-      id: typeof id === "string" ? id : null,
-      expended: valueAt(slot, "expended") === true,
-    };
-  });
+  return preparedOrder(
+    slots.map((slot) => {
+      const id = valueAt(slot, "id");
+      return {
+        id: typeof id === "string" ? id : null,
+        expended: valueAt(slot, "expended") === true,
+      };
+    }),
+  );
+}
+
+/** pf2e's order of a prepared rank: the slots holding a spell first, the
+ * empty ones after, each group in its stored order (source-derived, pf2e
+ * 8.5.1 and 8.6.1 `item/spellcasting-entry/document.ts:91-111`). pf2e applies
+ * it on every read, so an empty slot's position carries no meaning: a write
+ * and a later read of the same rank compare in this order, and a retry after
+ * a failure part-way recognises its own write as written. */
+function preparedOrder(rows: Pf2ePreparedSlotV1[]): Pf2ePreparedSlotV1[] {
+  return [
+    ...rows.filter((r) => r.id !== null),
+    ...rows.filter((r) => r.id === null),
+  ];
+}
+
+/** The request with every prepared rank (target and base) in pf2e's order. */
+function inPreparedOrder(req: Pf2eActorResourcesV1): Pf2eActorResourcesV1 {
+  const order = (sc: Pf2eSpellcastingV1 | undefined) => {
+    if (!sc?.entries) return sc;
+    const entries: Record<string, Record<string, Pf2eSlotTargetV1>> = {};
+    for (const [entryId, ranks] of Object.entries(sc.entries)) {
+      entries[entryId] = {};
+      for (const [rank, slot] of Object.entries(ranks))
+        entries[entryId][rank] =
+          slot.prepared === undefined
+            ? slot
+            : { ...slot, prepared: preparedOrder(slot.prepared) };
+    }
+    return { ...sc, entries };
+  };
+  return {
+    ...req,
+    ...(req.spellcasting ? { spellcasting: order(req.spellcasting) } : {}),
+    ...(req.base?.spellcasting
+      ? { base: { ...req.base, spellcasting: order(req.base.spellcasting) } }
+      : {}),
+  } as Pf2eActorResourcesV1;
 }
 
 /** The innate spell `id`, or undefined: a `spell` Item whose entry
@@ -1018,7 +1057,7 @@ function storedCreated(flag: Dict): Record<string, string> {
 }
 
 export const pf2eResourcesV1: Procedure = async (payload) => {
-  const req = validatePf2eActorResourcesV1(payload);
+  const sent = validatePf2eActorResourcesV1(payload);
   assertLaneAuthority(
     PROCEDURE,
     supportsPf2eResourcesV1Runtime,
@@ -1034,7 +1073,10 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
       "unsupported_runtime",
       "game.items.fromCompendium is unavailable",
     );
-  const digest = await canonicalDigest(req);
+  const digest = await canonicalDigest(sent);
+  // Compared and written in pf2e's prepared order; the digests stay the
+  // request's own, so a replay is recognised byte for byte.
+  const req = inPreparedOrder(sent);
   const actor = linkedActor(req, ACTOR_TYPE);
   const id = docId(actor);
   if (
@@ -1062,7 +1104,7 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
     };
 
   const contentDigest = await canonicalDigest({
-    ...req,
+    ...sent,
     sequence: 0,
     base: undefined,
   });

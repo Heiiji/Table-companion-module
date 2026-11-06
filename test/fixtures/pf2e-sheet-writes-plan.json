@@ -487,6 +487,42 @@
         "writeBaseV1"
       ],
       "foundrySource": {},
+      "id": "compensate-own-late-echo",
+      "request": {
+        "base": {
+          "spellcasting": {
+            "focus": 0
+          }
+        },
+        "spellcasting": {
+          "focus": 1
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "transfer-created-quantity",
+      "request": {
+        "base": {
+          "items": {
+            "eqpRopeBorn00001": 1
+          }
+        },
+        "items": {
+          "eqpRopeBorn00001": 4
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
       "id": "unaddressable-coins-never-sent",
       "request": null
     }
