@@ -525,6 +525,161 @@
       "foundrySource": {},
       "id": "unaddressable-coins-never-sent",
       "request": null
+    },
+    {
+      "actorType": "npc",
+      "capabilities": [
+        "pf2eNpcWritesV1",
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "npc-nothing-moved",
+      "request": null
+    },
+    {
+      "actorType": "npc",
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "npc-held-without-token",
+      "request": null
+    },
+    {
+      "actorType": "npc",
+      "capabilities": [
+        "pf2eNpcWritesV1",
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "npc-every-allowed-group",
+      "request": {
+        "base": {
+          "items": {
+            "csmNpcCmdElixir1": 2
+          },
+          "spellcasting": {
+            "entries": {
+              "entNpcCmdPrep001": {
+                "1": {
+                  "prepared": [
+                    {
+                      "expended": false,
+                      "id": "splNpcCmdHarm001"
+                    },
+                    {
+                      "expended": false,
+                      "id": null
+                    }
+                  ]
+                }
+              },
+              "entNpcCmdSpont01": {
+                "1": {
+                  "value": 2
+                }
+              }
+            },
+            "focus": 1,
+            "innateUses": {
+              "splNpcCmdVeil001": 1
+            }
+          }
+        },
+        "items": {
+          "csmNpcCmdElixir1": 1
+        },
+        "spellcasting": {
+          "entries": {
+            "entNpcCmdPrep001": {
+              "1": {
+                "prepared": [
+                  {
+                    "expended": true,
+                    "id": "splNpcCmdHarm001"
+                  },
+                  {
+                    "expended": false,
+                    "id": null
+                  }
+                ]
+              }
+            },
+            "entNpcCmdSpont01": {
+              "1": {
+                "value": 1
+              }
+            }
+          },
+          "focus": 0,
+          "innateUses": {
+            "splNpcCmdVeil001": 0
+          }
+        }
+      }
+    },
+    {
+      "actorType": "npc",
+      "capabilities": [
+        "pf2eNpcWritesV1"
+      ],
+      "foundrySource": {},
+      "id": "npc-without-base",
+      "request": {
+        "items": {
+          "csmNpcCmdElixir1": 1
+        },
+        "spellcasting": {
+          "entries": {
+            "entNpcCmdPrep001": {
+              "1": {
+                "prepared": [
+                  {
+                    "expended": true,
+                    "id": "splNpcCmdHarm001"
+                  },
+                  {
+                    "expended": false,
+                    "id": null
+                  }
+                ]
+              }
+            },
+            "entNpcCmdSpont01": {
+              "1": {
+                "value": 1
+              }
+            }
+          },
+          "focus": 0,
+          "innateUses": {
+            "splNpcCmdVeil001": 0
+          }
+        }
+      }
+    },
+    {
+      "actorType": "npc",
+      "capabilities": [
+        "pf2eNpcWritesV1",
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "npc-purse-and-app-items-never-planned",
+      "request": {
+        "base": {
+          "items": {
+            "csmNpcCmdElixir1": 2
+          }
+        },
+        "items": {
+          "csmNpcCmdElixir1": 1
+        }
+      }
     }
   ],
   "note": "SYNTHETIC, shape-only: the plan section of the shared Pathfinder 2e sheet-writes vectors (request bodies the apps send, and the exact Foundry source of each custom add). Derived, never edited by hand."

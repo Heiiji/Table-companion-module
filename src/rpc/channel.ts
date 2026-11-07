@@ -3,6 +3,7 @@ import {
   CAP_WRITE_BASE,
   WRITE_BASE_PROCEDURES,
   CAP_DND5E_RULES_MODERN,
+  CAP_PF2E_NPC_WRITES,
   CAP_PF2E_SHEET_WRITES,
   CAP_RESPONSE_SIG,
   CHANNEL,
@@ -221,7 +222,8 @@ export class Channel {
    * resources-name token whenever `actor.resources.v1` is advertised, the
    * write-base token with any lane that takes `base`, the
    * 2024-rules token with `dnd5e.resources.v1` on a world playing them, and
-   * the Pathfinder 2e sheet-writes token with `pf2e.resources.v1`.
+   * the Pathfinder 2e sheet-writes and npc-writes tokens with
+   * `pf2e.resources.v1`.
    *
    * Public because this — not the raw registry — is what the agent actually
    * sees, so it is the only honest answer to "what does this module offer?".
@@ -251,6 +253,9 @@ export class Channel {
       supportsPf2eSheetWritesV1Runtime()
     )
       caps.push(CAP_PF2E_SHEET_WRITES);
+    // The npc actor type rides the same lane on its own runtime gate: an npc
+    // uses the character APIs, never the currency ones.
+    if (caps.includes("pf2e.resources.v1")) caps.push(CAP_PF2E_NPC_WRITES);
     return caps.sort();
   }
 

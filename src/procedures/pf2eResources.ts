@@ -53,6 +53,15 @@ import {
  * re-send converges by sequence and digest, and a newer snapshot supersedes an
  * older one.
  *
+ * With the `pf2eNpcWritesV1` token the same request writes a pf2e `npc`
+ * Actor (`actorType: "npc"`): hit points, temporary hit points, conditions,
+ * item quantities and spellcasting, on the same paths (pf2e 8.6.1: the hp
+ * clamp, condition and inventory APIs are every creature's, spellcasting
+ * entries exist on characters and npcs). An npc has no hero points, and its
+ * purse and item adds are not written. Its focus pool is stored, max included;
+ * pf2e prepares that stored pool (capped at 3) and clamps to it, so the
+ * character clamp below applies unchanged.
+ *
  * Every pf2e path and behaviour below is source-derived (pf2e 8.6.1; the
  * sheet groups' paths are identical at 8.5.1), never confirmed against a live
  * world. The writes run in the GM responder's client through pf2e's own APIs,
@@ -62,7 +71,10 @@ import {
  */
 
 const PROCEDURE = "pf2e.resources.v1";
-const ACTOR_TYPE = "character";
+const ACTOR_TYPES = ["character", "npc"] as const;
+type ActorType = (typeof ACTOR_TYPES)[number];
+/** The groups an npc request never names (`base` only takes the first two). */
+const NOT_ON_NPC = ["heroPoints", "coins", "adds", "customAdds"] as const;
 const EQUIPMENT_PACK = "pf2e.equipment-srd";
 
 /** pf2e's `CONDITION_SLUGS` (source-derived, pf2e 8.6.1), minus
@@ -203,7 +215,7 @@ export interface Pf2eSpellcastingV1 {
   innateUses?: Record<string, number>;
 }
 
-export interface Pf2eActorResourcesV1 extends LiveHeaderV1<"character"> {
+export interface Pf2eActorResourcesV1 extends LiveHeaderV1<ActorType> {
   sequence: number;
   hp?: number;
   hpTemp?: number;
@@ -420,10 +432,22 @@ export function validatePf2eActorResourcesV1(
     "spellcasting",
     "base",
   ]);
+  if (!(ACTOR_TYPES as readonly unknown[]).includes(p.actorType))
+    invalid("actorType must be character or npc");
   const req: Pf2eActorResourcesV1 = {
-    ...liveHeader(p, ACTOR_TYPE),
+    ...liveHeader(p, p.actorType as ActorType),
     sequence: liveSequence(p),
   };
+  // Named before any bound: what an npc never takes is refused as such.
+  if (req.actorType === "npc") {
+    const base = (
+      typeof p.base === "object" && p.base !== null ? p.base : {}
+    ) as Dict;
+    for (const g of NOT_ON_NPC) {
+      if (p[g] !== undefined) invalid(`${g} is not written on an npc`);
+      if (base[g] !== undefined) invalid(`base.${g} is not written on an npc`);
+    }
+  }
   Object.assign(req, parseCounters(p, ""));
   if (p.base !== undefined)
     req.base = parseCounters(record(p.base, "base", COUNTER_KEYS), "base.");
@@ -1077,7 +1101,7 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
   // Compared and written in pf2e's prepared order; the digests stay the
   // request's own, so a replay is recognised byte for byte.
   const req = inPreparedOrder(sent);
-  const actor = linkedActor(req, ACTOR_TYPE);
+  const actor = linkedActor(req, req.actorType);
   const id = docId(actor);
   if (
     typeof actor.increaseCondition !== "function" ||

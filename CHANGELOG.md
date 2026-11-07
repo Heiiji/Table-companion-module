@@ -7,6 +7,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- Pathfinder 2e live counters (`pf2e.resources.v1`) also write an imported NPC (`actorType: "npc"`),
+  advertised by the new `pf2eNpcWritesV1` capability: hit points, temporary hit points, conditions,
+  item quantities and spellcasting (slots, prepared spells, the NPC's stored focus pool, innate uses).
+  Hero points, the coin purse and item adds are refused for an NPC.
 - Pathfinder 2e live counters (`pf2e.resources.v1`) take three optional groups, advertised by the
   new `pf2eSheetWritesV1` capability: the coin purse (`coins`, a target total per denomination,
   written through pf2e's own currency functions and skipped with `coins_unaddressable` when a coin

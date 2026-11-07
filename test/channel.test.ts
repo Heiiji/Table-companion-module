@@ -11,6 +11,7 @@ import {
   CAP_ACTOR_RESOURCES_NAME,
   CAP_WRITE_BASE,
   CAP_DND5E_RULES_MODERN,
+  CAP_PF2E_NPC_WRITES,
   CAP_PF2E_SHEET_WRITES,
   CAP_RESPONSE_SIG,
   ENVELOPE_VERSION,
@@ -1184,6 +1185,10 @@ describe("Channel response signing", () => {
     expect(old).toContain("pf2e.resources.v1");
     expect(old).not.toContain(CAP_PF2E_SHEET_WRITES);
     expect(capsOn("dnd5e", [pc(apis)])).not.toContain(CAP_PF2E_SHEET_WRITES);
+    // The npc token rides the lane alone, whatever the currency APIs.
+    expect(live).toContain(CAP_PF2E_NPC_WRITES);
+    expect(old).toContain(CAP_PF2E_NPC_WRITES);
+    expect(capsOn("dnd5e", [pc(apis)])).not.toContain(CAP_PF2E_NPC_WRITES);
   });
 
   it("does not advertise/sign when a signer is set but this client is NOT the responder", async () => {

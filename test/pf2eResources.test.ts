@@ -342,7 +342,7 @@ describe("pf2e.resources.v1 validation", () => {
   const add = { key: KEY_A, slug: "longsword", quantity: 1 };
   it.each([
     ["an unknown key", { extra: 1, hp: 1 }],
-    ["another actor type", { actorType: "npc", hp: 1 }],
+    ["another actor type", { actorType: "hazard", hp: 1 }],
     ["another schema version", { schemaVersion: 2, hp: 1 }],
     ["no group at all", {}],
     ["a malformed actor id", { expectedActorId: "short", hp: 1 }],
@@ -1915,11 +1915,21 @@ describe("pf2e.resources.v1 replays the shared sheet-writes plan vectors", () =>
   it.each(cases.map((c) => [c.id, c] as const))(
     "accepts the %s request",
     (_id, c) => {
-      const body = request({ ...(c.request as object) } as never);
+      const npc = (c as { actorType?: string }).actorType === "npc";
+      const body = request({
+        ...(c.request as object),
+        ...(npc ? { actorType: "npc" } : {}),
+      } as never);
       const req = validatePf2eActorResourcesV1(body);
       const sent = Object.keys(c.request as object);
-      // A sheet group, or its base, only with the module token.
-      const tokened = c.capabilities.includes("pf2eSheetWritesV1");
+      // A sheet group, or its base, only with the module token (an npc:
+      // the npc token alone, never the purse or custom adds).
+      const tokened = c.capabilities.includes(
+        npc ? "pf2eNpcWritesV1" : "pf2eSheetWritesV1",
+      );
+      if (npc)
+        for (const g of ["heroPoints", "coins", "adds", "customAdds"])
+          expect(sent, g).not.toContain(g);
       const base = Object.keys(
         ((c.request as Record<string, unknown>).base ?? {}) as object,
       );
@@ -1940,4 +1950,120 @@ describe("pf2e.resources.v1 replays the shared sheet-writes plan vectors", () =>
         expect(customAddSource(add)).toEqual(sources[add.key]);
     },
   );
+});
+
+describe("pf2e.resources.v1 on an imported npc", () => {
+  const npcRequest = (overrides: Record<string, unknown> = {}) =>
+    request({ actorType: "npc", ...overrides } as never);
+
+  function fakeNpc() {
+    const { actor, entry, spells } = spellcaster();
+    actor.type = "npc";
+    actor.flags = {};
+    // pf2e prepares an npc's STORED focus pool over {0, 0, cap 3}; an npc
+    // has no hero points.
+    actor.system.resources = { focus: { value: 1, max: 2, cap: 3 } };
+    return { actor, entry, spells };
+  }
+
+  it.each([
+    ["heroPoints", { heroPoints: 1 }],
+    ["coins", { coins: { gp: 1 } }],
+    ["adds", { adds: [] }],
+    ["customAdds", { customAdds: [] }],
+    ["base.heroPoints", { hp: 1, base: { heroPoints: 1 } }],
+    ["base.coins", { hp: 1, base: { coins: { gp: 1 } } }],
+  ])("refuses %s", (group, overrides) => {
+    expect(() => validatePf2eActorResourcesV1(npcRequest(overrides))).toThrow(
+      `${group} is not written on an npc`,
+    );
+  });
+
+  it("refuses another actor type by name", () => {
+    expect(() =>
+      validatePf2eActorResourcesV1(
+        request({ actorType: "hazard", hp: 1 } as never),
+      ),
+    ).toThrow("actorType must be character or npc");
+  });
+
+  it("accepts hp, hpTemp, conditions, items and spellcasting, with their base", () => {
+    const req = validatePf2eActorResourcesV1(
+      npcRequest({
+        hp: 3,
+        hpTemp: 2,
+        conditions: { frightened: 1 },
+        items: { abcdefghijklmnop: 1 },
+        spellcasting: { focus: 0, innateUses: { [INNATE_SPELL]: 0 } },
+        base: { hp: 4, spellcasting: { focus: 1 } },
+      }),
+    );
+    expect(req.actorType).toBe("npc");
+    expect(req.base).toEqual({ hp: 4, spellcasting: { focus: 1 } });
+  });
+
+  it("writes the npc Actor it names: counters, conditions, spells, the stored focus pool clamped to its max", async () => {
+    const { actor, entry, spells } = fakeNpc();
+    const result = await run(
+      actor,
+      npcRequest({
+        hp: 4,
+        hpTemp: 2,
+        conditions: { frightened: 2 },
+        spellcasting: {
+          entries: {
+            [ENTRY]: {
+              "1": {
+                prepared: [
+                  { id: SPELL, expended: true },
+                  { id: null, expended: false },
+                ],
+              },
+            },
+          },
+          focus: 3,
+          innateUses: { [INNATE_SPELL]: 0 },
+        },
+      }),
+    );
+    expect(held(actor)).toEqual(["frightened:2"]);
+    expect(entry.update).toHaveBeenCalledWith({
+      "system.slots.slot1.prepared": [
+        { id: SPELL, expended: true },
+        { id: null, expended: false },
+      ],
+    });
+    expect(spells[2].update).toHaveBeenCalledWith({
+      "system.location.uses.value": 0,
+    });
+    expect(actor.update).toHaveBeenCalledTimes(1);
+    expect(actor.updates[0]).toMatchObject({
+      "system.attributes.hp.value": 4,
+      "system.attributes.hp.temp": 2,
+      "system.resources.focus.value": 2,
+    });
+    expect(Object.keys(actor.updates[0])).not.toContain(
+      "system.resources.heroPoints.value",
+    );
+    expect(result.warnings).toEqual(["focus_clamped"]);
+  });
+
+  it("replays the same sequence without writing", async () => {
+    const { actor } = fakeNpc();
+    const req = npcRequest({ hp: 4 });
+    const first = await run(actor, req);
+    actor.update.mockClear();
+    expect(await run(actor, req)).toEqual(first);
+    expect(actor.update).not.toHaveBeenCalled();
+  });
+
+  it("never writes a character through an npc request, nor an npc through a character one", async () => {
+    await rejects(
+      run(fakeCharacter(), npcRequest({ hp: 4 })),
+      "binding_conflict",
+    );
+    const { actor } = fakeNpc();
+    await rejects(run(actor, request({ hp: 4 })), "binding_conflict");
+    expect(actor.update).not.toHaveBeenCalled();
+  });
 });

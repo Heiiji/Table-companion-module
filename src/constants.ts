@@ -108,6 +108,14 @@ export const CAP_WRITE_BASE = "writeBaseV1";
  * it has no handler. */
 export const CAP_PF2E_SHEET_WRITES = "pf2eSheetWritesV1";
 
+/** Capability token advertised alongside `pf2e.resources.v1`: this build
+ * accepts `actorType: "npc"` on that procedure, writing a pf2e `npc` Actor's
+ * hit points, temporary hit points, conditions, item quantities and
+ * spellcasting (never hero points, the purse or item adds). Apps send an npc
+ * request only when the world advertises it, since an older build refuses the
+ * actor type. NOT a procedure name — it has no handler. */
+export const CAP_PF2E_NPC_WRITES = "pf2eNpcWritesV1";
+
 /** The lanes that take `base` (the `CAP_WRITE_BASE` token rides them). */
 export const WRITE_BASE_PROCEDURES = [
   "actor.resources.v1",
