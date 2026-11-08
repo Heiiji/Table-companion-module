@@ -4,6 +4,13 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+- Projector portraits reject control-character-obfuscated URLs and mixed-slash network paths,
+  keeping the HTTPS-or-local image restriction intact after browser URL normalization. The
+  projection still renders without the rejected image.
+
 ## [0.20.0] - 2026-11-05
 
 ### Added

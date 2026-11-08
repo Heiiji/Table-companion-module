@@ -122,6 +122,9 @@ describe("display image allowlist", () => {
     "/modules/x/portrait.png",
     "https://cdn.example.com/p.webp",
     "HTTPS://cdn.example.com/p.webp",
+    "worlds/w/Goblin Warrior.webp",
+    "../portraits/goblin.webp",
+    "/modules/x/portrait.png?size=200&name=Goblin",
   ])("keeps %s", (img) => {
     expect(isAllowedImageSource(img)).toBe(true);
     expect(normalizeDisplayPayload({ name: "X", img }).img).toBe(img);
@@ -135,11 +138,34 @@ describe("display image allowlist", () => {
     "\\\\host\\share\\p.png",
     "file:///etc/passwd",
     "blob:https://x/1",
+    "/\\attacker.example/pixel.gif",
+    "ht\ntp://attacker.example/pixel.gif",
+    "ht\rtp://attacker.example/pixel.gif",
+    "ht\ttp://attacker.example/pixel.gif",
+    "data\t:image/svg+xml;base64,PHN2Zz4=",
+    "java\nscript:alert(1)",
+    "\u0000http://attacker.example/pixel.gif",
+    "\u001f//attacker.example/pixel.gif",
   ])("drops %s (the view still renders)", (img) => {
     expect(isAllowedImageSource(img)).toBe(false);
     const v = normalizeDisplayPayload({ name: "X", img });
     expect(v.name).toBe("X");
     expect(v.img).toBeUndefined();
+  });
+
+  it("drops obfuscated image sources in received broadcasts", () => {
+    const parsed = parseDisplayBroadcast({
+      tcaDisplay: "show",
+      view: { ...view, img: "/\\attacker.example/pixel.gif" },
+    });
+    expect(parsed?.kind).toBe("show");
+    if (parsed?.kind !== "show") throw new Error("expected a display view");
+    expect(parsed.view).toEqual({
+      name: view.name,
+      fields: view.fields,
+      theme: view.theme,
+    });
+    expect(projectorContentHtml(parsed.view)).not.toContain("<img");
   });
 
   it("reports malformed payloads as invalid_args", () => {
@@ -209,6 +235,21 @@ describe("display.show / display.clear procedures", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0][0]).toBe(CHANNEL);
     expect(calls[0][1]).toEqual({ tcaDisplay: "show", view });
+  });
+
+  it("drops an obfuscated image before rendering and broadcasting", async () => {
+    await displayShow(
+      { ...view, img: "ht\ntp://attacker.example/pixel.gif" },
+      {} as never,
+    );
+    expect(openProjector).toHaveBeenCalledWith(
+      view.name,
+      expect.not.stringContaining("<img"),
+    );
+    expect(emitMock()).toHaveBeenCalledWith(CHANNEL, {
+      tcaDisplay: "show",
+      view: { name: view.name, fields: view.fields, theme: view.theme },
+    });
   });
 
   it("display.show rejects a malformed payload (no broadcast)", async () => {
