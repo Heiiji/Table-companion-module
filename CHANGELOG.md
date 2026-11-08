@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- Release builds now enforce the same formatting, coverage and runtime-dependency audit gates as
+  CI before publishing the module.
+
 ### Security
 - Projector portraits reject control-character-obfuscated URLs and mixed-slash network paths,
   keeping the HTTPS-or-local image restriction intact after browser URL normalization. The
