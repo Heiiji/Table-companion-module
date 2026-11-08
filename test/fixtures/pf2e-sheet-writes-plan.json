@@ -680,6 +680,33 @@
           "csmNpcCmdElixir1": 1
         }
       }
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "supplement-plans-nothing",
+      "request": null
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "local-rows-never-planned",
+      "request": {
+        "base": {
+          "items": {
+            "eqpTorch00000001": 5
+          }
+        },
+        "items": {
+          "eqpTorch00000001": 4
+        }
+      }
     }
   ],
   "note": "SYNTHETIC, shape-only: the plan section of the shared Pathfinder 2e sheet-writes vectors (request bodies the apps send, and the exact Foundry source of each custom add). Derived, never edited by hand."
