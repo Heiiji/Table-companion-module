@@ -121,8 +121,9 @@ Gamemaster can open setup from the console with
   the dialog's own extras (module damage bonuses and the like) are not applied, and costs are spent by
   the app. Targets must be tokens on the scene the Gamemaster is viewing; barrage weapons, which have
   no attack roll, stay on the app's engine.
-- **Combat mirror:** on every system, the app's combat (combatants, initiative, current turn) is
-  mirrored one way into a Foundry Combat (`combat.sync.v1`).
+- **Combat mirror:** on Foundry 13 or later, the app's combat (combatants, initiative, current turn)
+  is mirrored one way into a Foundry Combat (`combat.sync.v1`). This is not available on Pathfinder
+  2e or Cyberpunk RED.
 - **Languages:** English, Français
 - **Connection:** Foundry must be served over HTTPS (or opened on localhost): the module verifies the
   backend's signatures with the browser's WebCrypto, which plain http does not provide.
