@@ -107,7 +107,12 @@ export function normalizeDisplayPayload(payload: unknown): DisplayView {
  * `data:`, plain `http:`, a protocol-relative `//host` — is dropped, so a push
  * cannot make every participant's browser fetch an arbitrary address. */
 export function isAllowedImageSource(src: string): boolean {
-  if (src.startsWith("//") || src.startsWith("\\")) return false;
+  // Browsers strip tabs/newlines and leading ASCII controls from URLs, and
+  // treat backslashes as slashes for HTTP(S). Check these before the scheme,
+  // so an obfuscated http: URL or /\\host cannot bypass the allowlist.
+  if ([...src].some((ch) => ch.charCodeAt(0) < 0x20)) return false;
+  if (src.startsWith("//") || src.startsWith("\\") || src.startsWith("/\\"))
+    return false;
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(src);
   if (!scheme) return true; // relative to the Foundry server
   return scheme[1].toLowerCase() === "https";

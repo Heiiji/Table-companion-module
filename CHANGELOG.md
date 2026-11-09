@@ -25,11 +25,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   damage formulas, as pf2e prepared them, so the app rolls with Foundry's own numbers. It never
   writes, rolls or posts to chat.
 
+### Changed
+- Release builds now enforce the same formatting, coverage and runtime-dependency audit gates as
+  CI before publishing the module.
+
 ### Fixed
 - Pathfinder 2e live counters: prepared spell slots are compared and written in pf2e's own order
   (prepared spells first, empty slots last), so a retry after a write that failed part-way no
   longer reports its own earlier slot write as a `base_conflict`; a change made in Foundry in
   between is still refused.
+
+### Security
+- Projector portraits reject control-character-obfuscated URLs and mixed-slash network paths,
+  keeping the HTTPS-or-local image restriction intact after browser URL normalization. The
+  projection still renders without the rejected image.
 
 ## [0.20.0] - 2026-11-05
 
