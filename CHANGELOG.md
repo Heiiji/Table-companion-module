@@ -4,7 +4,7 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.21.0] - 2026-11-09
 
 ### Added
 - Pathfinder 2e live counters (`pf2e.resources.v1`) also write an imported NPC (`actorType: "npc"`),
