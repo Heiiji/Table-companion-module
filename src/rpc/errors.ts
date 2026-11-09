@@ -36,7 +36,12 @@ export type RpcErrorCode =
   | "knight_api_missing"
   | "weapon_not_found"
   | "weapon_unsupported"
-  | "attack_card_timeout";
+  | "attack_card_timeout"
+  // Actor images.
+  | "invalid_request"
+  | "upload_unknown"
+  | "invalid_image"
+  | "upload_failed";
 
 export class RpcError extends Error {
   constructor(

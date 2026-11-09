@@ -8,8 +8,10 @@ import {
 
 // The system-agnostic floor: what EVERY world gets, whatever system it runs.
 // These touch no system-specific schema (core Roll API, compendium passthrough,
-// a projector popout), so there is nothing to verify per system.
+// a projector popout, the core Actor image), so there is nothing to verify per
+// system.
 const BASE_CAPABILITIES = [
+  "actor.image.v1",
   "compendium.get",
   "compendium.index",
   "display.clear",
@@ -61,6 +63,7 @@ const KNIGHT_CAPABILITIES = [
 // and routes its fallback on it: a read that times out may fall back silently
 // to the app's local engine, a mutation with an unknown outcome may NOT.
 const MUTATION_PROCEDURES = [
+  "actor.image.v1",
   "actor.items.v1",
   "actor.resources.v1",
   "actor.upsert.v1",
@@ -165,7 +168,10 @@ describe("ProcedureRegistry", () => {
           ...BASE_CAPABILITIES,
         ].sort(),
       );
-      expect(registry.mutations()).toEqual(["pf2e.resources.v1"]);
+      expect(registry.mutations()).toEqual([
+        "actor.image.v1",
+        "pf2e.resources.v1",
+      ]);
       expect(registry.isSignedOnly("pf2e.resources.v1")).toBe(true);
       expect(registry.unsupported()).toEqual({
         "combat.sync.v1": "combat mirroring is not available on pf2e",
@@ -193,7 +199,9 @@ describe("ProcedureRegistry", () => {
       expect(registry.isSignedOnly("pf2e.actor.complete.v1"), version).toBe(
         true,
       );
-      expect(registry.mutations(), version).toEqual([...PF2E_LANES].sort());
+      expect(registry.mutations(), version).toEqual(
+        ["actor.image.v1", ...PF2E_LANES].sort(),
+      );
       expect(registry.unsupported(), version).toEqual({
         "combat.sync.v1": "combat mirroring is not available on pf2e",
       });
@@ -291,6 +299,7 @@ describe("ProcedureRegistry", () => {
       );
       expect(registry.isSignedOnly("dnd5e.resources.v1"), version).toBe(true);
       expect(registry.mutations(), version).toEqual([
+        "actor.image.v1",
         "combat.sync.v1",
         "dnd5e.resources.v1",
       ]);
@@ -421,22 +430,26 @@ describe("ProcedureRegistry", () => {
     const pf2e = new ProcedureRegistry();
     registerBuiltinProcedures(pf2e);
     expect(pf2e.mutations()).toEqual([
+      "actor.image.v1",
       "pf2e.actor.complete.v1",
       "pf2e.actor.upsert.v1",
       "pf2e.resources.v1",
     ]);
 
-    // Any other system exposes only the core-document combat mirror, and no
-    // mutation at all before Foundry 13.
+    // Any other system exposes only the core-document lanes (the Actor image,
+    // the combat mirror), and only the image before Foundry 13.
     for (const id of ["dnd5e", "custom-system"]) {
       vi.stubGlobal("game", { system: { id }, release: { generation: 14 } });
       const other = new ProcedureRegistry();
       registerBuiltinProcedures(other);
-      expect(other.mutations(), id).toEqual(["combat.sync.v1"]);
+      expect(other.mutations(), id).toEqual([
+        "actor.image.v1",
+        "combat.sync.v1",
+      ]);
       vi.stubGlobal("game", { system: { id } });
       const unknown = new ProcedureRegistry();
       registerBuiltinProcedures(unknown);
-      expect(unknown.mutations(), id).toEqual([]);
+      expect(unknown.mutations(), id).toEqual(["actor.image.v1"]);
     }
   });
 
@@ -567,7 +580,7 @@ describe("ProcedureRegistry", () => {
       const registry = new ProcedureRegistry();
       registerBuiltinProcedures(registry);
       expect(registry.capabilities(), id).not.toContain("combat.sync.v1");
-      expect(registry.mutations(), id).toEqual([]);
+      expect(registry.mutations(), id).toEqual(["actor.image.v1"]);
       expect(registry.unsupported()["combat.sync.v1"], id).toBe(
         `combat mirroring is not available on ${id}`,
       );

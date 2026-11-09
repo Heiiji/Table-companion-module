@@ -4,6 +4,16 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Character images from the app (`actor.image.v1`, every game system, signed-only): a Gamemaster's
+  browser now saves a character image sent from the app (a JPEG of at most 1 MiB, received in chunks
+  and checked against its length, SHA-256 and JPEG signature) into the world's
+  `table-companion/portraits` folder, named after the Actor and the image's hash, and sets it as that
+  Actor's image; it can also reset the image to the system's default artwork. Only a world Actor's
+  `img` is written (never its prototype token), and no other folder or file name can be requested.
+
 ## [0.21.0] - 2026-11-09
 
 ### Added

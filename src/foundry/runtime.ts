@@ -289,6 +289,25 @@ export interface Pf2eConditionManagerLike {
   ): Promise<unknown>;
 }
 
+/** Foundry's FilePicker class, as far as saving a file into the user data. */
+export interface FilePickerLike {
+  /** Resolves the server's response (`path` set on success), `false`,
+   * `undefined` or `{}` on a failure (it does not throw). */
+  upload(
+    source: string,
+    path: string,
+    file: File,
+    body?: object,
+    options?: { notify?: boolean },
+  ): Promise<unknown>;
+  /** Rejects when the directory exists or cannot be created. */
+  createDirectory(
+    source: string,
+    target: string,
+    options?: object,
+  ): Promise<unknown>;
+}
+
 interface FoundryGlobals {
   game?: GameLike;
   /** The rendered canvas; its `tokens` layer is a structural view per caller. */
@@ -301,6 +320,11 @@ interface FoundryGlobals {
     /** Foundry 14+: update operators (`ForcedDeletion` replaces `-=key`). */
     data?: { operators?: { ForcedDeletion?: new () => unknown } };
     applications?: {
+      /** Foundry 13+: `apps.FilePicker`, whose `implementation` is the
+       * configured (`CONFIG.ux.FilePicker`) subclass. */
+      apps?: {
+        FilePicker?: FilePickerLike & { implementation?: FilePickerLike };
+      };
       api?: {
         DialogV2?: DialogV2Class;
         ApplicationV2?: ApplicationV2Class;
@@ -450,4 +474,11 @@ export function renderTemplateFn():
  * reason (the `foundry` global exists only once `init` runs). */
 export function applicationV2Class(): ApplicationV2Class | undefined {
   return globals().foundry?.applications?.api?.ApplicationV2;
+}
+
+/** The configured FilePicker (`foundry.applications.apps.FilePicker
+ * .implementation`, Foundry 13 and 14), else the base class, else undefined. */
+export function filePickerClass(): FilePickerLike | undefined {
+  const FilePicker = globals().foundry?.applications?.apps?.FilePicker;
+  return FilePicker?.implementation ?? FilePicker;
 }

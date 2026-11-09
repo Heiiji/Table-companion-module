@@ -86,6 +86,10 @@ a new code is an additive change.
 | `weapon_not_found` | No weapon on the Actor is bound to the attack's entry. |
 | `weapon_unsupported` | The Knight weapon has no attack roll (an active barrage). |
 | `attack_card_timeout` | The Knight attack card did not complete in time; a late card is still stamped with its result. |
+| `invalid_request` | An actor image request failed validation (an op, an id, a size, or a chunk out of order). |
+| `upload_unknown` | The actor image upload is gone (expired, replaced by a newer one, or never begun). |
+| `invalid_image` | The actor image's length, SHA-256 or JPEG signature does not match. |
+| `upload_failed` | Foundry refused the image file or its directory. |
 
 ## Licence
 
