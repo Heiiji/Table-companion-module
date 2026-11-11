@@ -18,6 +18,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (`wear_conflict` when it moved first, a capacity holds the ascension, or there is no armour);
   a generation 4 armour stays worn (`wear_forced`).
 
+### Changed
+- Fifth Edition live counters (`dnd5e.resources.v1`) now run on dnd5e 6.0.0 or a later 6.x on
+  Foundry 14 or later (previously 6.1.0, a release that is not published), checked against dnd5e
+  6.0.6. An exhaustion change is recorded as written even before dnd5e's exhaustion effect catches
+  up, so a following change is no longer refused as a conflict.
+
 ## [0.24.0] - 2026-11-11
 
 ### Added

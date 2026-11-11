@@ -342,12 +342,12 @@ describe("ProcedureRegistry", () => {
     registerBuiltinProcedures(dnd);
     expect(dnd.unsupported()).toEqual({
       "dnd5e.resources.v1":
-        "dnd5e unknown on Foundry unknown; requires dnd5e 6.1.0 or a later 6.x on Foundry 14 or later",
+        "dnd5e unknown on Foundry unknown; requires dnd5e 6.0.0 or a later 6.x on Foundry 14 or later",
     });
   });
 
-  it("registers dnd5e.resources.v1 only on dnd5e 6.1.0 or a later 6.x on Foundry 14 or later", () => {
-    for (const version of ["6.1.0", "6.1.1", "6.2.0", "6.99.0"]) {
+  it("registers dnd5e.resources.v1 only on dnd5e 6.0.0 or a later 6.x on Foundry 14 or later", () => {
+    for (const version of ["6.0.0", "6.0.6", "6.1.0", "6.99.0"]) {
       vi.stubGlobal("game", {
         system: { id: "dnd5e", version },
         release: { generation: 14 },
@@ -366,12 +366,12 @@ describe("ProcedureRegistry", () => {
       expect(registry.unsupported(), version).toEqual({});
     }
     for (const [version, generation] of [
-      ["6.0.9", 14],
+      ["5.9.9", 14],
       ["5.2.0", 14],
-      ["v6.1.0", 14],
-      ["6.1.0-beta", 14],
-      ["6.1", 14],
-      ["6.1.0", 13],
+      ["v6.0.6", 14],
+      ["6.0.6-beta", 14],
+      ["6.0", 14],
+      ["6.0.6", 13],
       ["7.0.0", 14],
     ] as const) {
       vi.stubGlobal("game", {
@@ -384,12 +384,12 @@ describe("ProcedureRegistry", () => {
         "dnd5e.resources.v1",
       );
       expect(registry.unsupported()["dnd5e.resources.v1"], version).toBe(
-        `dnd5e ${version} on Foundry ${generation}; requires dnd5e 6.1.0 or a later 6.x on Foundry 14 or later`,
+        `dnd5e ${version} on Foundry ${generation}; requires dnd5e 6.0.0 or a later 6.x on Foundry 14 or later`,
       );
     }
     // Another system on an admitted version string never gets the lane.
     vi.stubGlobal("game", {
-      system: { id: "knight", version: "6.1.0" },
+      system: { id: "knight", version: "6.0.6" },
       release: { generation: 14 },
     });
     const knight = new ProcedureRegistry();

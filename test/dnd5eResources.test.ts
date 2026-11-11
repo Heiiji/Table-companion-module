@@ -7,10 +7,10 @@ import {
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
 import { hasFixturePath } from "./support/actorUpsertHarness.js";
-import FIXTURE from "./fixtures/dnd5e-6.1.0-character.json";
+import FIXTURE from "./fixtures/dnd5e-6.0.6-character.json";
 
 // SYNTHETIC, shape-only: a prepared dnd5e `character` (the fixture) and its
-// condition effects as the dnd5e 6.1.0 source describes them (source-derived,
+// condition effects as the dnd5e 6.0.6 source describes them (source-derived,
 // not a capture). Status effects carry dnd5e's static ids; a condition effect has
 // `type: "condition"`, its primary id in `system.type`, and its implied ids
 // in `statuses`.
@@ -110,7 +110,7 @@ function stubWorld(
   actors: FakeCharacter[],
   {
     id = "dnd5e",
-    version = "6.1.0",
+    version = "6.0.6",
     generation = 14,
     isGM = true,
     rulesVersion = "modern",
@@ -241,8 +241,8 @@ describe("dnd5e.resources.v1 validation", () => {
 
 describe("dnd5e.resources.v1 runtime gate", () => {
   it.each([
-    ["dnd5e below the floor", { version: "6.0.9" }],
-    ["a non-strict version", { version: "6.1.0-beta" }],
+    ["dnd5e below the floor", { version: "5.9.9" }],
+    ["a non-strict version", { version: "6.0.6-beta" }],
     ["Foundry 13", { generation: 13 }],
     ["another system", { id: "knight" }],
   ])("refuses %s as unsupported_runtime", async (_label, world) => {
@@ -432,6 +432,34 @@ describe("dnd5e.resources.v1 rules version", () => {
     });
     expect(actor.updates[0]).toEqual({ "system.attributes.exhaustion": 3 });
     expect((result as { warnings: string[] }).warnings).toEqual([]);
+  });
+
+  it("records the written exhaustion, though dnd5e prepares it from an effect that lands later", async () => {
+    // dnd5e 6.0.x prepares `attributes.exhaustion` from the exhaustion
+    // effect's level, and moves that effect from an update hook it does not
+    // await: right after the update the prepared value is still the old one.
+    const actor = fakeCharacter();
+    const write = actor.update.getMockImplementation()!;
+    actor.update.mockImplementation(async (changes) => {
+      await write(changes);
+      if ("system.attributes.exhaustion" in changes)
+        (actor.system.attributes as Record<string, unknown>).exhaustion = 0;
+    });
+    await run(actor, request({ sequence: 3, exhaustion: 3 }));
+    const flag = (
+      actor.flags[MODULE_ID] as Record<string, Record<string, unknown>>
+    ).dnd5eResourcesV1;
+    expect(flag.written).toEqual({ exhaustion: 3 });
+
+    // The effect lands; a later write on a base from before the first one is
+    // not a conflict: Foundry holds what this lane wrote.
+    (actor.system.attributes as Record<string, unknown>).exhaustion = 3;
+    actor.update.mockImplementation(write);
+    await run(
+      actor,
+      request({ sequence: 4, exhaustion: 5, base: { exhaustion: 0 } }),
+    );
+    expect(actor.updates.at(-2)).toEqual({ "system.attributes.exhaustion": 5 });
   });
 });
 
@@ -800,7 +828,7 @@ describe("dnd5e.resources.v1 base (compare-and-set)", () => {
   });
 });
 
-describe("dnd5e.resources.v1 on the sanitized dnd5e 6.1.0 character", () => {
+describe("dnd5e.resources.v1 on the sanitized dnd5e 6.0.6 character", () => {
   it("writes only paths the character's data model has", async () => {
     const actor = fakeCharacter(
       structuredClone(FIXTURE.actor.effects) as FakeEffect[],

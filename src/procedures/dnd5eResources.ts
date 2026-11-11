@@ -39,18 +39,18 @@ import {
  * imported from Foundry, the unbound Actor the app names by id; re-sends
  * converge by sequence/digest.
  *
- * Every dnd5e path and behaviour below is source-derived (dnd5e 6.1.0), not
- * confirmed against a live world. The writes run in the GM responder's client,
+ * Every dnd5e path and behaviour below is source-derived (dnd5e 6.0.6, the
+ * floor 6.0.0's latest patch), not confirmed against a live world. The writes run in the GM responder's client,
  * so dnd5e's own client-side follow-ups (the exhaustion effect, bloodied,
  * death-save reset, condition riders) run as they would for a GM edit.
  */
 
 const PROCEDURE = "dnd5e.resources.v1";
 
-/** dnd5e's player-character actor type (source-derived, dnd5e 6.1.0). */
+/** dnd5e's player-character actor type (source-derived, dnd5e 6.0.6). */
 const ACTOR_TYPE = "character";
 
-/** The spell slot keys of `system.spells` (source-derived, dnd5e 6.1.0:
+/** The spell slot keys of `system.spells` (source-derived, dnd5e 6.0.6:
  * `spell1`…`spell9` and `pact`). */
 export const DND5E_SLOT_KEYS = [
   "spell1",
@@ -66,7 +66,7 @@ export const DND5E_SLOT_KEYS = [
 ] as const;
 type SlotKey = (typeof DND5E_SLOT_KEYS)[number];
 
-/** The standard condition ids this lane writes (source-derived, dnd5e 6.1.0
+/** The standard condition ids this lane writes (source-derived, dnd5e 6.0.6
  * `CONFIG.DND5E.conditionTypes`, minus exhaustion — a level, written as a
  * number — and the pseudo conditions). Concentrating, bloodied, cover and the
  * other status effects are dnd5e's own and never touched. */
@@ -88,14 +88,14 @@ export const DND5E_CONDITION_IDS = [
 ] as const;
 const KNOWN_CONDITIONS: ReadonlySet<string> = new Set(DND5E_CONDITION_IDS);
 
-/** dnd5e's exhaustion levels (source-derived, dnd5e 6.1.0: `levels: 6`). */
+/** dnd5e's exhaustion levels (source-derived, dnd5e 6.0.6: `levels: 6`). */
 const MAX_EXHAUSTION = 6;
 
-/** Three successes or three failures end the death saves (dnd5e 6.1.0 rolls
+/** Three successes or three failures end the death saves (dnd5e 6.0.6 rolls
  * them to 3; the schema itself has no max). */
 const MAX_DEATH_SAVES = 3;
 
-/** Bound of the temporary maximum hit points the lane accepts. dnd5e 6.1.0's
+/** Bound of the temporary maximum hit points the lane accepts. dnd5e 6.0.6's
  * `hp.tempmax` is an integer with no min (a negative value lowers the max). */
 const MAX_HP_TEMP_MAX = 9999;
 
@@ -245,7 +245,7 @@ export function validateDnd5eActorResourcesV1(
 }
 
 /** The standard conditions the Actor holds: the PRIMARY id (`system.type`) of
- * each `condition`-type effect (source-derived, dnd5e 6.1.0). Never
+ * each `condition`-type effect (source-derived, dnd5e 6.0.6). Never
  * `actor.statuses`: it also carries implied ids (a stunned effect implies
  * incapacitated), and comparing on it would delete the stunned effect when
  * the app's set lacks « incapacitated ». */
@@ -259,7 +259,7 @@ function currentConditions(actor: ActorLike): Set<string> {
   return held;
 }
 
-/** Where each scalar counter lives (source-derived, dnd5e 6.1.0). */
+/** Where each scalar counter lives (source-derived, dnd5e 6.0.6). */
 const COUNTER_PATHS: Record<string, string> = {
   hp: "attributes.hp.value",
   hpTemp: "attributes.hp.temp",
@@ -282,7 +282,7 @@ function currentCounter(actor: ActorLike, field: string): unknown {
   return path === undefined ? undefined : valueAt(actor.system, path);
 }
 
-/** source-derived (dnd5e 6.1.0, data/actor/templates/attributes.mjs L473):
+/** source-derived (dnd5e 6.0.6, data/actor/templates/attributes.mjs L471):
  * the PREPARED `attributes.hp.effectiveMax` (`max + tempmax`, floored at 0) —
  * the stored `hp.max` is only an override, null unless the GM typed one. */
 function effectiveMaxOf(actor: ActorLike): { hpEffectiveMax?: number } {
@@ -310,9 +310,9 @@ function counterPatch(
   const set = (path: string, value: number | boolean) => {
     if (valueAt(actor.system, path) !== value) patch[`system.${path}`] = value;
   };
-  // source-derived (dnd5e 6.1.0): `attributes.hp.tempmax`, written in the same
+  // source-derived (dnd5e 6.0.6): `attributes.hp.tempmax`, written in the same
   // update; the hit point ceiling below is the effective maximum after it
-  // (`max + tempmax`, floored at 0, templates/attributes.mjs L473), computed
+  // (`max + tempmax`, floored at 0, templates/attributes.mjs L471), computed
   // from the prepared `hp.max` rather than read back.
   let effectiveMax = finiteAt(actor.system, "attributes.hp.effectiveMax");
   if (req.hpTempMax !== undefined) {
@@ -325,7 +325,7 @@ function counterPatch(
         max === undefined ? undefined : Math.max(max + req.hpTempMax, 0);
     }
   }
-  // source-derived (dnd5e 6.1.0): `attributes.hp.value` has min 0 and no
+  // source-derived (dnd5e 6.0.6): `attributes.hp.value` has min 0 and no
   // schema max; the prepared `hp.effectiveMax` is the ceiling dnd5e displays.
   if (req.hp !== undefined) {
     if (!hasPath(actor.system, "attributes.hp")) {
@@ -340,14 +340,14 @@ function counterPatch(
       set("attributes.hp.value", hp);
     }
   }
-  // source-derived (dnd5e 6.1.0): `attributes.hp.temp`, written as an absolute
+  // source-derived (dnd5e 6.0.6): `attributes.hp.temp`, written as an absolute
   // value (dnd5e's applyTempHP only ever raises it).
   if (req.hpTemp !== undefined) {
     if (!hasPath(actor.system, "attributes.hp"))
       warnings.push("resource_unavailable:hpTemp");
     else set("attributes.hp.temp", req.hpTemp);
   }
-  // source-derived (dnd5e 6.1.0): `spells.<key>.value` is the slots REMAINING;
+  // source-derived (dnd5e 6.0.6): `spells.<key>.value` is the slots REMAINING;
   // `max` is prepared, never stored. A key without a prepared max above 0 is
   // a slot level the character does not have: skipped.
   if (req.slots) {
@@ -362,9 +362,10 @@ function counterPatch(
       set(`spells.${key}.value`, value);
     }
   }
-  // source-derived (dnd5e 6.1.0): exhaustion is the number
-  // `attributes.exhaustion`; dnd5e's own update hook moves the exhaustion
-  // effect. Never toggled as a status: dnd5e ignores `active` for a levelled
+  // source-derived (dnd5e 6.0.6): exhaustion is the stored number
+  // `attributes.exhaustion`; dnd5e's own update hook (Actor5e
+  // `_onUpdateExhaustion`) moves the exhaustion effect by the difference, and
+  // the prepared value is that effect's level. Never toggled as a status: dnd5e ignores `active` for a levelled
   // condition and ADDS a level. The app counts the 2024 levels; a world on the
   // 2014 rules (`rulesVersion` "legacy") keeps its own: left to Foundry.
   if (req.exhaustion !== undefined) {
@@ -372,10 +373,10 @@ function counterPatch(
       warnings.push("exhaustion_unavailable:legacy_rules");
     else set("attributes.exhaustion", req.exhaustion);
   }
-  // source-derived (dnd5e 6.1.0, data/actor/character.mjs L73-83): stored
+  // source-derived (dnd5e 6.0.6, data/actor/character.mjs L73-83): stored
   // `attributes.death.success` / `.failure` (integers, min 0) and the boolean
   // `attributes.inspiration`. dnd5e's preUpdateHP (templates/attributes.mjs
-  // L664-669) still zeroes both death counters when the same update heals a
+  // L665-669) still zeroes both death counters when the same update heals a
   // character up from 0 hit points.
   if (req.deathSaves) {
     if (!hasPath(actor.system, "attributes.death")) {
@@ -471,7 +472,14 @@ export const dnd5eResourcesV1: Procedure = async (payload) => {
       ...final,
       contentDigest,
       // What Foundry holds after this write, for the next base compare.
-      written: writtenFields(req, (field) => currentCounter(actor, field)),
+      // dnd5e 6.0.x prepares `attributes.exhaustion` from the exhaustion
+      // effect, which its update hook moves without awaiting: the prepared
+      // value still lags here, so the written level is recorded instead.
+      written: writtenFields(req, (field) =>
+        field === "exhaustion" && "system.attributes.exhaustion" in patch
+          ? req.exhaustion
+          : currentCounter(actor, field),
+      ),
     },
   });
   return final;

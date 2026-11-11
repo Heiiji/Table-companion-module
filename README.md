@@ -45,7 +45,7 @@ Companion** to run setup.
 2. Click **Create Companion user** and copy the generated password.
 3. Paste that password into the Table Companion app — or scan the QR code shown —
    to link your table.
-4. Give the `Companion` user *Observer* (display) or *Owner* (edit) permission on
+4. Give the `Companion` user _Observer_ (display) or _Owner_ (edit) permission on
    your players' characters.
 
 > **Important:** never log in to Foundry as the `Companion` user yourself —
@@ -79,7 +79,7 @@ as. After that it only listens to that key, from that user.
   you tap **Re-pair** in the Table Companion app; the setup panel says when that
   is needed.
 
-Anyone you grant Foundry's *Modify Configuration Settings* permission can change
+Anyone you grant Foundry's _Modify Configuration Settings_ permission can change
 world settings, including this pairing. By default only Assistant GMs and
 Gamemasters have it.
 
@@ -100,7 +100,7 @@ Gamemaster can open setup from the console with
   and so is deploying or folding the armour (`actorResourcesWearV1`). An armour picked in the app
   replaces the Actor's armour (`actor.items.v1`, `actorItemsArmourV1`), never one carrying evolutions,
   archived data or an active capacity unless the Gamemaster confirms.
-- **Fifth Edition live counters:** on dnd5e 6.1.0 or a later 6.x on Foundry 14 or later, a linked
+- **Fifth Edition live counters:** on dnd5e 6.0.0 or a later 6.x on Foundry 14 or later, a linked
   character's hit points, temporary hit points, spell slots, exhaustion, conditions, death saves
   and inspiration are written from the app (`dnd5e.resources.v1`), which reports back the
   character's prepared maximum hit points.

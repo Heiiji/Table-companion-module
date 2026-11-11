@@ -1,8 +1,8 @@
 {
-  "_comment": "SYNTHETIC, shape-only: a prepared dnd5e character as the dnd5e 6.1.0 data model describes it (source-derived, not a capture). Values are placeholders; no rules text.",
+  "_comment": "SYNTHETIC, shape-only: a prepared dnd5e character as the dnd5e 6.0.6 data model describes it (source-derived, not a capture). Values are placeholders; no rules text.",
   "foundryGeneration": 14,
   "systemId": "dnd5e",
-  "systemVersion": "6.1.0",
+  "systemVersion": "6.0.6",
   "actor": {
     "_id": "dnd5eActor000001",
     "name": "Sanitized Fifth Edition fixture",
@@ -24,10 +24,9 @@
         "death": {
           "success": 0,
           "failure": 0,
-          "bonuses": {
-            "save": ""
-          },
+          "bonuses": {},
           "roll": {
+            "bonus": "",
             "min": null,
             "max": null,
             "mode": 0
@@ -41,63 +40,63 @@
           "override": null,
           "max": 4,
           "level": 1,
-          "type": "leveled"
+          "type": "spell"
         },
         "spell2": {
           "value": 2,
           "override": null,
           "max": 3,
           "level": 2,
-          "type": "leveled"
+          "type": "spell"
         },
         "spell3": {
           "value": 0,
           "override": null,
           "max": 0,
           "level": 3,
-          "type": "leveled"
+          "type": "spell"
         },
         "spell4": {
           "value": 0,
           "override": null,
           "max": 0,
           "level": 4,
-          "type": "leveled"
+          "type": "spell"
         },
         "spell5": {
           "value": 0,
           "override": null,
           "max": 0,
           "level": 5,
-          "type": "leveled"
+          "type": "spell"
         },
         "spell6": {
           "value": 0,
           "override": null,
           "max": 0,
           "level": 6,
-          "type": "leveled"
+          "type": "spell"
         },
         "spell7": {
           "value": 0,
           "override": null,
           "max": 0,
           "level": 7,
-          "type": "leveled"
+          "type": "spell"
         },
         "spell8": {
           "value": 0,
           "override": null,
           "max": 0,
           "level": 8,
-          "type": "leveled"
+          "type": "spell"
         },
         "spell9": {
           "value": 0,
           "override": null,
           "max": 0,
           "level": 9,
-          "type": "leveled"
+          "type": "spell"
         },
         "pact": {
           "value": 1,

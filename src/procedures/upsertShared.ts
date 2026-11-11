@@ -254,7 +254,7 @@ export function parseAspectScores(value: unknown): AspectScoresV1 {
  *
  * - `knight`: every Knight lane (PC and pnj provisioning, live resources,
  *   items, attacks), from the PC and pnj fixtures captured on 3.58.33.
- * - `dnd5e`: the Fifth Edition live-resources lane, derived from 6.1.0.
+ * - `dnd5e`: the Fifth Edition live-resources lane, derived from 6.0.6.
  * - `pf2e`: Pathfinder 2e character draft and completion, derived from 8.6.1
  *   (source-derived, never confirmed against a live world).
  * - `pf2eResources`: Pathfinder 2e live resources, whose APIs and paths also
@@ -262,7 +262,7 @@ export function parseAspectScores(value: unknown): AspectScoresV1 {
  */
 export const VERIFIED_SYSTEM_VERSIONS = {
   knight: { floor: "3.58.33", major: 3 },
-  dnd5e: { floor: "6.1.0", major: 6 },
+  dnd5e: { floor: "6.0.0", major: 6 },
   pf2e: { floor: "8.6.1", major: 8 },
   pf2eResources: { floor: "8.5.1", major: 8 },
 } as const;
