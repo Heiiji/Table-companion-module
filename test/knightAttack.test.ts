@@ -11,7 +11,11 @@ import {
 import { stampFollowUp } from "../src/procedures/knightAttackFollowUps.js";
 import { registerBuiltinProcedures } from "../src/procedures/index.js";
 import { ProcedureRegistry } from "../src/rpc/registry.js";
-import { MODULE_ID, SETTING_AGENT_USER } from "../src/constants.js";
+import {
+  MODULE_ID,
+  REQUEST_TIMEOUT_MS,
+  SETTING_AGENT_USER,
+} from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
 
 type Dict = Record<string, any>;
@@ -447,13 +451,33 @@ describe("knight.attack.v1 roll", () => {
     await knightAttackV1(payload({ visibility: "blind" }), {} as never);
     const card = world.messages.contents[0] as Message;
     expect(card.author).toBeUndefined();
-    expect(card.whisper).toEqual([GM]);
+    // A blind roll reaches the service user too, so the backend can still
+    // read its result when the reply was lost.
+    expect(card.whisper).toEqual([GM, COMPANION]);
     expect(card.blind).toBe(true);
   });
 
-  it("whispers a self roll to its author only", async () => {
+  it("whispers a self roll to its author and the service user", async () => {
     await knightAttackV1(payload({ visibility: "self" }), {} as never);
-    expect((world.messages.contents[0] as Message).whisper).toEqual([PLAYER]);
+    expect((world.messages.contents[0] as Message).whisper).toEqual([
+      PLAYER,
+      COMPANION,
+    ]);
+  });
+
+  it("adds a renamed service user to a self roll by id, and whispers a public roll to no one", async () => {
+    world.users.contents[2].name = "Table app";
+    world.users.contents[1].name = "Companion";
+    await knightAttackV1(payload({ visibility: "self" }), {} as never);
+    expect((world.messages.contents[0] as Message).whisper).toEqual([
+      PLAYER,
+      COMPANION,
+    ]);
+    await knightAttackV1(
+      payload({ eventId: "00000000-0000-4000-8000-000000000005" }),
+      {} as never,
+    );
+    expect((world.messages.contents[1] as Message).whisper).toEqual([]);
   });
 
   it("never makes the app's service user the author", async () => {
@@ -669,6 +693,41 @@ describe("knight.attack.v1 roll", () => {
       "00000000-0000-4000-8000-000000000002",
     );
     expect(unstamped!.flags[MODULE_ID]).toBeUndefined();
+  });
+
+  it("keeps a newer roll's hook when an older attack's roller fails late", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    world.knight.RollKnight = class extends FakeRollKnight {
+      override doRoll(updates: Dict): Promise<number> {
+        if (calls++ > 0) return super.doRoll(updates);
+        return new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("late")),
+            REQUEST_TIMEOUT_MS + 1_000,
+          ),
+        );
+      }
+    };
+    const first = rejection(knightAttackV1(payload(), {} as never));
+    // The queue lets go of the stuck roll; a newer attack of the same actor
+    // arms its hook, and its card comes after the older roller fails.
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 200);
+    scenario.createAfterMs = 3_000;
+    const second = knightAttackV1(
+      payload({ eventId: "00000000-0000-4000-8000-000000000002" }),
+      {} as never,
+    );
+    await vi.advanceTimersByTimeAsync(200);
+    expect(hooks.get("preCreateChatMessage")?.size).toBe(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect((await first).message).toBe("late");
+    expect(hooks.get("preCreateChatMessage")?.size).toBe(1);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(await second).toMatchObject({ alreadyRolled: false });
+    expect(
+      (world.messages.contents[0] as Message).flags[MODULE_ID].eventId,
+    ).toBe("00000000-0000-4000-8000-000000000002");
   });
 
   it.each([

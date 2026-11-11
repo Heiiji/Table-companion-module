@@ -9,10 +9,19 @@ import { npcUpsertV1 } from "./npcUpsert.js";
 import { actorResourcesV1 } from "./actorResources.js";
 import { actorItemsV1 } from "./actorItems.js";
 import { knightAttackV1, rollKnightClass } from "./knightAttack.js";
+import { knightStatisticsV1 } from "./knightStatistics.js";
+import { knightTestV1, rollKnightTestClass } from "./knightTest.js";
 import { dnd5eResourcesV1 } from "./dnd5eResources.js";
 import { pf2eActorUpsertV1 } from "./pf2eActorUpsert.js";
 import { pf2eActorCompleteV1 } from "./pf2eActorComplete.js";
 import { pf2eResourcesV1 } from "./pf2eResources.js";
+import { actorImageV1 } from "./actorImage.js";
+import { pf2eCheckV1, supportsPf2eCheckV1Runtime } from "./pf2eCheck.js";
+import { pf2eCardV1, supportsPf2eCardV1Runtime } from "./pf2eCard.js";
+import {
+  pf2eStatisticsV1,
+  supportsPf2eStatisticsV1Runtime,
+} from "./pf2eStatistics.js";
 import {
   MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION,
   combatSyncV1,
@@ -59,6 +68,13 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   // it opens a popout on connected browsers and writes no document.
   registry.register("display.show", displayShow, { kind: "clientState" });
   registry.register("display.clear", displayClear, { kind: "clientState" });
+  // A character image sent from the app becomes the Actor's image: core
+  // `Actor.img`, so every system. Signed-only like the other writes; it saves
+  // a file in this world's folder.
+  registry.register("actor.image.v1", actorImageV1, {
+    kind: "mutation",
+    signedOnly: true,
+  });
   // Mirror of the app's combat into a Foundry Combat. Combat and Combatant are
   // core documents, so every system gets it, from the Foundry generation the
   // mapping was checked on (13, the module's own minimum). Signed-only and a
@@ -120,6 +136,25 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
         "the Knight roller (game.knight.RollKnight) lacks prepareWpnContact, prepareWpnDistance or doRoll",
       );
     }
+    // A Knight test the app started (no weapon), run by the same roller:
+    // same gate, plus the one member this lane calls.
+    if (rollKnightTestClass()) {
+      registry.register("knight.test.v1", knightTestV1, {
+        kind: "mutation",
+        signedOnly: true,
+      });
+    } else {
+      registry.markUnsupported(
+        "knight.test.v1",
+        "the Knight roller (game.knight.RollKnight) lacks doRoll",
+      );
+    }
+    // Foundry's prepared numbers of linked Actors: a signed-only read on the
+    // same gate (the reply becomes sheet numbers).
+    registry.register("knight.statistics.v1", knightStatisticsV1, {
+      kind: "read",
+      signedOnly: true,
+    });
   } else if (systemId() === "knight") {
     // A Knight release below the floor, an unparsable version, or an older
     // Foundry generation: the lanes stay unregistered, and the
@@ -133,6 +168,8 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
     registry.markUnsupported("actor.resources.v1", reason);
     registry.markUnsupported("actor.items.v1", reason);
     registry.markUnsupported("knight.attack.v1", reason);
+    registry.markUnsupported("knight.test.v1", reason);
+    registry.markUnsupported("knight.statistics.v1", reason);
   }
   // Live counters of a Fifth Edition character (hit points, temporary hit
   // points, spell slots, exhaustion, conditions): bound or named Actor only,
@@ -178,6 +215,48 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   } else if (systemId() === "pf2e") {
     registry.markUnsupported(
       "pf2e.resources.v1",
+      `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT}`,
+    );
+  }
+  // Foundry's prepared numbers of a Pathfinder 2e Actor (armor class,
+  // perception, saves, skills, class DC, spellcasting, strikes) for the app
+  // to roll with. A read, signed like the other pf2e procedures, on the
+  // resources lane's floor with pf2e's prepared statistics present.
+  if (supportsPf2eStatisticsV1Runtime()) {
+    registry.register("pf2e.statistics.v1", pf2eStatisticsV1, {
+      kind: "read",
+      signedOnly: true,
+    });
+  } else if (systemId() === "pf2e") {
+    registry.markUnsupported(
+      "pf2e.statistics.v1",
+      `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT} with prepared statistics`,
+    );
+  }
+  // A check the app started (statistic, strike, spell attack), rolled by pf2e
+  // itself so Foundry posts its own card, and the spell or item card of a
+  // play: mutations (each creates a chat message, once per event id), signed
+  // like the other pf2e lanes, on the live-counters floor. The check also
+  // needs pf2e's `Check`.
+  if (supportsPf2eCheckV1Runtime()) {
+    registry.register("pf2e.check.v1", pf2eCheckV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
+  } else if (systemId() === "pf2e") {
+    registry.markUnsupported(
+      "pf2e.check.v1",
+      `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT} with game.pf2e.Check`,
+    );
+  }
+  if (supportsPf2eCardV1Runtime()) {
+    registry.register("pf2e.card.v1", pf2eCardV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
+  } else if (systemId() === "pf2e") {
+    registry.markUnsupported(
+      "pf2e.card.v1",
       `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT}`,
     );
   }

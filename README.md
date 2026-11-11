@@ -113,14 +113,34 @@ Gamemaster can open setup from the console with
 - **Pathfinder 2e live counters:** on pf2e 8.5.1 or a later 8.x on Foundry 14, a linked character's hit points, temporary
   hit points, hero points, conditions and inventory are written from the app (`pf2e.resources.v1`):
   quantities of the items the app mirrors (0 deletes), and items added in the app found by slug in the
-  system's equipment compendium, never stacked onto another item. A condition another item grants or
-  locks, coins, the level and the attributes are never touched.
+  system's equipment compendium, never stacked onto another item. Where the module advertises
+  `pf2eSheetWritesV1`, the app also writes the coin purse (per denomination, through pf2e's own
+  currency functions; skipped with a warning when a coin stack is not worth exactly one coin of
+  one denomination, is sold in lots, is kept in a container, or is a legacy coin pf2e does not count), custom items it created without a compendium entry, and
+  spell slots, prepared spells, focus points and innate uses. A condition another item grants or
+  locks, the level and the attributes are never touched.
+- **Pathfinder 2e prepared statistics:** on the same releases, the app reads a character's or NPC's
+  armor class, perception, saves, skills, class DC, spellcasting attack and DC, and strikes (attack
+  modifiers with the multiple attack penalty, damage formulas) as pf2e prepared them
+  (`pf2e.statistics.v1`), to roll with Foundry's own numbers. Nothing is written or rolled in Foundry.
+- **Pathfinder 2e checks and cards:** on pf2e 8.5.1 or a later 8.x on Foundry 14, a check, a
+  character's Strike or a spell attack started in the app is rolled by pf2e itself, with Foundry's own
+  card (`pf2e.check.v1`), and a spell cast or an item used in the app posts the card pf2e posts from
+  the sheet (`pf2e.card.v1`). Dialogs never open, no ammunition is spent, and the cards spend no slot,
+  focus point or item: the app writes those counters itself. An NPC's Strike stays on the app's engine.
+- **Knight prepared statistics:** on the same Knight releases, the app reads a Knight character's or
+  non-player Actor's aspects, characteristics and overdrives, health, hope, armour, energy, contacts,
+  force field, defense, reaction and initiative as the Knight system prepared them
+  (`knight.statistics.v1`), to show Foundry's own numbers. Nothing is written or rolled in Foundry.
 - **Knight attacks:** on the same Knight releases, a weapon attack started in the app is rolled by the
   Knight system itself (`knight.attack.v1`): the native card with its targets, hit or miss, effects
   and damage / violence buttons, and the result sent back to the app. The app composes the dice pool;
   the dialog's own extras (module damage bonuses and the like) are not applied, and costs are spent by
   the app. Targets must be tokens on the scene the Gamemaster is viewing; barrage weapons, which have
   no attack roll, stay on the app's engine.
+- **Knight tests:** on the same Knight releases, a test started in the app without a weapon is rolled
+  by the Knight system itself (`knight.test.v1`): the native card with its successes and, when a
+  difficulty is set, its verdict, and the dice sent back to the app. Costs are spent by the app.
 - **Combat mirror:** on Foundry 13 or later, the app's combat (combatants, initiative, current turn)
   is mirrored one way into a Foundry Combat (`combat.sync.v1`). This is not available on Pathfinder
   2e or Cyberpunk RED.

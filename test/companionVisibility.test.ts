@@ -3,7 +3,31 @@ import {
   companionVisibility,
   shareUnseenWithCompanion,
 } from "../src/setup/companionVisibility.js";
+import { MODULE_ID } from "../src/constants.js";
 import { fakeActor, stubWorld } from "./support/companionWorld.js";
+
+/** An NPC the app provisioned: bound, with the lane's result flag. */
+function appNpc(id: string, ownership: Record<string, number>) {
+  return Object.assign(fakeActor(id, ownership), {
+    flags: {
+      [MODULE_ID]: {
+        binding: {
+          schemaVersion: 1,
+          worldId: "w",
+          tableId: "t",
+          characterId: id,
+        },
+        npcUpsertV1: {
+          schemaVersion: 1,
+          appliedRevision: 1,
+          appliedDigest: "d",
+          outcome: "created",
+          warnings: [],
+        },
+      },
+    },
+  });
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -37,6 +61,22 @@ describe("companionVisibility", () => {
       "unseen",
       "everyone",
     ]);
+  });
+
+  it("counts the app's bound NPCs too, never a Foundry NPC", () => {
+    const hidden = appNpc("hidden-npc", { default: 0 });
+    const shared = appNpc("shared-npc", { default: 0, comp1: 2 });
+    const foundryNpc = fakeActor("foundry-npc", { default: 0 });
+    // Bound without the lane's result: not an NPC the app provisioned.
+    const boundOnly = Object.assign(fakeActor("bound-only", { default: 0 }), {
+      flags: { [MODULE_ID]: { binding: hidden.flags[MODULE_ID].binding } },
+    });
+    stubWorld([hidden, shared, foundryNpc, boundOnly]);
+
+    const visibility = companionVisibility()!;
+
+    expect(visibility.total).toBe(2);
+    expect(visibility.unseen.map((actor) => actor.id)).toEqual(["hidden-npc"]);
   });
 
   it("is null without a Companion user", () => {
@@ -78,6 +118,17 @@ describe("shareUnseenWithCompanion", () => {
     for (const untouched of [seen, npc])
       expect(untouched.update).not.toHaveBeenCalled();
     expect(companionVisibility()!.unseen).toEqual([]);
+  });
+
+  it("shares a hidden app NPC with Companion, and nothing with players", async () => {
+    const hidden = appNpc("hidden-npc", { default: 0 });
+    stubWorld([hidden]);
+
+    await expect(
+      shareUnseenWithCompanion(companionVisibility()!),
+    ).resolves.toBe(1);
+    expect(hidden.update.mock.calls).toEqual([[{ "ownership.comp1": 2 }]]);
+    expect(hidden.ownership).toEqual({ default: 0, comp1: 2 });
   });
 
   it("re-reads the world after the confirmation", async () => {

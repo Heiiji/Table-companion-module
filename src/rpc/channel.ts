@@ -1,8 +1,11 @@
 import {
   CAP_ACTOR_RESOURCES_NAME,
+  CAP_KNIGHT_NPC_RESOURCES,
   CAP_WRITE_BASE,
   WRITE_BASE_PROCEDURES,
   CAP_DND5E_RULES_MODERN,
+  CAP_PF2E_NPC_WRITES,
+  CAP_PF2E_SHEET_WRITES,
   CAP_RESPONSE_SIG,
   CHANNEL,
   DISPLAY_TAG,
@@ -15,6 +18,7 @@ import {
   SETTING_AGENT_KEY,
 } from "../constants.js";
 import { MODULE_ID } from "../constants.js";
+import { supportsPf2eSheetWritesV1Runtime } from "../procedures/upsertShared.js";
 import { isResponder } from "../setup/election.js";
 import {
   companionAnchorId,
@@ -216,9 +220,12 @@ export class Channel {
 
   /** Capabilities advertised in hello / hello.ack: the registered procedures,
    * plus the response-signing token when this client signs, and the
-   * resources-name token whenever `actor.resources.v1` is advertised, the
-   * write-base token with any lane that takes `base`, and the
-   * 2024-rules token with `dnd5e.resources.v1` on a world playing them.
+   * resources-name and Knight npc-resources tokens whenever
+   * `actor.resources.v1` is advertised, the
+   * write-base token with any lane that takes `base`, the
+   * 2024-rules token with `dnd5e.resources.v1` on a world playing them, and
+   * the Pathfinder 2e sheet-writes and npc-writes tokens with
+   * `pf2e.resources.v1`.
    *
    * Public because this — not the raw registry — is what the agent actually
    * sees, so it is the only honest answer to "what does this module offer?".
@@ -232,15 +239,26 @@ export class Channel {
       .capabilities()
       .filter((name) => !this.registry.isSignedOnly(name) || this.canSign());
     if (this.canSign()) caps.push(CAP_RESPONSE_SIG);
-    // The name fields ride the resources lane: advertised only with it.
+    // The name fields and the Knight non-player types ride the resources
+    // lane: advertised only with it.
     if (caps.includes("actor.resources.v1"))
-      caps.push(CAP_ACTOR_RESOURCES_NAME);
+      caps.push(CAP_ACTOR_RESOURCES_NAME, CAP_KNIGHT_NPC_RESOURCES);
     // The base values ride the lanes that take them.
     if (WRITE_BASE_PROCEDURES.some((proc) => caps.includes(proc)))
       caps.push(CAP_WRITE_BASE);
     // The rules generation rides the Fifth Edition lane the same way.
     if (caps.includes("dnd5e.resources.v1") && dnd5eRulesVersion() === "modern")
       caps.push(CAP_DND5E_RULES_MODERN);
+    // The Pathfinder 2e sheet groups ride that lane, where pf2e's currency
+    // APIs exist.
+    if (
+      caps.includes("pf2e.resources.v1") &&
+      supportsPf2eSheetWritesV1Runtime()
+    )
+      caps.push(CAP_PF2E_SHEET_WRITES);
+    // The npc actor type rides the same lane on its own runtime gate: an npc
+    // uses the character APIs, never the currency ones.
+    if (caps.includes("pf2e.resources.v1")) caps.push(CAP_PF2E_NPC_WRITES);
     return caps.sort();
   }
 

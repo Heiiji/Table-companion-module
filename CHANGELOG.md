@@ -4,11 +4,91 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.24.0] - 2026-11-11
+
+### Added
+- Knight tests from the app (`knight.test.v1`, signed-only): a test with no weapon is rolled by the
+  Knight system itself, so the native card shows its successes, Exploit or critical failure and, with a
+  difficulty, its verdict; the dice go back to the app. Nothing is spent in Foundry.
+- Knight prepared statistics (`knight.statistics.v1`, signed-only read): the app reads, for up to 32
+  Actors at once, the aspects, characteristics and overdrives, pools, force field, defense, reaction
+  and initiative as the Knight system prepared them, so it shows Foundry's own numbers. Nothing is
+  written or rolled in Foundry.
+- Knight live counters (`actor.resources.v1`) also write non-player Actors (`pnj`, `creature`, `bande`,
+  `vehicule`), advertised by the new `knightNpcResourcesV1` capability: health, armour and energy on
+  the Actor's own pools, clamped to their prepared maximum; `npc.upsert.v1` pools may leave out
+  `current` so a stat edit keeps damage dealt in Foundry, NPCs it creates have linked tokens, the
+  backend's Companion user keeps Observer on them (players unchanged), and « Share » also covers
+  hidden NPCs the app created.
+
+### Fixed
+- Knight attacks from the app (`knight.attack.v1`): a card posted as a self or blind roll is now also
+  whispered to the backend's Companion user, so the app can still read its result when the reply was
+  lost.
+- Knight character provisioning (`actor.upsert.v1`): an approved character written onto an Actor
+  already created for it keeps each field the Gamemaster changed in Foundry since the module last
+  wrote it, and reports how many with one `foundry_kept:<n>` warning.
+
+## [0.23.0] - 2026-11-11
+
+### Added
+- Pathfinder 2e checks run by Foundry (`pf2e.check.v1`, signed-only, pf2e 8.5.1 or a later 8.x on
+  Foundry 14): a Perception, save, skill or lore check, a character's Strike at any multiple-attack
+  step, or a spell attack started in the app is rolled by pf2e itself in the Gamemaster's browser, so
+  Foundry posts its own card (modifier breakdown, roll options, degree of success, damage buttons) and
+  the dice, total and degree go back to the app. No dialog opens and no ammunition is spent; a retry
+  never rolls twice. An NPC's Strike stays on the app's engine.
+- Pathfinder 2e spell and item cards (`pf2e.card.v1`, signed-only, same releases): the card of a spell
+  cast or an item used in the app, as pf2e posts it from the sheet (heightened to the cast rank). It
+  spends nothing in Foundry: the app updates the slot, focus point or quantity itself, once.
+
+## [0.22.1] - 2026-11-11
+
+### Fixed
+- Character images from the app (`actor.image.v1`): on a Knight world, the icon the Knight system
+  gives a new Actor is now recognised as a placeholder, so an image chosen in the app replaces it
+  instead of being set aside.
+
+## [0.22.0] - 2026-11-10
+
+### Added
+- Character images from the app (`actor.image.v1`, every game system, signed-only): a Gamemaster's
+  browser now saves a character image sent from the app (a JPEG of at most 1 MiB, received in chunks
+  and checked against its length, SHA-256 and JPEG signature) into the world's
+  `table-companion/portraits` folder, named after the Actor and the image's hash, and sets it as that
+  Actor's image; it can also reset the image to the system's default artwork. Only a world Actor's
+  `img` is written (never its prototype token), and no other folder or file name can be requested.
+
+## [0.21.0] - 2026-11-09
+
+### Added
+- Pathfinder 2e live counters (`pf2e.resources.v1`) also write an imported NPC (`actorType: "npc"`),
+  advertised by the new `pf2eNpcWritesV1` capability: hit points, temporary hit points, conditions,
+  item quantities and spellcasting (slots, prepared spells, the NPC's stored focus pool, innate uses).
+  Hero points, the coin purse and item adds are refused for an NPC.
+- Pathfinder 2e live counters (`pf2e.resources.v1`) take three optional groups, advertised by the
+  new `pf2eSheetWritesV1` capability: the coin purse (`coins`, a target total per denomination,
+  written through pf2e's own currency functions and skipped with `coins_unaddressable` when a coin
+  stack is not plain), custom items created in the app without a compendium entry (`customAdds`,
+  idempotent by their key), and spellcasting (`spellcasting`: slot values and prepared spells per
+  entry and rank, focus points, innate uses, each clamped to its maximum with a warning). `base`
+  takes `coins` and `spellcasting`. An older module refuses the new keys; apps send them only when
+  the capability is advertised.
+- Pathfinder 2e prepared statistics (`pf2e.statistics.v1`, a signed read on pf2e 8.5.1 or a later
+  8.x on Foundry 14): a character's or NPC's armor class, perception, saves, skills and lores, class DC,
+  spellcasting attack and DC, and strikes with their three multiple-attack-penalty modifiers and
+  damage formulas, as pf2e prepared them, so the app rolls with Foundry's own numbers. It never
+  writes, rolls or posts to chat.
 
 ### Changed
 - Release builds now enforce the same formatting, coverage and runtime-dependency audit gates as
   CI before publishing the module.
+
+### Fixed
+- Pathfinder 2e live counters: prepared spell slots are compared and written in pf2e's own order
+  (prepared spells first, empty slots last), so a retry after a write that failed part-way no
+  longer reports its own earlier slot write as a `base_conflict`; a change made in Foundry in
+  between is still refused.
 
 ### Security
 - Projector portraits reject control-character-obfuscated URLs and mixed-slash network paths,

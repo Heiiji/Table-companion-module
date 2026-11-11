@@ -93,12 +93,36 @@ export const KEY_ENROLL_EVENT = "responseKey.enroll";
  * no handler. */
 export const CAP_ACTOR_RESOURCES_NAME = "actorResourcesNameV1";
 
+/** Capability token advertised alongside `actor.resources.v1`: this build
+ * accepts `actorType` "pnj", "creature", "bande" or "vehicule" on that
+ * procedure (health, armour and energy currents on the Actor's own pools) and
+ * pools without `current` on `npc.upsert.v1`. Apps send either only when the
+ * world advertises it, since an older build refuses them. NOT a procedure
+ * name — it has no handler. */
+export const CAP_KNIGHT_NPC_RESOURCES = "knightNpcResourcesV1";
+
 /** Capability token advertised with any lane that takes the optional `base`
  * compare-and-set values (`actor.resources.v1`, `actor.upsert.v1`,
  * `npc.upsert.v1`, `dnd5e.resources.v1`, `pf2e.resources.v1`): apps send a
  * `base` only when the world advertises it, since an older build refuses the
  * key. NOT a procedure name — it has no handler. */
 export const CAP_WRITE_BASE = "writeBaseV1";
+
+/** Capability token advertised alongside `pf2e.resources.v1` when pf2e's
+ * currency APIs are present: this build accepts the optional `coins`,
+ * `customAdds` and `spellcasting` groups (and `base.coins` /
+ * `base.spellcasting`) on that procedure. Apps send them only when the world
+ * advertises it, since an older build refuses the keys. NOT a procedure name —
+ * it has no handler. */
+export const CAP_PF2E_SHEET_WRITES = "pf2eSheetWritesV1";
+
+/** Capability token advertised alongside `pf2e.resources.v1`: this build
+ * accepts `actorType: "npc"` on that procedure, writing a pf2e `npc` Actor's
+ * hit points, temporary hit points, conditions, item quantities and
+ * spellcasting (never hero points, the purse or item adds). Apps send an npc
+ * request only when the world advertises it, since an older build refuses the
+ * actor type. NOT a procedure name — it has no handler. */
+export const CAP_PF2E_NPC_WRITES = "pf2eNpcWritesV1";
 
 /** The lanes that take `base` (the `CAP_WRITE_BASE` token rides them). */
 export const WRITE_BASE_PROCEDURES = [

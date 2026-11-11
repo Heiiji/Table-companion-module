@@ -385,6 +385,28 @@ export function supportsPf2eResourcesV1Runtime(): boolean {
   );
 }
 
+/** pf2e's currency APIs on an Actor's prepared inventory (source-derived,
+ * pf2e 8.5.1 and 8.6.1 `actor/inventory/index.ts:94-133` addCurrency,
+ * `:135-250` removeCurrency; the inventory is built in `actor/base.ts`
+ * prepareBaseData). */
+export function hasPf2eCurrencyApis(actor: ActorLike): boolean {
+  return (
+    typeof actor.inventory?.addCurrency === "function" &&
+    typeof actor.inventory?.removeCurrency === "function"
+  );
+}
+
+/** Gate of the `pf2eSheetWritesV1` token: the resources lane's runtime, with
+ * pf2e's currency APIs. They live on each Actor's prepared inventory, so a
+ * character of the world answers; a world without one answers by the lane's
+ * verified range, and the handler probes the written Actor again before
+ * touching it. */
+export function supportsPf2eSheetWritesV1Runtime(): boolean {
+  if (!supportsPf2eResourcesV1Runtime()) return false;
+  const pc = contentsOf(gameActors()).find((a) => a.type === "character");
+  return pc === undefined || hasPf2eCurrencyApis(pc);
+}
+
 /** Every world-writing procedure runs only in a GM responder's browser. */
 export function assertGMResponder(procedure: string): void {
   if (!foundryGame()?.user?.isGM)
@@ -806,11 +828,14 @@ function companionUserId(foundryUserId: string | undefined): string {
   return id && id !== foundryUserId ? id : "";
 }
 
-/** The ownership map a provisioning lane creates an Actor with: default NONE,
- * the player OWNER when given, the Companion user OBSERVER (without it the
- * backend never sees the Actor). */
-export function normalizedOwnership(foundryUserId: string | undefined): Dict {
-  const ownership: Dict = { default: OWNERSHIP_NONE };
+/** The ownership map a provisioning lane creates an Actor with: default NONE
+ * (or `defaultLevel`), the player OWNER when given, the Companion user OBSERVER
+ * (without it the backend never sees the Actor). */
+export function normalizedOwnership(
+  foundryUserId: string | undefined,
+  defaultLevel = OWNERSHIP_NONE,
+): Dict {
+  const ownership: Dict = { default: defaultLevel };
   if (foundryUserId) ownership[foundryUserId] = OWNERSHIP_OWNER;
   const companion = companionUserId(foundryUserId);
   if (companion) ownership[companion] = OWNERSHIP_OBSERVER;
@@ -818,15 +843,16 @@ export function normalizedOwnership(foundryUserId: string | undefined): Dict {
 }
 
 // Actor.create receives the plain normalized map; Actor.update receives the
-// merge-safe replacement, which ends with exactly default:NONE, one OWNER when
+// merge-safe replacement, which ends with exactly the default, one OWNER when
 // supplied, and the Companion user at its existing level but at least OBSERVER
 // — whatever other grants an adopted or bound Actor carried. The Companion
 // grant is never deleted or lowered, so setup's « Share » survives a revision.
 export function normalizedOwnershipUpdate(
   actor: ActorLike,
   foundryUserId: string | undefined,
+  defaultLevel = OWNERSHIP_NONE,
 ): Dict {
-  const update = ownershipReplacement(actor, OWNERSHIP_NONE, foundryUserId);
+  const update = ownershipReplacement(actor, defaultLevel, foundryUserId);
   const companion = companionUserId(foundryUserId);
   if (companion) {
     // Drop the companion's deletion entry (under Foundry 14's operator the

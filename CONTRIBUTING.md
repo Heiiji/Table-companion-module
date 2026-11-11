@@ -86,6 +86,17 @@ a new code is an additive change.
 | `weapon_not_found` | No weapon on the Actor is bound to the attack's entry. |
 | `weapon_unsupported` | The Knight weapon has no attack roll (an active barrage). |
 | `attack_card_timeout` | The Knight attack card did not complete in time; a late card is still stamped with its result. |
+| `actor_unsupported` | The Knight Actor cannot roll this test itself (a vehicle: its tests are its pilot's). |
+| `test_card_timeout` | The Knight test card did not appear in time after the roll. |
+| `statistic_not_found` | The Pathfinder 2e Actor has no statistic with the check's slug. |
+| `strike_not_found` | The Pathfinder 2e Actor has no shown strike with that item and slug. |
+| `spell_not_found` | The Pathfinder 2e spell is not on the Actor (or not in that spellcasting entry), or pf2e built no card for it. |
+| `item_not_found` | The Pathfinder 2e item whose card is asked for is not on the Actor, or is not a kind with a card. |
+| `roll_refused` | pf2e did not roll, or Foundry did not create the card; nothing was posted. |
+| `invalid_request` | An actor image request failed validation (an op, an id, a size, or a chunk out of order). |
+| `upload_unknown` | The actor image upload is gone (expired, replaced by a newer one, or never begun). |
+| `invalid_image` | The actor image's length, SHA-256 or JPEG signature does not match. |
+| `upload_failed` | Foundry refused the image file or its directory. |
 
 ## Licence
 

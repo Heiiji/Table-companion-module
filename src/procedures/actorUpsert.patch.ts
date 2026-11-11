@@ -12,6 +12,7 @@ import {
   type Dict,
 } from "./upsertShared.js";
 import {
+  CHARACTERISTIC_KEYS,
   UPSERT_RESOURCE_KEYS,
   type CurrentResourcesV1,
   type ResourceKey,
@@ -86,6 +87,34 @@ export function authoredPatch(
   }
   return patch;
 }
+
+/** Every `system.` path an approved `authoredPatch` may write (the AI paths
+ * only when the request carries an AI). */
+export const AUTHORED_PATHS: readonly string[] = [
+  ...[
+    "description",
+    "descriptionLimitee",
+    "histoire",
+    "origin",
+    "age",
+    "archetype",
+    "metaarmure",
+    "blason",
+    "surnom",
+    "section",
+    "hautFait",
+    "motivations.majeure",
+    "equipements.ia.code",
+    "equipements.ia.surnom",
+    "equipements.ia.caractere",
+  ].map((path) => `system.${path}`),
+  ...ASPECT_KEYS.flatMap((aspect) => [
+    `system.aspects.${aspect}.base`,
+    ...CHARACTERISTIC_KEYS[aspect].map(
+      (c) => `system.aspects.${aspect}.caracteristiques.${c}.base`,
+    ),
+  ]),
+];
 
 /** The gear subtree Foundry reads the worn armour and energy from:
  * `system.equipements.<system.wear>`. As the Knight system prepares a PC, the

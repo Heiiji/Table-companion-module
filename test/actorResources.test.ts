@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   actorResourcesV1,
@@ -11,6 +12,7 @@ import {
   ACTOR_ID,
   KNIGHT_SCHEMA_FIXTURES,
   fakeActor,
+  hasFixturePath,
   stubFoundry,
   wearingArmour,
   type FakeActor,
@@ -784,5 +786,269 @@ describe("actor.resources.v1 base (compare-and-set)", () => {
         }),
       ),
     ).rejects.toMatchObject({ code: "base_conflict" });
+  });
+});
+
+describe("actor.resources.v1 non-player actors", () => {
+  type NpcType = "pnj" | "creature" | "bande" | "vehicule";
+  const fixtureSystem = (file: string): Record<string, unknown> =>
+    (
+      JSON.parse(
+        readFileSync(new URL(`./fixtures/${file}`, import.meta.url), "utf8"),
+      ) as { actor: { system: Record<string, unknown> } }
+    ).actor.system;
+  const FIXTURES: Record<NpcType, Record<string, unknown>> = {
+    pnj: fixtureSystem("knight-pnj-3.58.33-foundry14.json"),
+    creature: fixtureSystem("knight-creature-3.58.37-model.json"),
+    bande: fixtureSystem("knight-bande-3.58.37-model.json"),
+    vehicule: fixtureSystem("knight-vehicule-3.58.37-model.json"),
+  };
+  const KEYS: Record<NpcType, Array<"health" | "armour" | "energy">> = {
+    pnj: ["health", "armour", "energy"],
+    creature: ["health", "armour", "energy"],
+    bande: ["health"],
+    vehicule: ["armour", "energy"],
+  };
+
+  /** An Actor of `type` from its fixture, with the maxima Knight prepares
+   * (the pnj capture is source data, without them). Unbound, as imported. */
+  function npcActor(type: NpcType, id = ACTOR_ID): FakeActor {
+    const actor = fakeActor(id, "Garde");
+    actor.type = type;
+    actor.items.contents = [];
+    actor.system = structuredClone(FIXTURES[type]);
+    for (const [field, max] of [
+      ["sante", 30],
+      ["armure", 20],
+      ["energie", 10],
+    ] as const)
+      Object.assign(actor.system[field] as object, { value: 2, max });
+    return actor;
+  }
+
+  function npcRequest(
+    type: NpcType,
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      ...request({
+        resources: Object.fromEntries(KEYS[type].map((key) => [key, 7])),
+      }),
+      actorType: type,
+      ...overrides,
+    };
+  }
+
+  async function refusal(promise: Promise<unknown>): Promise<RpcError> {
+    try {
+      await promise;
+    } catch (error) {
+      if (error instanceof RpcError) return error;
+      throw error;
+    }
+    throw new Error("expected a refusal");
+  }
+
+  it("writes a pnj's health on the top-level sante.value, never a PC gear path", async () => {
+    const actor = npcActor("pnj");
+    stubFoundry([actor]);
+    const result = await apply(npcRequest("pnj", { resources: { health: 7 } }));
+    expect(result).toMatchObject({ outcome: "updated", warnings: [] });
+    const update = actor.updates[0];
+    expect(update["system.sante.value"]).toBe(7);
+    expect(Object.keys(update).some((k) => k.includes("equipements"))).toBe(
+      false,
+    );
+    expect(Object.keys(update).filter((k) => k.startsWith("system."))).toEqual([
+      "system.sante.value",
+    ]);
+  });
+
+  it("writes a creature's armour on armure.value", async () => {
+    const actor = npcActor("creature");
+    stubFoundry([actor]);
+    await apply(npcRequest("creature", { resources: { armour: 9 } }));
+    expect(actor.updates[0]["system.armure.value"]).toBe(9);
+  });
+
+  for (const type of ["pnj", "creature", "bande", "vehicule"] as const)
+    it(`writes only the ${type}'s meter paths its fixture carries`, async () => {
+      const actor = npcActor(type);
+      stubFoundry([actor]);
+      const result = await apply(npcRequest(type));
+      expect(result.warnings).toEqual([]);
+      const keys = Object.keys(actor.updates[0]).filter((k) =>
+        k.startsWith("system."),
+      );
+      expect(keys.sort()).toEqual(
+        KEYS[type]
+          .map(
+            (k) =>
+              `system.${{ health: "sante", armour: "armure", energy: "energie" }[k]}.value`,
+          )
+          .sort(),
+      );
+      for (const key of keys)
+        expect(
+          hasFixturePath(FIXTURES[type], key.slice("system.".length)),
+          key,
+        ).toBe(true);
+    });
+
+  it("clamps to the prepared maximum and warns", async () => {
+    const actor = npcActor("pnj");
+    stubFoundry([actor]);
+    const result = await apply(
+      npcRequest("pnj", { resources: { health: 99 } }),
+    );
+    expect(result.warnings).toEqual(["resource_clamped:health"]);
+    expect(actor.updates[0]["system.sante.value"]).toBe(30);
+  });
+
+  it("leaves a pool the Actor's options switch off unwritten", async () => {
+    const actor = npcActor("creature");
+    (actor.system.options as Record<string, unknown>) = {
+      ...(actor.system.options as object),
+      armure: false,
+    };
+    stubFoundry([actor]);
+    const result = await apply(
+      npcRequest("creature", { resources: { armour: 5, health: 7 } }),
+    );
+    expect(result.warnings).toEqual(["resource_unavailable:armour"]);
+    expect(actor.updates[0]["system.armure.value"]).toBeUndefined();
+    expect(actor.updates[0]["system.sante.value"]).toBe(7);
+  });
+
+  it("writes a bound app NPC", async () => {
+    const actor = npcActor("pnj");
+    actor.flags[MODULE_ID] = {
+      binding: {
+        schemaVersion: 1,
+        worldId: "world-1",
+        tableId: "table-1",
+        characterId: "character-1",
+      },
+    };
+    stubFoundry([actor]);
+    await apply(npcRequest("pnj", { resources: { energy: 4 } }));
+    expect(actor.updates[0]["system.energie.value"]).toBe(4);
+  });
+
+  it.each([
+    [
+      { actorType: "mechaarmure" },
+      "actorType must be knight, pnj, creature, bande or vehicule",
+    ],
+    [
+      { actorType: "ia" },
+      "actorType must be knight, pnj, creature, bande or vehicule",
+    ],
+    [
+      { actorType: "hazard" },
+      "actorType must be knight, pnj, creature, bande or vehicule",
+    ],
+    [
+      { actorType: "bande", resources: { armour: 1 } },
+      "resources.armour is not written on a bande",
+    ],
+    [
+      { actorType: "vehicule", resources: { health: 1 } },
+      "resources.health is not written on a vehicule",
+    ],
+    [
+      { actorType: "pnj", resources: { hope: 1 } },
+      "resources.hope is not written on a pnj",
+    ],
+    [
+      {
+        actorType: "bande",
+        resources: { health: 1 },
+        base: { resources: { energy: 1 } },
+      },
+      "base.resources.energy is not written on a bande",
+    ],
+    [
+      { actorType: "pnj", resources: { health: 1 }, name: "Garde" },
+      "name is not written on a pnj",
+    ],
+    [
+      { actorType: "pnj", resources: { health: 1, mana: 1 } },
+      "resources.mana is not allowed",
+    ],
+  ])("refuses %j: %s", async (overrides, message) => {
+    expect(() =>
+      validateKnightActorResourcesV1({ ...request(), ...overrides }),
+    ).toThrow(message);
+    const actor = npcActor("pnj");
+    stubFoundry([actor]);
+    expect(await rpcCode(apply({ ...request(), ...overrides }))).toBe(
+      "invalid_args",
+    );
+    expect(actor.updates).toHaveLength(0);
+  });
+
+  it("refuses a request whose type is not the Actor's", async () => {
+    const creature = npcActor("creature");
+    stubFoundry([creature]);
+    expect(await rpcCode(apply(npcRequest("pnj")))).toBe("binding_conflict");
+    const pc = boundActor();
+    stubFoundry([pc]);
+    expect(await rpcCode(apply(npcRequest("pnj")))).toBe("binding_conflict");
+    const boundCreature = npcActor("creature");
+    boundCreature.flags[MODULE_ID] = {
+      binding: {
+        schemaVersion: 1,
+        worldId: "world-1",
+        tableId: "table-1",
+        characterId: "character-1",
+      },
+    };
+    stubFoundry([boundCreature]);
+    expect(await rpcCode(apply(npcRequest("pnj")))).toBe("binding_conflict");
+    for (const actor of [creature, pc, boundCreature])
+      expect(actor.updates).toHaveLength(0);
+  });
+
+  it("never writes a pnj bound to another character, named by its id", async () => {
+    const actor = npcActor("pnj");
+    actor.flags[MODULE_ID] = {
+      binding: {
+        schemaVersion: 1,
+        worldId: "world-1",
+        tableId: "table-1",
+        characterId: "character-2",
+      },
+    };
+    stubFoundry([actor]);
+    expect(await rpcCode(apply(npcRequest("pnj")))).toBe("binding_conflict");
+    expect(actor.updates).toHaveLength(0);
+  });
+
+  it("refuses a stale base with base_conflict and writes nothing", async () => {
+    const actor = npcActor("pnj");
+    (actor.system.sante as { value: number }).value = 5;
+    stubFoundry([actor]);
+    const error = await refusal(
+      apply(
+        npcRequest("pnj", {
+          resources: { health: 7 },
+          base: { resources: { health: 3 } },
+        }),
+      ),
+    );
+    expect(error.code).toBe("base_conflict");
+    expect(actor.updates).toHaveLength(0);
+  });
+
+  it("is refused below the verified Knight floor and on a later major", async () => {
+    for (const version of ["3.58.32", "4.0.0"]) {
+      const actor = npcActor("pnj");
+      stubFoundry([actor], undefined, 13, undefined, version);
+      expect(await rpcCode(apply(npcRequest("pnj")))).toBe(
+        "unsupported_runtime",
+      );
+      expect(actor.updates).toHaveLength(0);
+    }
   });
 });
