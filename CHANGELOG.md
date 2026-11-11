@@ -4,7 +4,7 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.24.0] - 2026-11-11
 
 ### Added
 - Knight tests from the app (`knight.test.v1`, signed-only): a test with no weapon is rolled by the
