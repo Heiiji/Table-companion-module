@@ -14,6 +14,8 @@ import { pf2eActorUpsertV1 } from "./pf2eActorUpsert.js";
 import { pf2eActorCompleteV1 } from "./pf2eActorComplete.js";
 import { pf2eResourcesV1 } from "./pf2eResources.js";
 import { actorImageV1 } from "./actorImage.js";
+import { pf2eCheckV1, supportsPf2eCheckV1Runtime } from "./pf2eCheck.js";
+import { pf2eCardV1, supportsPf2eCardV1Runtime } from "./pf2eCard.js";
 import {
   pf2eStatisticsV1,
   supportsPf2eStatisticsV1Runtime,
@@ -206,6 +208,33 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
     registry.markUnsupported(
       "pf2e.statistics.v1",
       `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT} with prepared statistics`,
+    );
+  }
+  // A check the app started (statistic, strike, spell attack), rolled by pf2e
+  // itself so Foundry posts its own card, and the spell or item card of a
+  // play: mutations (each creates a chat message, once per event id), signed
+  // like the other pf2e lanes, on the live-counters floor. The check also
+  // needs pf2e's `Check`.
+  if (supportsPf2eCheckV1Runtime()) {
+    registry.register("pf2e.check.v1", pf2eCheckV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
+  } else if (systemId() === "pf2e") {
+    registry.markUnsupported(
+      "pf2e.check.v1",
+      `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT} with game.pf2e.Check`,
+    );
+  }
+  if (supportsPf2eCardV1Runtime()) {
+    registry.register("pf2e.card.v1", pf2eCardV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
+  } else if (systemId() === "pf2e") {
+    registry.markUnsupported(
+      "pf2e.card.v1",
+      `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT}`,
     );
   }
 }

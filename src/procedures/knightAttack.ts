@@ -4,11 +4,9 @@ import {
   foundryGame,
   foundryHooks,
   type Dict,
-  type UserLike,
 } from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
-import { isServiceUserId } from "../setup/identity.js";
 import { log } from "../util/log.js";
 import { waitFor, within } from "../util/wait.js";
 import {
@@ -29,6 +27,18 @@ import {
   uuid,
   type ActorLike,
 } from "./upsertShared.js";
+import {
+  characterOf,
+  playerOf,
+  players,
+  stampedCard,
+  visibilityOf,
+  type CardMessage,
+  type Player,
+  type TokenObj,
+} from "./chatCards.js";
+
+export { laneFlags, messages, type CardMessage } from "./chatCards.js";
 
 /**
  * `knight.attack.v1`: a weapon attack the app started, run by the Knight
@@ -120,20 +130,10 @@ export interface KnightAttackResultV1 {
 
 // ------------------------------------------------------- structural views
 
-interface TokenObj {
-  id: string;
-  document?: { actorId?: string | null };
-}
-
 interface TokenLayer {
   get(id: string): TokenObj | undefined;
   placeables?: TokenObj[];
   setTargets?(ids: string[], options?: { mode?: string }): void;
-}
-
-interface Player extends UserLike {
-  character?: { id?: string } | string | null;
-  targets?: Iterable<TokenObj>;
 }
 
 export interface RollLike {
@@ -141,19 +141,6 @@ export interface RollLike {
   total?: number;
   dice?: { results?: { result: number; active?: boolean }[] }[];
   terms?: { results?: { result: number; active?: boolean }[] }[];
-}
-
-/** A chat message, as the attack lane reads and stamps it. */
-export interface CardMessage {
-  id?: string;
-  flags?: Dict;
-  rolls?: unknown[];
-  content?: string;
-  flavor?: string;
-  speaker?: { actor?: string | null };
-  getFlag?(namespace: string, key: string): unknown;
-  setFlag?(namespace: string, key: string, value: unknown): Promise<unknown>;
-  updateSource?(changes: Dict): unknown;
 }
 
 interface Weapon {
@@ -236,20 +223,8 @@ function tokens(): TokenLayer | undefined {
   return canvasTokens() as TokenLayer | undefined;
 }
 
-export function messages(): CardMessage[] {
-  return (foundryGame()?.messages?.contents ?? []) as CardMessage[];
-}
-
-export function laneFlags(message: CardMessage): Dict | undefined {
-  const ns = message.flags?.[MODULE_ID];
-  return typeof ns === "object" && ns !== null ? (ns as Dict) : undefined;
-}
-
 function cardOf(eventId: string): CardMessage | undefined {
-  return messages().find((m) => {
-    const ns = laneFlags(m);
-    return ns?.eventId === eventId && ns.lane === ATTACK_LANE;
-  });
+  return stampedCard(eventId, ATTACK_LANE);
 }
 
 export function knightFlags(message: CardMessage): Dict | undefined {
@@ -257,27 +232,6 @@ export function knightFlags(message: CardMessage): Dict | undefined {
   return typeof knight === "object" && knight !== null
     ? (knight as Dict)
     : undefined;
-}
-
-/** The people at the table: not a GM, not the app's service user. */
-function players(): Player[] {
-  return (contentsOf(foundryGame()?.users) as Player[]).filter(
-    (u) => !u.isGM && !isServiceUserId(u.id),
-  );
-}
-
-function characterOf(user: Player): string | undefined {
-  const c = user.character;
-  return typeof c === "string" ? c : (c?.id ?? undefined);
-}
-
-/** The PC's player (the user whose character it is), else an active owner. */
-function playerOf(actor: ActorLike): Player | undefined {
-  const all = players();
-  return (
-    all.find((u) => characterOf(u) === actor.id) ??
-    all.find((u) => u.active && actor.testUserPermission?.(u, "OWNER") === true)
-  );
 }
 
 function onCanvas(ids: Iterable<string>): string[] {
@@ -336,23 +290,6 @@ function gmTargetIds(): string[] {
   return [...((foundryGame()?.user as Player | undefined)?.targets ?? [])].map(
     (t) => t.id,
   );
-}
-
-/** The card's visibility, in place of the GM's own roll mode. */
-function visibilityOf(
-  visibility: KnightAttackV1["visibility"],
-  authorId: string,
-): { whisper: string[]; blind: boolean } {
-  if (visibility === "public") return { whisper: [], blind: false };
-  if (visibility === "self") return { whisper: [authorId], blind: false };
-  // A GM roll also reaches the service user, so the backend, which reads the
-  // world as that user, sees the card and its result; a blind roll stays GM-only.
-  const readers = contentsOf(foundryGame()?.users)
-    .filter(
-      (u) => u.id && (u.isGM || (visibility === "gm" && isServiceUserId(u.id))),
-    )
-    .map((u) => u.id as string);
-  return { whisper: readers, blind: visibility === "blind" };
 }
 
 function cardTimeout(): RpcError {

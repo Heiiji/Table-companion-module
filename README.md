@@ -123,6 +123,11 @@ Gamemaster can open setup from the console with
   armor class, perception, saves, skills, class DC, spellcasting attack and DC, and strikes (attack
   modifiers with the multiple attack penalty, damage formulas) as pf2e prepared them
   (`pf2e.statistics.v1`), to roll with Foundry's own numbers. Nothing is written or rolled in Foundry.
+- **Pathfinder 2e checks and cards:** on pf2e 8.5.1 or a later 8.x on Foundry 14, a check, a
+  character's Strike or a spell attack started in the app is rolled by pf2e itself, with Foundry's own
+  card (`pf2e.check.v1`), and a spell cast or an item used in the app posts the card pf2e posts from
+  the sheet (`pf2e.card.v1`). Dialogs never open, no ammunition is spent, and the cards spend no slot,
+  focus point or item: the app writes those counters itself. An NPC's Strike stays on the app's engine.
 - **Knight attacks:** on the same Knight releases, a weapon attack started in the app is rolled by the
   Knight system itself (`knight.attack.v1`): the native card with its targets, hit or miss, effects
   and damage / violence buttons, and the result sent back to the app. The app composes the dice pool;

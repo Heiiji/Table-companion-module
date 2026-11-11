@@ -250,6 +250,11 @@ interface CombatsLike {
   [Symbol.iterator]?(): Iterator<CombatLike>;
 }
 
+/** ChatMessage.implementation — the configured ChatMessage document class. */
+interface ChatMessageFactoryLike {
+  create(data: Dict, options?: Dict): Promise<unknown>;
+}
+
 /** Combat.implementation — the configured Combat document class. */
 interface CombatFactoryLike {
   create(data: Dict, options?: Dict): Promise<unknown>;
@@ -271,8 +276,8 @@ interface GameLike {
   version?: string;
   settings?: SettingsLike;
   socket?: SocketLike;
-  /** pf2e's system namespace (the Pathfinder 2e live-counters lane). */
-  pf2e?: { ConditionManager?: Pf2eConditionManagerLike };
+  /** pf2e's system namespace (the live-counters lane; the check lane's `Check`). */
+  pf2e?: { ConditionManager?: Pf2eConditionManagerLike; Check?: unknown };
   /** The Knight system's namespace (its roller, for the attack lane). */
   knight?: { RollKnight?: unknown };
   /** The chat log (`game.messages`). */
@@ -314,6 +319,7 @@ interface FoundryGlobals {
   canvas?: { tokens?: unknown };
   Actor?: { implementation?: ActorFactoryLike };
   Combat?: { implementation?: CombatFactoryLike };
+  ChatMessage?: { implementation?: ChatMessageFactoryLike };
   Hooks?: HooksLike;
   ui?: { notifications?: NotificationsLike };
   foundry?: {
@@ -441,6 +447,12 @@ export function canvasTokens(): unknown {
 /** `Combat.implementation`, the class new Combats are created through. */
 export function combatImplementation(): CombatFactoryLike | undefined {
   return globals().Combat?.implementation;
+}
+
+/** `ChatMessage.implementation`, the class new chat messages are created through. */
+export function chatMessageImplementation():
+  ChatMessageFactoryLike | undefined {
+  return globals().ChatMessage?.implementation;
 }
 
 /** `Actor.implementation`, the class new Actors are created through. */

@@ -37,6 +37,12 @@ export type RpcErrorCode =
   | "weapon_not_found"
   | "weapon_unsupported"
   | "attack_card_timeout"
+  // Pathfinder 2e checks and cards run by Foundry.
+  | "statistic_not_found"
+  | "strike_not_found"
+  | "spell_not_found"
+  | "item_not_found"
+  | "roll_refused"
   // Actor images.
   | "invalid_request"
   | "upload_unknown"

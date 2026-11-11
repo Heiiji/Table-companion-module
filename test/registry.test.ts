@@ -163,6 +163,7 @@ describe("ProcedureRegistry", () => {
       registerBuiltinProcedures(registry);
       expect(registry.capabilities()).toEqual(
         [
+          "pf2e.card.v1",
           "pf2e.resources.v1",
           "pf2e.statistics.v1",
           ...BASE_CAPABILITIES,
@@ -170,6 +171,7 @@ describe("ProcedureRegistry", () => {
       );
       expect(registry.mutations()).toEqual([
         "actor.image.v1",
+        "pf2e.card.v1",
         "pf2e.resources.v1",
       ]);
       expect(registry.isSignedOnly("pf2e.resources.v1")).toBe(true);
@@ -177,9 +179,56 @@ describe("ProcedureRegistry", () => {
         "combat.sync.v1": "combat mirroring is not available on pf2e",
         "pf2e.actor.upsert.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.6.1 or a later 8.x on Foundry 14`,
         "pf2e.actor.complete.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.6.1 or a later 8.x on Foundry 14`,
+        "pf2e.check.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.5.1 or a later 8.x on Foundry 14 with game.pf2e.Check`,
       });
     },
   );
+
+  it.each(["8.5.1", "8.6.1", "8.7.0"])(
+    "registers the check lane on pf2e %s only with game.pf2e.Check, the card lane on the floor",
+    (version) => {
+      vi.stubGlobal("game", {
+        system: { id: "pf2e", version },
+        release: { generation: 14 },
+        pf2e: { Check: class {} },
+      });
+      const registry = new ProcedureRegistry();
+      registerBuiltinProcedures(registry);
+      for (const lane of ["pf2e.check.v1", "pf2e.card.v1"]) {
+        expect(registry.capabilities(), lane).toContain(lane);
+        expect(registry.mutations(), lane).toContain(lane);
+        expect(registry.isSignedOnly(lane), lane).toBe(true);
+        expect(registry.unsupported(), lane).not.toHaveProperty(lane);
+      }
+    },
+  );
+
+  it("refuses the check and card lanes below the pf2e floor and off pf2e", () => {
+    vi.stubGlobal("game", {
+      system: { id: "pf2e", version: "8.5.0" },
+      release: { generation: 14 },
+      pf2e: { Check: class {} },
+    });
+    const below = new ProcedureRegistry();
+    registerBuiltinProcedures(below);
+    expect(below.unsupported()["pf2e.check.v1"]).toBe(
+      "pf2e 8.5.0 on Foundry 14; requires pf2e 8.5.1 or a later 8.x on Foundry 14 with game.pf2e.Check",
+    );
+    expect(below.unsupported()["pf2e.card.v1"]).toBe(
+      "pf2e 8.5.0 on Foundry 14; requires pf2e 8.5.1 or a later 8.x on Foundry 14",
+    );
+    vi.stubGlobal("game", {
+      system: { id: "sf2e", version: "8.6.1" },
+      release: { generation: 14 },
+      pf2e: { Check: class {} },
+    });
+    const other = new ProcedureRegistry();
+    registerBuiltinProcedures(other);
+    for (const lane of ["pf2e.check.v1", "pf2e.card.v1"]) {
+      expect(other.capabilities()).not.toContain(lane);
+      expect(other.unsupported()).not.toHaveProperty(lane);
+    }
+  });
 
   it("registers the three pf2e lanes only on pf2e 8.6.1 or a later 8.x on Foundry 14 or later", () => {
     for (const version of ["8.6.1", "8.6.2", "8.7.0", "8.99.0"]) {
@@ -192,7 +241,12 @@ describe("ProcedureRegistry", () => {
       // Still no combat mirror: only the draft and completion lanes join the
       // floor.
       expect(registry.capabilities(), version).toEqual(
-        [...PF2E_LANES, "pf2e.statistics.v1", ...BASE_CAPABILITIES].sort(),
+        [
+          ...PF2E_LANES,
+          "pf2e.card.v1",
+          "pf2e.statistics.v1",
+          ...BASE_CAPABILITIES,
+        ].sort(),
       );
       expect(registry.isSignedOnly("pf2e.resources.v1"), version).toBe(true);
       expect(registry.isSignedOnly("pf2e.actor.upsert.v1"), version).toBe(true);
@@ -200,10 +254,11 @@ describe("ProcedureRegistry", () => {
         true,
       );
       expect(registry.mutations(), version).toEqual(
-        ["actor.image.v1", ...PF2E_LANES].sort(),
+        ["actor.image.v1", "pf2e.card.v1", ...PF2E_LANES].sort(),
       );
       expect(registry.unsupported(), version).toEqual({
         "combat.sync.v1": "combat mirroring is not available on pf2e",
+        "pf2e.check.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.5.1 or a later 8.x on Foundry 14 with game.pf2e.Check`,
       });
     }
     for (const [version, generation] of [
@@ -421,11 +476,12 @@ describe("ProcedureRegistry", () => {
     registerBuiltinProcedures(knight);
     expect(knight.mutations()).toEqual([...MUTATION_PROCEDURES].sort());
 
-    // pf2e from the floor: the character-draft, completion and live-counters
-    // lanes only (no combat mirror).
+    // pf2e from the floor: the character-draft, completion, live-counters,
+    // check and card lanes only (no combat mirror).
     vi.stubGlobal("game", {
       system: { id: "pf2e", version: "8.6.1" },
       release: { generation: 14 },
+      pf2e: { Check: class {} },
     });
     const pf2e = new ProcedureRegistry();
     registerBuiltinProcedures(pf2e);
@@ -433,6 +489,8 @@ describe("ProcedureRegistry", () => {
       "actor.image.v1",
       "pf2e.actor.complete.v1",
       "pf2e.actor.upsert.v1",
+      "pf2e.card.v1",
+      "pf2e.check.v1",
       "pf2e.resources.v1",
     ]);
 

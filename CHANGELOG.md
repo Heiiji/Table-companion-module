@@ -4,6 +4,19 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Pathfinder 2e checks run by Foundry (`pf2e.check.v1`, signed-only, pf2e 8.5.1 or a later 8.x on
+  Foundry 14): a Perception, save, skill or lore check, a character's Strike at any multiple-attack
+  step, or a spell attack started in the app is rolled by pf2e itself in the Gamemaster's browser, so
+  Foundry posts its own card (modifier breakdown, roll options, degree of success, damage buttons) and
+  the dice, total and degree go back to the app. No dialog opens and no ammunition is spent; a retry
+  never rolls twice. An NPC's Strike stays on the app's engine.
+- Pathfinder 2e spell and item cards (`pf2e.card.v1`, signed-only, same releases): the card of a spell
+  cast or an item used in the app, as pf2e posts it from the sheet (heightened to the cast rank). It
+  spends nothing in Foundry: the app updates the slot, focus point or quantity itself, once.
+
 ## [0.22.1] - 2026-11-11
 
 ### Fixed
