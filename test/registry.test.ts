@@ -42,6 +42,7 @@ const KNIGHT_ONLY_MUTATIONS = [
   "actor.resources.v1",
   "actor.upsert.v1",
   "knight.attack.v1",
+  "knight.test.v1",
   "npc.upsert.v1",
 ];
 
@@ -70,6 +71,7 @@ const MUTATION_PROCEDURES = [
   "actor.upsert.v1",
   "combat.sync.v1",
   "knight.attack.v1",
+  "knight.test.v1",
   "npc.upsert.v1",
 ];
 

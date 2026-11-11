@@ -7,6 +7,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- Knight tests from the app (`knight.test.v1`, signed-only): a test with no weapon is rolled by the
+  Knight system itself, so the native card shows its successes, Exploit or critical failure and, with a
+  difficulty, its verdict; the dice go back to the app. Nothing is spent in Foundry.
 - Knight prepared statistics (`knight.statistics.v1`, signed-only read): the app reads, for up to 32
   Actors at once, the aspects, characteristics and overdrives, pools, force field, defense, reaction
   and initiative as the Knight system prepared them, so it shows Foundry's own numbers. Nothing is

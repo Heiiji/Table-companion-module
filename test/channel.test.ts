@@ -1081,6 +1081,7 @@ describe("Channel response signing", () => {
       "actor.upsert.v1",
       "knight.attack.v1",
       "knight.statistics.v1",
+      "knight.test.v1",
       "npc.upsert.v1",
     ];
     const { signer } = await ModuleResponseSigner.generate();

@@ -10,6 +10,7 @@ import { actorResourcesV1 } from "./actorResources.js";
 import { actorItemsV1 } from "./actorItems.js";
 import { knightAttackV1, rollKnightClass } from "./knightAttack.js";
 import { knightStatisticsV1 } from "./knightStatistics.js";
+import { knightTestV1, rollKnightTestClass } from "./knightTest.js";
 import { dnd5eResourcesV1 } from "./dnd5eResources.js";
 import { pf2eActorUpsertV1 } from "./pf2eActorUpsert.js";
 import { pf2eActorCompleteV1 } from "./pf2eActorComplete.js";
@@ -135,6 +136,19 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
         "the Knight roller (game.knight.RollKnight) lacks prepareWpnContact, prepareWpnDistance or doRoll",
       );
     }
+    // A Knight test the app started (no weapon), run by the same roller:
+    // same gate, plus the one member this lane calls.
+    if (rollKnightTestClass()) {
+      registry.register("knight.test.v1", knightTestV1, {
+        kind: "mutation",
+        signedOnly: true,
+      });
+    } else {
+      registry.markUnsupported(
+        "knight.test.v1",
+        "the Knight roller (game.knight.RollKnight) lacks doRoll",
+      );
+    }
     // Foundry's prepared numbers of linked Actors: a signed-only read on the
     // same gate (the reply becomes sheet numbers).
     registry.register("knight.statistics.v1", knightStatisticsV1, {
@@ -154,6 +168,7 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
     registry.markUnsupported("actor.resources.v1", reason);
     registry.markUnsupported("actor.items.v1", reason);
     registry.markUnsupported("knight.attack.v1", reason);
+    registry.markUnsupported("knight.test.v1", reason);
     registry.markUnsupported("knight.statistics.v1", reason);
   }
   // Live counters of a Fifth Edition character (hit points, temporary hit
