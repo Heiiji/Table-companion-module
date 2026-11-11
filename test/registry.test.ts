@@ -56,6 +56,7 @@ const KNIGHT_ROLLER = {
 
 const KNIGHT_CAPABILITIES = [
   ...KNIGHT_ONLY_MUTATIONS,
+  "knight.statistics.v1",
   ...MODERN_CAPABILITIES,
 ].sort();
 
@@ -326,7 +327,9 @@ describe("ProcedureRegistry", () => {
     registerBuiltinProcedures(knight);
     expect(knight.capabilities()).toEqual(MODERN_CAPABILITIES);
     const withheld = knight.unsupported();
-    expect(Object.keys(withheld).sort()).toEqual(KNIGHT_ONLY_MUTATIONS);
+    expect(Object.keys(withheld).sort()).toEqual(
+      [...KNIGHT_ONLY_MUTATIONS, "knight.statistics.v1"].sort(),
+    );
     expect(withheld["actor.upsert.v1"]).toBe(
       "Knight 3.58.32 on Foundry 14; requires Knight 3.58.33 or a later 3.x on Foundry 13 or later",
     );
@@ -523,7 +526,7 @@ describe("ProcedureRegistry", () => {
     registerBuiltinProcedures(registry);
     expect(
       registry.capabilities().filter((name) => registry.isSignedOnly(name)),
-    ).toEqual([...MUTATION_PROCEDURES].sort());
+    ).toEqual([...MUTATION_PROCEDURES, "knight.statistics.v1"].sort());
   });
 
   it("advertises the Knight upserts on every Foundry generation from 13 up", () => {

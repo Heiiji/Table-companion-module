@@ -1,0 +1,139 @@
+{
+  "actors": [
+    {
+      "actorId": "knightPC00000001",
+      "actorType": "knight",
+      "armour": {
+        "max": 60,
+        "value": 55
+      },
+      "aspects": {
+        "bete": 5,
+        "chair": 1,
+        "dame": 13,
+        "machine": 9,
+        "masque": 17
+      },
+      "characteristics": {
+        "aura": {
+          "overdrive": 0,
+          "value": 14
+        },
+        "combat": {
+          "overdrive": 2,
+          "value": 7
+        },
+        "deplacement": {
+          "overdrive": 0,
+          "value": 2
+        },
+        "dexterite": {
+          "overdrive": 2,
+          "value": 19
+        },
+        "discretion": {
+          "overdrive": 1,
+          "value": 18
+        },
+        "endurance": {
+          "overdrive": 2,
+          "value": 4
+        },
+        "force": {
+          "overdrive": 1,
+          "value": 3
+        },
+        "hargne": {
+          "overdrive": 1,
+          "value": 6
+        },
+        "instinct": {
+          "overdrive": 0,
+          "value": 8
+        },
+        "parole": {
+          "overdrive": 1,
+          "value": 15
+        },
+        "perception": {
+          "overdrive": 0,
+          "value": 20
+        },
+        "sangFroid": {
+          "overdrive": 2,
+          "value": 16
+        },
+        "savoir": {
+          "overdrive": 0,
+          "value": 11
+        },
+        "technique": {
+          "overdrive": 1,
+          "value": 12
+        },
+        "tir": {
+          "overdrive": 2,
+          "value": 10
+        }
+      },
+      "contact": {
+        "max": 4,
+        "value": 3
+      },
+      "defense": 7,
+      "energy": {
+        "max": 30,
+        "value": 12
+      },
+      "forceField": 6,
+      "health": {
+        "max": 42,
+        "value": 40
+      },
+      "hope": {
+        "max": 50,
+        "value": 31
+      },
+      "initiative": {
+        "dice": 4,
+        "value": 9
+      },
+      "reaction": -2
+    },
+    {
+      "actorId": "knightVehicle001",
+      "actorType": "vehicule",
+      "armour": {
+        "max": 120,
+        "value": 100
+      },
+      "aspects": null,
+      "characteristics": null,
+      "contact": null,
+      "defense": 5,
+      "energy": {
+        "max": 40,
+        "value": 40
+      },
+      "forceField": 10,
+      "health": null,
+      "hope": null,
+      "initiative": {
+        "dice": 3,
+        "value": 8
+      },
+      "reaction": 6
+    }
+  ],
+  "schemaVersion": 1,
+  "skipped": [
+    {
+      "actorId": "knightIA00000001",
+      "reason": "no_statistics"
+    },
+    {
+      "actorId": "missingActor0001",
+      "reason": "not_found"
+    }
+  ]
+}
