@@ -36,7 +36,6 @@ import {
   KNIGHT_STAMP_MS,
   armStamp,
   diceOf,
-  dropHook,
   join,
   oneAtATime,
   replay,
@@ -454,7 +453,7 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
   const authorId = author?.id ?? foundryGame()?.user?.id ?? "";
   const { whisper, blind } = visibilityOf(req.visibility, authorId);
 
-  armStamp(req.actorId, req.dice, {
+  const disarm = armStamp(req.actorId, req.dice, {
     ...(author?.id ? { author: author.id } : {}),
     whisper,
     blind,
@@ -488,7 +487,7 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
       maximize: { degats: false, violence: false },
     }).doRoll({});
   } catch (error) {
-    dropHook(req.actorId); // the roller failed: no card is coming
+    disarm(); // the roller failed: no card is coming
     settle(null);
     throw error;
   } finally {
