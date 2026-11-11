@@ -299,7 +299,6 @@ async function addArmour(
         "unsupported_runtime",
         "Actor.deleteEmbeddedDocuments is unavailable",
       );
-    await actor.deleteEmbeddedDocuments("Item", [docId(current)]);
   }
   if (typeof actor.createEmbeddedDocuments !== "function")
     throw new RpcError(
@@ -337,6 +336,9 @@ async function addArmour(
       [FLAG_KEYS.armourCatalogId]: catalogId,
     },
   };
+  // The new armour is fully prepared above: only now is the old one deleted, so
+  // a swap that cannot be built never leaves the Actor without its armour.
+  if (current) await actor.deleteEmbeddedDocuments!("Item", [docId(current)]);
   const created = await actor.createEmbeddedDocuments("Item", [source]);
   const item =
     (Array.isArray(created)

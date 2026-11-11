@@ -1513,6 +1513,18 @@ describe("actor.items.v1 armour add", () => {
     expect(armours()[0].name).toBe("Paladin");
   });
 
+  it("deletes nothing when the new armour cannot be prepared", async () => {
+    armourWorld();
+    ownArmour("oldArmour0000001");
+    delete (actor as { createEmbeddedDocuments?: unknown })
+      .createEmbeddedDocuments;
+    await expect(
+      run(addArmour(undefined, { expectedName: "Warrior" })),
+    ).rejects.toMatchObject({ code: "unsupported_runtime" });
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+    expect(armours()).toHaveLength(1);
+  });
+
   it("is never reconciled away by actor.upsert's equipment import", async () => {
     armourWorld();
     await run(addArmour());
