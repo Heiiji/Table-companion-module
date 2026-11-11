@@ -10,5 +10,7 @@
   "total": 27,
   "degree": "success",
   "unadjustedDegree": "success",
+  "degreeSource": "target",
+  "resultsShown": true,
   "messageMode": "public"
 }

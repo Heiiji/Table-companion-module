@@ -1,5 +1,10 @@
 import { MODULE_ID } from "../constants.js";
-import { canvasTokens, foundryGame, type Dict } from "../foundry/runtime.js";
+import {
+  canvasTokens,
+  foundryGame,
+  gameSettings,
+  type Dict,
+} from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import {
@@ -47,7 +52,7 @@ import {
  * `consumeAmmo`, `target`, `event`, `callback`), `Check.roll`
  * (`system/check/check.ts`: with `createMessage: false` the callback receives
  * the unposted message; `flags.pf2e.context` carries `outcome`,
- * `unadjustedOutcome`, `messageMode`, `options`), and the spell attack
+ * `unadjustedOutcome`, `messageMode`, `options`, `target`, `dc`), and the spell attack
  * `SpellPF2e#rollAttack` builds (`item/spell/document.ts`).
  */
 
@@ -111,6 +116,13 @@ export interface Pf2eCheckResultV1 {
   total: number;
   degree: Degree | null;
   unadjustedDegree: Degree | null;
+  /** Where pf2e took the DC of `degree` from: the request's `dc`, or the
+   * target (its AC for an attack) when the request sent none. Null exactly
+   * when `degree` is. The DC or AC value itself never leaves Foundry. */
+  degreeSource: "dc" | "target" | null;
+  /** pf2e's world setting `metagame_showResults` (« Show Check Outcomes »):
+   * whether pf2e shows players this card's degree of success. */
+  resultsShown: boolean;
   messageMode: "public" | "gm" | "blind";
 }
 
@@ -357,6 +369,18 @@ function secretMode(context: Dict): "gm" | "blind" | null {
     : null;
 }
 
+/** source-derived (pf2e 8.6.1 `system/check/check.ts` #createResultFlavor,
+ * the same in the 8.7.0 bundle): the degree nodes of a card are visible to
+ * players exactly when the world setting `pf2e.metagame_showResults` is true
+ * (default true). Unreadable counts as hidden. */
+function resultsShown(): boolean {
+  try {
+    return gameSettings()?.get("pf2e", "metagame_showResults") === true;
+  } catch {
+    return false; // Foundry throws on an unregistered setting
+  }
+}
+
 function refused(why: string): RpcError {
   return new RpcError("roll_refused", `${PROCEDURE}: ${why}`);
 }
@@ -379,8 +403,11 @@ export function checkResult(
   )
     throw refused("the roll has no single kept d20");
   const total = roll.total!;
-  // Both degrees or neither, and only against the app's own DC.
-  const degree = req.dc === null ? null : degreeOf(context.outcome);
+  // Both degrees or neither: against the app's own DC, or, when it sent
+  // none, against the target pf2e resolved (`context.target`, whose DC pf2e
+  // read itself). Never against a DC of unknown origin.
+  const target = typeof context.target === "object" && context.target !== null;
+  const degree = req.dc !== null || target ? degreeOf(context.outcome) : null;
   return {
     messageId,
     alreadyRolled: false,
@@ -391,6 +418,8 @@ export function checkResult(
     degree,
     unadjustedDegree:
       degree === null ? null : (degreeOf(context.unadjustedOutcome) ?? degree),
+    degreeSource: degree === null ? null : req.dc !== null ? "dc" : "target",
+    resultsShown: resultsShown(),
     messageMode: secretMode(context) ?? req.visibility,
   };
 }

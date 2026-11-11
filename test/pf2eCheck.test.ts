@@ -10,7 +10,7 @@ import { RpcError } from "../src/rpc/errors.js";
 type Dict = Record<string, any>;
 
 // The result shape the backend and the apps read (a fortune Strike against a
-// declared DC); shared byte for byte with them.
+// target, no DC sent); shared byte for byte with them.
 const FIXTURE = JSON.parse(
   readFileSync(
     new URL("./fixtures/pf2e-check-v1-result.json", import.meta.url),
@@ -32,6 +32,10 @@ const SPELL = "spell00000000001";
 const GM = "gmUser0000000001";
 const PLAYER = "player0000000001";
 const COMPANION = "companion0000001";
+/** The target's AC as pf2e would record it: never in the reply. */
+const TARGET_AC = 37;
+/** pf2e's world setting `metagame_showResults` (« Show Check Outcomes »). */
+let showResults: unknown;
 
 interface Outcome {
   faces: number[];
@@ -41,6 +45,8 @@ interface Outcome {
   options?: string[];
   /** pf2e's own mode, when a secret roll option forced one. */
   messageMode?: string;
+  /** pf2e resolved a target (`context.target`) and took its DC from it. */
+  target?: boolean;
   noD20?: boolean;
 }
 
@@ -76,6 +82,15 @@ function fakeRoll(params: Dict) {
             unadjustedOutcome: o.unadjustedOutcome ?? o.outcome ?? null,
             messageMode: o.messageMode ?? params.messageMode ?? "public",
             options: o.options ?? ["self:action:slug:strike"],
+            // pf2e records the DC it used, a target's AC included.
+            dc: params.dc?.value
+              ? { value: params.dc.value }
+              : o.target
+                ? { slug: "ac", value: TARGET_AC }
+                : null,
+            target: o.target
+              ? { actor: `Actor.${FOE}`, token: "Scene.s.Token.t" }
+              : null,
           },
         },
       },
@@ -188,8 +203,12 @@ function stubWorld(over: Dict = {}): void {
     messages: { contents: [] as Dict[] },
     pf2e: { Check: class {} },
     settings: {
-      get: (_scope: string, key: string) =>
-        key === SETTING_AGENT_USER ? COMPANION : "",
+      get: (scope: string, key: string) =>
+        key === SETTING_AGENT_USER
+          ? COMPANION
+          : scope === "pf2e" && key === "metagame_showResults"
+            ? showResults
+            : "",
     },
     ...over,
   };
@@ -264,6 +283,7 @@ async function rejects(pending: unknown, code: string) {
 
 beforeEach(() => {
   outcome = { faces: [12], total: 21, outcome: "success" };
+  showResults = true;
   stubWorld();
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -361,6 +381,8 @@ describe("pf2e.check.v1", () => {
       total: 21,
       degree: "success",
       unadjustedDegree: "success",
+      degreeSource: "dc",
+      resultsShown: true,
       messageMode: "public",
     });
     expect(created).toHaveLength(1);
@@ -382,25 +404,114 @@ describe("pf2e.check.v1", () => {
     });
   });
 
-  it("reads the shared result fixture's shape from a fortune strike with a DC", async () => {
-    outcome = { faces: [14, 6], total: 27, outcome: "success" };
+  it("reads the shared result fixture's shape from a fortune strike against a target", async () => {
+    outcome = { faces: [14, 6], total: 27, outcome: "success", target: true };
     const result = await call(
-      strike({ rollTwice: "keep-higher", dc: 25, origin: "app" }),
+      strike({
+        rollTwice: "keep-higher",
+        dc: null,
+        origin: "app",
+        targetActorIds: [FOE],
+      }),
     );
     expect(Object.keys(result)).toEqual(Object.keys(FIXTURE));
     expect({ ...result, messageId: FIXTURE.messageId }).toEqual(FIXTURE);
     expect(pc.variants[0].roll.mock.calls[0][0]).toMatchObject({
       rollTwice: "keep-higher",
-      dc: { value: 25 },
+      dc: null,
+      target: foeToken,
     });
   });
 
-  it("answers no degree when the app sent no DC, whatever Foundry folded", async () => {
+  it("answers the target's degree when the app sent no DC, never the AC itself", async () => {
+    outcome = {
+      faces: [19],
+      total: 38,
+      outcome: "criticalSuccess",
+      unadjustedOutcome: "success",
+      target: true,
+    };
+    const result = await call(strike({ dc: null, targetActorIds: [FOE] }));
+    expect(result).toMatchObject({
+      degree: "criticalSuccess",
+      unadjustedDegree: "success",
+      degreeSource: "target",
+      resultsShown: true,
+    });
+    // pf2e's own context keeps the AC inside Foundry; the module's stamp and
+    // its reply never carry it.
+    const { data } = created[0];
+    expect(data.flags.pf2e.context.dc.value).toBe(TARGET_AC);
+    expect(data.flags[MODULE_ID].result).toEqual(result);
+    expect(JSON.stringify(result)).not.toContain(String(TARGET_AC));
+    expect(Object.keys(result)).not.toContain("dc");
+  });
+
+  it("answers the DC's degree when the app sent one, a target or not", async () => {
+    outcome = { faces: [8], total: 21, outcome: "failure", target: true };
+    const result = await call(strike({ dc: 22, targetActorIds: [FOE] }));
+    expect(result).toMatchObject({
+      degree: "failure",
+      unadjustedDegree: "failure",
+      degreeSource: "dc",
+    });
+  });
+
+  it("answers no degree when neither a DC nor a target gave one, whatever Foundry folded", async () => {
     outcome = { faces: [3], total: 12, outcome: "failure" };
     const result = await call(payload({ dc: null }));
     expect(pc.statistics.perception.roll.mock.calls[0][0].dc).toBeNull();
-    expect(result.degree).toBeNull();
-    expect(result.unadjustedDegree).toBeNull();
+    expect(result).toMatchObject({
+      degree: null,
+      unadjustedDegree: null,
+      degreeSource: null,
+      resultsShown: true,
+    });
+    // A target pf2e resolved but no outcome: still no degree.
+    stubWorld();
+    outcome = { faces: [3], total: 12, outcome: null, target: true };
+    const none = await call(strike({ dc: null, targetActorIds: [FOE] }));
+    expect([none.degree, none.unadjustedDegree, none.degreeSource]).toEqual([
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it.each([
+    [true, true],
+    [false, false],
+    // Unregistered or malformed: the results count as hidden.
+    [undefined, false],
+    ["true", false],
+  ])(
+    "reports resultsShown from pf2e's metagame_showResults (%s → %s), with or without a degree",
+    async (setting, shown) => {
+      showResults = setting;
+      outcome = { faces: [15], total: 30, outcome: "success", target: true };
+      const hit = await call(strike({ dc: null, targetActorIds: [FOE] }));
+      expect(hit).toMatchObject({
+        degreeSource: "target",
+        resultsShown: shown,
+      });
+      expect(created[0].data.flags[MODULE_ID].result.resultsShown).toBe(shown);
+      stubWorld();
+      outcome = { faces: [15], total: 30, outcome: "success" };
+      const plain = await call(payload({ dc: null }));
+      expect(plain).toMatchObject({ degreeSource: null, resultsShown: shown });
+    },
+  );
+
+  it("answers a replay of a target's degree from the stamp, unchanged", async () => {
+    outcome = { faces: [15], total: 30, outcome: "success", target: true };
+    const p = strike({ dc: null, targetActorIds: [FOE] });
+    const first = await call(p);
+    // The setting moving afterwards does not rewrite the stamped answer.
+    showResults = false;
+    const again = await call(p);
+    expect(again).toEqual({ ...first, alreadyRolled: true });
+    expect(first).toMatchObject({ degreeSource: "target", resultsShown: true });
+    expect(pc.variants[0].roll).toHaveBeenCalledTimes(1);
   });
 
   it("answers both degrees or neither, and modifier = total - kept", async () => {
@@ -413,7 +524,11 @@ describe("pf2e.check.v1", () => {
     stubWorld();
     outcome = { faces: [5], total: 14, outcome: null };
     const none = await call(payload());
-    expect([none.degree, none.unadjustedDegree]).toEqual([null, null]);
+    expect([none.degree, none.unadjustedDegree, none.degreeSource]).toEqual([
+      null,
+      null,
+      null,
+    ]);
   });
 
   it("refuses a roll with more than two d20 faces", async () => {
