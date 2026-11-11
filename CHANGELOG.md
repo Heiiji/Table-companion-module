@@ -4,7 +4,7 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.23.0] - 2026-11-11
 
 ### Added
 - Pathfinder 2e checks run by Foundry (`pf2e.check.v1`, signed-only, pf2e 8.5.1 or a later 8.x on
