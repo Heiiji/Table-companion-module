@@ -11,6 +11,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   read from its target when the app sent no DC, with two new reply keys: `degreeSource` (`dc`,
   `target` or null) and `resultsShown` (pf2e's « Show Check Outcomes » world setting). The target's
   AC never leaves Foundry.
+- Pathfinder 2e checks (`pf2e.check.v1`) roll a player's Strike or spell attack against that player's
+  own target, or against none, never the Gamemaster's; a Gamemaster's own roll from the app still
+  uses the Gamemaster's targets. The Gamemaster's target selection is left as it was.
 - Knight armour from the app (`actor.items.v1`, new `armour` kind, advertised by the new
   `actorItemsArmourV1` capability): an armour picked in the app replaces the character's armour in
   Foundry, copied from Knight Compendium 14.0.1 (now covering all 17 armours) or built from the app's

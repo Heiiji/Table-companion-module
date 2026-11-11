@@ -55,8 +55,15 @@ let world: Dict;
 let created: { data: Dict; options: Dict }[];
 let createResult: "message" | "nothing";
 
+/** What pf2e resolved as the target of the last roll (8.6.1: the passed
+ * target, else the rolling user's first target), and the Gamemaster's target
+ * set as pf2e saw it. */
+let resolved: { target: unknown; gmTargets: unknown[] } | null;
+
 function fakeRoll(params: Dict) {
   return Promise.resolve().then(() => {
+    const gmTargets = [...((world.user.targets as Set<unknown>) ?? [])];
+    resolved = { target: params.target ?? gmTargets[0] ?? null, gmTargets };
     if (!outcome) return null;
     const o = outcome;
     const results = o.faces.map((result) => ({
@@ -88,9 +95,10 @@ function fakeRoll(params: Dict) {
               : o.target
                 ? { slug: "ac", value: TARGET_AC }
                 : null,
-            target: o.target
-              ? { actor: `Actor.${FOE}`, token: "Scene.s.Token.t" }
-              : null,
+            target:
+              o.target || resolved.target
+                ? { actor: `Actor.${FOE}`, token: "Scene.s.Token.t" }
+                : null,
           },
         },
       },
@@ -184,10 +192,17 @@ function stubWorld(over: Dict = {}): void {
     isGM: true,
     active: true,
     settings: { showCheckDialogs: true },
+    targets: new Set<unknown>(),
   };
   const users = [
     gm,
-    { id: PLAYER, isGM: false, active: true, character: { id: PC } },
+    {
+      id: PLAYER,
+      isGM: false,
+      active: true,
+      character: { id: PC },
+      targets: new Set<unknown>(),
+    },
     { id: COMPANION, isGM: false, active: true },
   ];
   const actors = [pc, monster];
@@ -282,6 +297,7 @@ async function rejects(pending: unknown, code: string) {
 }
 
 beforeEach(() => {
+  resolved = null;
   outcome = { faces: [12], total: 21, outcome: "success" };
   showResults = true;
   stubWorld();
@@ -730,6 +746,84 @@ describe("pf2e.check.v1", () => {
   it("refuses when Foundry has no ChatMessage class, before creating anything", async () => {
     vi.stubGlobal("ChatMessage", undefined);
     await rejects(call(payload()), "unsupported_runtime");
+  });
+
+  describe("the roller's target, never someone else's", () => {
+    const gmTarget = () => ({ id: "gmTarget00000001", actor: { id: FOE } });
+    const player = () => world.users.get(PLAYER);
+    const spellAttack = (over: Dict = {}) =>
+      payload({
+        kind: "spellAttack",
+        statistic: null,
+        spell: { entryId: ENTRY, spellId: SPELL },
+        dc: null,
+        ...over,
+      });
+
+    it.each([
+      ["Strike", () => strike({ dc: null })],
+      ["spell attack", () => spellAttack()],
+    ])(
+      "rolls a player's %s with no target when the player targets nothing, the Gamemaster's left as they were",
+      async (_label, p) => {
+        const before = world.user.targets as Set<unknown>;
+        const mine = gmTarget();
+        before.add(mine);
+        const result = await call(p());
+        expect(resolved).toEqual({ target: null, gmTargets: [] });
+        expect(result).toMatchObject({ degree: null, degreeSource: null });
+        expect(created[0].data.flags.pf2e.context.target).toBeNull();
+        // The very same set, holding the same target, after the call.
+        expect(world.user.targets).toBe(before);
+        expect([...before]).toEqual([mine]);
+      },
+    );
+
+    it("rolls a player's Strike against the token that player targets", async () => {
+      (world.user.targets as Set<unknown>).add(gmTarget());
+      (player().targets as Set<unknown>).add(foeToken);
+      const result = await call(strike({ dc: null }));
+      expect(pc.variants[0].roll.mock.calls[0][0].target).toBe(foeToken);
+      expect(resolved!.target).toBe(foeToken);
+      expect(result.degreeSource).toBe("target");
+    });
+
+    it("rolls the Gamemaster's own roll against the Gamemaster's targets", async () => {
+      const mine = gmTarget();
+      (world.user.targets as Set<unknown>).add(mine);
+      const result = await call(strike({ dc: null, origin: "app" }));
+      expect(pc.variants[0].roll.mock.calls[0][0]).not.toHaveProperty("target");
+      expect(resolved!.target).toBe(mine);
+      expect(result.degreeSource).toBe("target");
+      expect([...(world.user.targets as Set<unknown>)]).toEqual([mine]);
+    });
+
+    it("rolls against the app's named target before anyone's own, and keeps the Gamemaster's", async () => {
+      const mine = gmTarget();
+      (world.user.targets as Set<unknown>).add(mine);
+      await call(strike({ dc: null, targetActorIds: [FOE] }));
+      expect(resolved!.target).toBe(foeToken);
+      expect([...(world.user.targets as Set<unknown>)]).toEqual([mine]);
+    });
+
+    it("hides the Gamemaster's targets once for overlapping player rolls, and puts them back", async () => {
+      const before = world.user.targets as Set<unknown>;
+      before.add(gmTarget());
+      const other = "7a2c3b8e-5c2e-4d9f-8b62-3e1f8d4c0a21";
+      await Promise.all([
+        call(strike({ dc: null })),
+        call(spellAttack({ eventId: other })),
+      ]);
+      expect(world.user.targets).toBe(before);
+      expect(before.size).toBe(1);
+    });
+
+    it("puts the Gamemaster's targets back when the roll fails", async () => {
+      const before = world.user.targets as Set<unknown>;
+      outcome = null;
+      await rejects(call(strike({ dc: null })), "roll_refused");
+      expect(world.user.targets).toBe(before);
+    });
   });
 
   it("answers a failure for a stamped card that lost its result", async () => {

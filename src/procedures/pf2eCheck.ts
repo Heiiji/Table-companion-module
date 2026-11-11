@@ -231,15 +231,62 @@ function itemOf(actor: ActorLike, id: string, type: string): Dict | undefined {
   ) as Dict | undefined;
 }
 
-/** The first of the app's targets with a token on the GM's canvas. */
-function targetToken(targetActorIds: string[]): Token | undefined {
+/**
+ * The roll's target: the ROLLER's, never someone else's.
+ * - The first of the app's targets with a token on the GM's canvas.
+ * - Otherwise, a Gamemaster's own roll (`origin: "app"`) leaves pf2e to read
+ *   the responder Gamemaster's current targets, as from the sheet.
+ * - Otherwise (a player's roll), the first token that player targets
+ *   (`User#targets`, which Foundry keeps for every user), or none at all.
+ *
+ * `none` asks the caller to hide the Gamemaster's targets for the roll:
+ * source-derived (pf2e 8.6.1 `actor/character/document.ts` strike
+ * `params.target ?? game.user.targets.first()`, `system/statistic/statistic.ts`
+ * `args.target … ?? game.user.targets.find(…)`), so neither an absent nor an
+ * explicit `null` target stops pf2e from taking the Gamemaster's.
+ */
+function rollTarget(
+  req: Pf2eCheckV1,
+  actor: ActorLike,
+): { token?: Token; none: boolean } {
   const placeables =
     (canvasTokens() as { placeables?: Token[] } | undefined)?.placeables ?? [];
-  for (const actorId of targetActorIds) {
+  for (const actorId of req.targetActorIds) {
     const token = placeables.find((t) => t.document?.actorId === actorId);
-    if (token) return token;
+    if (token) return { token, none: false };
   }
-  return undefined;
+  if (req.origin === "app") return { none: false };
+  const targets = (playerOf(actor) as { targets?: Iterable<Token> } | undefined)
+    ?.targets;
+  const token = targets ? [...targets][0] : undefined;
+  return token ? { token, none: false } : { none: true };
+}
+
+/** Rolls currently hiding the Gamemaster's targets, and the set they hid. */
+let hidden: { targets: unknown; rolls: number } | null = null;
+
+/**
+ * Runs `roll` with the responder Gamemaster's targets swapped for an empty set,
+ * then puts the very same set back: nothing is untargeted, no hook fires, and
+ * the Gamemaster's selection is unchanged after the call. Overlapping rolls
+ * share one swap.
+ */
+async function withoutGmTargets<T>(roll: () => Promise<T>): Promise<T> {
+  const user = foundryGame()?.user as { targets?: unknown } | undefined;
+  if (!user) return roll();
+  if (!hidden) {
+    hidden = { targets: user.targets, rolls: 0 };
+    user.targets = new Set();
+  }
+  hidden.rolls++;
+  try {
+    return await roll();
+  } finally {
+    if (--hidden.rolls === 0) {
+      user.targets = hidden.targets;
+      hidden = null;
+    }
+  }
 }
 
 const dcOf = (dc: number | null) => (dc === null ? null : { value: dc });
@@ -253,7 +300,11 @@ function rollerFor(
     createMessage: false,
     rollTwice: req.rollTwice ?? false,
   };
-  const target = targetToken(req.targetActorIds);
+  const { token: target, none } = rollTarget(req, actor);
+  const run =
+    (roll: (callback: CheckCallback) => Promise<unknown>) =>
+    (callback: CheckCallback) =>
+      none ? withoutGmTargets(() => roll(callback)) : roll(callback);
 
   if (req.kind === "statistic") {
     const statistic = actor.getStatistic?.(req.statistic!);
@@ -299,7 +350,7 @@ function rollerFor(
         "unsupported_runtime",
         `${PROCEDURE}: pf2e does not return the unposted card of a ${actor.type ?? "non-character"} strike`,
       );
-    return (callback) =>
+    return run((callback) =>
       (roll as RollFn)({
         ...common,
         dc: dcOf(req.dc),
@@ -307,7 +358,8 @@ function rollerFor(
         event: skipDialogEvent(),
         ...(target ? { target } : {}),
         callback,
-      });
+      }),
+    );
   }
 
   const { entryId, spellId } = req.spell!;
@@ -329,7 +381,7 @@ function rollerFor(
   const tradition = dictAt(entry, "tradition");
   // What `SpellPF2e#rollAttack` passes, with the app's DC in place of the
   // defense slug when it sent one.
-  return (callback) =>
+  return run((callback) =>
     (roll as RollFn).call(check, {
       ...common,
       item: spell,
@@ -348,7 +400,8 @@ function rollerFor(
       skipDialog: true,
       ...(target?.actor ? { target: target.actor } : {}),
       callback,
-    });
+    }),
+  );
 }
 
 // ---------------------------------------------------------------- results
