@@ -23,7 +23,9 @@ describe("Knight Compendium 14.0.1 crosswalk", () => {
     expect(KNIGHT_COMPENDIUM_SOURCE_COMMIT).toBe(
       "a7c06e20245247752b5d350f8252a8b89ddeed9c",
     );
-    expect(ids.filter((id) => id.startsWith("knight.armour."))).toHaveLength(9);
+    expect(ids.filter((id) => id.startsWith("knight.armour."))).toHaveLength(
+      17,
+    );
     expect(ids.filter((id) => id.startsWith("knight.weapon."))).toHaveLength(
       12,
     );
@@ -37,7 +39,7 @@ describe("Knight Compendium 14.0.1 crosswalk", () => {
       expect(documents.length, id).toBeGreaterThan(0);
       for (const document of documents) {
         expect(document.pack, id).toMatch(
-          /^knight-compendium\.(armours-base|weapons-standard|modules-standard)$/,
+          /^knight-compendium\.(armours-(base|2038|2038-necromancer|2038-sorcerer|atlas|atlas-berserk|codex)|weapons-standard|modules-standard)$/,
         );
         expect(document.documentId, id).toMatch(/^[A-Za-z0-9_-]{16}$/);
         if (id.startsWith("knight.module.")) {

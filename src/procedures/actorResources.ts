@@ -1,7 +1,11 @@
 import { MODULE_ID } from "../constants.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
-import { clampToPrepared, resourcePaths } from "./actorUpsert.patch.js";
+import {
+  clampToPrepared,
+  resourcePaths,
+  wornGear,
+} from "./actorUpsert.patch.js";
 import {
   MAX_RESOURCE_VALUE,
   RESOURCE_KEYS,
@@ -26,6 +30,7 @@ import {
   record,
   text,
   type LiveHeaderV1,
+  contentsOf,
   type ActorLike,
   type Dict,
   type StoredResultV1,
@@ -51,6 +56,14 @@ import {
  * optional `base.resources` (the values the app last saw) guards the values
  * the same way: one moved in Foundry first refuses the whole request with
  * `base_conflict`.
+ *
+ * A PC request may instead carry `wear` (deploy or fold the armour) with
+ * `previousWear`, the effective wear the app last saw: a compare-and-set that
+ * refuses with `wear_conflict` when Foundry moved it first, while a capacity
+ * holds the ascension, or when deploying with no armour. A generation 4 armour
+ * is worn whatever `wear` stores: nothing is written (`wear_forced`). A wear
+ * request carries no values, since a current is clamped to the maximum of the
+ * gear worn before the switch.
  */
 
 /**
@@ -76,7 +89,13 @@ export interface KnightActorResourcesV1 extends LiveHeaderV1<ActorType> {
   name?: string;
   previousName?: string;
   base?: { resources: Partial<Record<ResourceKey, number>> };
+  wear?: Wear;
+  previousWear?: Wear | "ascension";
 }
+
+/** The wears the app may set; `ascension` is a capacity's, never written. */
+const WEARS = ["armure", "guardian", "tenueCivile"] as const;
+type Wear = (typeof WEARS)[number];
 
 /** The longest Actor name accepted, as `actor.upsert.v1`. */
 const MAX_NAME = 200;
@@ -109,6 +128,8 @@ export function validateKnightActorResourcesV1(
     "name",
     "previousName",
     "base",
+    "wear",
+    "previousWear",
   ]);
   if (!ACTOR_TYPES.includes(p.actorType as ActorType))
     invalid("actorType must be knight, pnj, creature, bande or vehicule");
@@ -136,8 +157,26 @@ export function validateKnightActorResourcesV1(
     p.previousName === undefined
       ? undefined
       : text(p.previousName, "previousName", MAX_NAME, true);
-  if (Object.keys(resources).length === 0 && name === undefined)
-    invalid("resources needs at least one value or a name");
+  if ((p.wear === undefined) !== (p.previousWear === undefined))
+    invalid("wear and previousWear go together");
+  if (p.wear !== undefined) {
+    if (type !== "knight") invalid(`wear is not written on a ${type}`);
+    if (!WEARS.includes(p.wear as Wear))
+      invalid("wear must be armure, guardian or tenueCivile");
+    if (![...WEARS, "ascension"].includes(p.previousWear as string))
+      invalid(
+        "previousWear must be armure, ascension, guardian or tenueCivile",
+      );
+    // The meters wait for the wear to land: Foundry's maxima follow the gear.
+    if (Object.keys(resources).length > 0 || base !== undefined)
+      invalid("wear carries no resources nor base");
+  }
+  if (
+    Object.keys(resources).length === 0 &&
+    name === undefined &&
+    p.wear === undefined
+  )
+    invalid("resources needs at least one value, a name or a wear");
   return {
     ...header,
     sequence: liveSequence(p),
@@ -145,6 +184,12 @@ export function validateKnightActorResourcesV1(
     ...(name === undefined ? {} : { name }),
     ...(previousName === undefined ? {} : { previousName }),
     ...(base === undefined ? {} : { base }),
+    ...(p.wear === undefined
+      ? {}
+      : {
+          wear: p.wear as Wear,
+          previousWear: p.previousWear as Wear | "ascension",
+        }),
   };
 }
 
@@ -190,6 +235,25 @@ export const actorResourcesV1: Procedure = async (payload) => {
       "the Actor was renamed in Foundry first",
     );
 
+  const patch: Dict = {};
+  const warnings: string[] = [];
+  if (req.wear !== undefined) {
+    const current = wornGear(actor);
+    if (current === "ascension")
+      throw new RpcError("wear_conflict", "a capacity holds the ascension");
+    if (current !== req.previousWear && current !== req.wear)
+      throw new RpcError("wear_conflict", "the wear moved in Foundry first");
+    const armour = contentsOf(actor.items).find(
+      (item) => item.type === "armure",
+    );
+    if (req.wear === "armure" && !armour)
+      throw new RpcError("wear_conflict", "the Actor has no armour to deploy");
+    if (Number((armour?.system as Dict | undefined)?.generation) >= 4)
+      warnings.push("wear_forced");
+    else if ((actor.system as Dict | undefined)?.wear !== req.wear)
+      patch["system.wear"] = req.wear;
+  }
+
   const paths = resourcePathsOf(actor, req.actorType);
   const pathOf = (field: string): string | undefined => {
     if (!field.startsWith("resources.")) return undefined;
@@ -205,8 +269,6 @@ export const actorResourcesV1: Procedure = async (payload) => {
     },
     stored?.flag.written,
   );
-  const patch: Dict = {};
-  const warnings: string[] = [];
   for (const key of RESOURCE_KEYS) {
     let value = req.resources[key];
     if (value === undefined) continue;
@@ -236,11 +298,15 @@ export const actorResourcesV1: Procedure = async (payload) => {
   // appliedRevision is what refuses an older sequence arriving later
   // (stale_revision). `contentDigest` lives in the flag only; the returned
   // result keeps the shape the backend decodes strictly.
-  // Without a name the digest stays the one older flags recorded.
+  // Without a name or a wear the digest stays the one older flags recorded.
   const contentDigest = await canonicalDigest(
-    req.name === undefined
+    req.name === undefined && req.wear === undefined
       ? req.resources
-      : { resources: req.resources, name: req.name },
+      : {
+          resources: req.resources,
+          ...(req.name === undefined ? {} : { name: req.name }),
+          ...(req.wear === undefined ? {} : { wear: req.wear }),
+        },
   );
   if (
     Object.keys(patch).length === 0 &&

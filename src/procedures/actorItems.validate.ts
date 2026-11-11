@@ -1,5 +1,9 @@
 import { MAX_ROLL_DICE } from "./rollExecute.js";
-import { catalogId as catalogIdShape } from "./actorUpsert.types.js";
+import {
+  CHARACTERISTIC_KEYS,
+  catalogId as catalogIdShape,
+} from "./actorUpsert.types.js";
+import { KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1 } from "../refdata/knightCompendiumCrosswalkV14_0_1.js";
 import {
   LIVE_HEADER_KEYS,
   bindingId,
@@ -22,11 +26,30 @@ const MAX_PROFILES = 8;
 /** The weapon snapshot envelope's own ceiling bounds every profile string. */
 const MAX_PROFILE_TEXT = 4096;
 
-export type ItemKind = "module" | "weapon";
+export type ItemKind = "module" | "weapon" | "armour";
 export const FOUNDRY_TYPE: Record<ItemKind, string> = {
   module: "module",
   weapon: "arme",
+  armour: "armure",
 };
+
+/** The armours an `armour` add may name: the crosswalk's `armure` rows. */
+export const ARMOUR_CATALOG_IDS = new Set(
+  Object.entries(KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1)
+    .filter(([, docs]) => docs.length === 1 && docs[0].itemType === "armure")
+    .map(([id]) => id),
+);
+
+/** The app's overdrive keys (`<aspect>_<characteristic>`, snake_case) → the
+ * Knight `armure` schema's `overdrives.<aspect>.liste.<characteristic>`. */
+export const OVERDRIVES: Record<string, string> = Object.fromEntries(
+  Object.entries(CHARACTERISTIC_KEYS).flatMap(([aspect, keys]) =>
+    keys.map((c) => [
+      `${aspect}_${c.replace(/[A-Z]/g, (l) => `_${l.toLowerCase()}`)}`,
+      `${aspect}.liste.${c}`,
+    ]),
+  ),
+);
 
 /** The app's slot keys → the Knight `module` schema's. */
 export const SLOTS = {
@@ -75,6 +98,12 @@ export interface ItemFieldsV1 {
   chargesMax?: number;
   profiles?: AttackProfileV1[];
   description?: string;
+  /** Armour only, every one required on an armour add. */
+  generation?: number;
+  armourBase?: number;
+  energyBase?: number;
+  forceFieldBase?: number;
+  overdrives?: string[];
 }
 
 export type ItemSourceV1 =
@@ -89,6 +118,10 @@ export type ActorItemsOpV1 =
         kind: ItemKind;
         source: ItemSourceV1;
         item: ItemFieldsV1;
+        /** Armour only: the name of the armour this add replaces. */
+        expectedName?: string;
+        /** Armour only: replace an armour the guard protects. */
+        force?: boolean;
       };
     }
   | {
@@ -127,10 +160,56 @@ const MODULE_KEYS = [
   "chargesMax",
 ];
 
-function itemKind(value: unknown, path: string): ItemKind {
+function itemKind(value: unknown, path: string, armour = false): ItemKind {
+  if (armour && value === "armour") return value;
   if (value !== "module" && value !== "weapon")
-    invalid(`${path} must be module or weapon`);
+    invalid(`${path} must be module or weapon${armour ? " or armour" : ""}`);
   return value;
+}
+
+const ARMOUR_KEYS = [
+  "name",
+  "generation",
+  "armourBase",
+  "energyBase",
+  "forceFieldBase",
+  "slots",
+  "overdrives",
+  "description",
+];
+
+/** An armour add's fields: every key required, so the module can build the
+ * armour without a round trip. */
+function armourFields(value: unknown, path: string): ItemFieldsV1 {
+  const p = record(value, path, ARMOUR_KEYS);
+  for (const key of ARMOUR_KEYS)
+    if (p[key] === undefined) invalid(`${path}.${key} is required`);
+  const s = record(p.slots, `${path}.slots`, SLOT_KEYS);
+  const o = p.overdrives;
+  if (
+    !Array.isArray(o) ||
+    o.some((k) => typeof k !== "string" || !Object.hasOwn(OVERDRIVES, k)) ||
+    new Set(o).size !== o.length
+  )
+    invalid(`${path}.overdrives must be unique overdrive keys`);
+  const { description } = itemFields(
+    { description: p.description },
+    path,
+    "module",
+    { requireName: false, description: true },
+  );
+  return {
+    name: text(p.name, `${path}.name`, MAX_NAME, true),
+    generation: integer(p.generation, `${path}.generation`, 0, 4),
+    armourBase: integer(p.armourBase, `${path}.armourBase`, 0, 999),
+    energyBase: integer(p.energyBase, `${path}.energyBase`, 0, 999),
+    forceFieldBase: integer(p.forceFieldBase, `${path}.forceFieldBase`, 0, 999),
+    slots: Object.fromEntries(
+      SLOT_KEYS.map((k) => [k, integer(s[k], `${path}.slots.${k}`, 0, 20)]),
+    ) as Record<SlotKey, number>,
+    overdrives: o as string[],
+    description,
+  };
 }
 
 /** The dice an attack may carry: Knight rolls `count` d6 for damage and
@@ -266,9 +345,43 @@ function itemsOp(value: unknown): ActorItemsOpV1 {
   if (Object.keys(o).length !== 1)
     invalid("op must carry exactly one of add, update, remove");
   if (o.add !== undefined) {
-    const a = record(o.add, "op.add", ["entryId", "kind", "source", "item"]);
-    const kind = itemKind(a.kind, "op.add.kind");
+    const a = record(o.add, "op.add", [
+      "entryId",
+      "kind",
+      "source",
+      "item",
+      "expectedName",
+      "force",
+    ]);
+    const kind = itemKind(a.kind, "op.add.kind", true);
     const source = itemSource(a.source, "op.add.source");
+    if (kind === "armour") {
+      if (!("catalogId" in source) || !ARMOUR_CATALOG_IDS.has(source.catalogId))
+        invalid("op.add.source must be the catalogId of a known armour");
+      if (a.force !== undefined && typeof a.force !== "boolean")
+        invalid("op.add.force must be a bool");
+      return {
+        add: {
+          entryId: identifier(a.entryId, "op.add.entryId", uuid),
+          kind,
+          source,
+          item: armourFields(a.item, "op.add.item"),
+          ...(a.expectedName === undefined
+            ? {}
+            : {
+                expectedName: text(
+                  a.expectedName,
+                  "op.add.expectedName",
+                  MAX_NAME,
+                  true,
+                ),
+              }),
+          ...(a.force === undefined ? {} : { force: a.force }),
+        },
+      };
+    }
+    if (a.expectedName !== undefined || a.force !== undefined)
+      invalid("op.add.expectedName and op.add.force are armour only");
     return {
       add: {
         entryId: identifier(a.entryId, "op.add.entryId", uuid),

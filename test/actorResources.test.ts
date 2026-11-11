@@ -8,6 +8,7 @@ import {
 } from "../src/procedures/actorResources.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
+import { canonicalDigest } from "../src/procedures/upsertShared.js";
 import {
   ACTOR_ID,
   KNIGHT_SCHEMA_FIXTURES,
@@ -1050,5 +1051,137 @@ describe("actor.resources.v1 non-player actors", () => {
       );
       expect(actor.updates).toHaveLength(0);
     }
+  });
+});
+
+describe("actor.resources.v1 wear", () => {
+  const wear = (
+    to: string,
+    from: string,
+    overrides: Record<string, unknown> = {},
+  ) => ({ ...withoutResources(), wear: to, previousWear: from, ...overrides });
+
+  /** A bound PC folded to `guardian` with one armour Item of `generation`. */
+  function folded(generation = 1, stored = "guardian"): FakeActor {
+    const actor = boundActor();
+    actor.items.contents = [
+      { type: "armure", name: "Paladin", system: { generation } },
+    ];
+    actor.system.wear = stored;
+    stubFoundry([actor]);
+    return actor;
+  }
+
+  it("validates wear and previousWear", () => {
+    const refused = (req: unknown) =>
+      expect(() => validateKnightActorResourcesV1(req)).toThrow(
+        expect.objectContaining({ code: "invalid_args" }),
+      );
+    expect(validateKnightActorResourcesV1(wear("armure", "ascension"))).toEqual(
+      {
+        ...withoutResources(),
+        resources: {},
+        wear: "armure",
+        previousWear: "ascension",
+      },
+    );
+    validateKnightActorResourcesV1(
+      wear("tenueCivile", "armure", { name: "N" }),
+    );
+    validateKnightActorResourcesV1(
+      wear("guardian", "armure", { resources: {} }),
+    );
+    refused(wear("ascension", "armure"));
+    refused(wear("armour", "guardian"));
+    refused(wear("armure", "nope"));
+    refused({ ...withoutResources(), wear: "armure" });
+    refused({ ...withoutResources(), name: "N", previousWear: "armure" });
+    refused(wear("armure", "guardian", { resources: { energy: 3 } }));
+    refused(wear("armure", "guardian", { base: { resources: {} } }));
+    refused(wear("armure", "guardian", { actorType: "pnj" }));
+  });
+
+  it("deploys: one update writes system.wear with the result flag, never a meter first", async () => {
+    const actor = folded();
+    const result = await apply(wear("armure", "guardian"));
+    expect(result.warnings).toEqual([]);
+    expect(actor.updates).toHaveLength(1);
+    const [patch] = actor.updates;
+    expect(Object.keys(patch)[0]).toBe("system.wear");
+    expect(patch).toEqual({
+      "system.wear": "armure",
+      [`flags.${MODULE_ID}.actorResourcesV1`]: expect.objectContaining({
+        contentDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+      }),
+    });
+    expect(actor.system.wear).toBe("armure");
+  });
+
+  it("refuses wear_conflict and writes nothing when Foundry moved the wear first", async () => {
+    const actor = folded(1, "tenueCivile");
+    expect(await rpcCode(apply(wear("armure", "guardian")))).toBe(
+      "wear_conflict",
+    );
+    expect(actor.updates).toHaveLength(0);
+  });
+
+  it("refuses wear_conflict while a capacity holds the ascension", async () => {
+    const actor = folded(1, "ascension");
+    expect(await rpcCode(apply(wear("guardian", "ascension")))).toBe(
+      "wear_conflict",
+    );
+    expect(actor.updates).toHaveLength(0);
+  });
+
+  it("refuses wear_conflict when deploying with no armour Item", async () => {
+    const actor = folded();
+    actor.items.contents = [];
+    expect(await rpcCode(apply(wear("armure", "guardian")))).toBe(
+      "wear_conflict",
+    );
+    expect(actor.updates).toHaveLength(0);
+  });
+
+  it("writes no wear for a generation 4 armour, which Foundry wears anyway", async () => {
+    const actor = folded(4);
+    const result = await apply(wear("guardian", "armure"));
+    expect(result.warnings).toEqual(["wear_forced"]);
+    expect(actor.system.wear).toBe("guardian");
+    for (const patch of actor.updates)
+      expect(patch).not.toHaveProperty("system.wear");
+  });
+
+  it("is applied when the Actor already wears it, and a new sequence writes nothing", async () => {
+    const actor = folded(1, "armure");
+    const first = await apply(wear("armure", "guardian", { sequence: 7 }));
+    expect(first.warnings).toEqual([]);
+    expect(actor.updates).toHaveLength(1);
+    expect(actor.updates[0]).not.toHaveProperty("system.wear");
+    await apply(wear("armure", "guardian", { sequence: 8 }));
+    expect(actor.updates).toHaveLength(1);
+  });
+
+  it("folds with the name in one update", async () => {
+    const actor = folded(1, "armure");
+    await apply(
+      wear("tenueCivile", "armure", {
+        name: "Renamed",
+        previousName: "Existing",
+      }),
+    );
+    expect(actor.updates[0]).toMatchObject({
+      "system.wear": "tenueCivile",
+      name: "Renamed",
+    });
+  });
+
+  it("keeps the digest of a request without wear", async () => {
+    const actor = folded(1, "armure");
+    await apply(request({ sequence: 7 }));
+    const flag = (actor.flags[MODULE_ID] as Record<string, any>)
+      .actorResourcesV1;
+    expect(flag.contentDigest).toBe(
+      await canonicalDigest({ health: 12, hope: 3 }),
+    );
   });
 });

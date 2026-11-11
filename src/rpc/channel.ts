@@ -1,5 +1,7 @@
 import {
+  CAP_ACTOR_ITEMS_ARMOUR,
   CAP_ACTOR_RESOURCES_NAME,
+  CAP_ACTOR_RESOURCES_WEAR,
   CAP_KNIGHT_NPC_RESOURCES,
   CAP_WRITE_BASE,
   WRITE_BASE_PROCEDURES,
@@ -239,10 +241,16 @@ export class Channel {
       .capabilities()
       .filter((name) => !this.registry.isSignedOnly(name) || this.canSign());
     if (this.canSign()) caps.push(CAP_RESPONSE_SIG);
-    // The name fields and the Knight non-player types ride the resources
+    // The name and wear fields and the Knight non-player types ride the resources
     // lane: advertised only with it.
     if (caps.includes("actor.resources.v1"))
-      caps.push(CAP_ACTOR_RESOURCES_NAME, CAP_KNIGHT_NPC_RESOURCES);
+      caps.push(
+        CAP_ACTOR_RESOURCES_NAME,
+        CAP_ACTOR_RESOURCES_WEAR,
+        CAP_KNIGHT_NPC_RESOURCES,
+      );
+    // The armour kind rides the items lane the same way.
+    if (caps.includes("actor.items.v1")) caps.push(CAP_ACTOR_ITEMS_ARMOUR);
     // The base values ride the lanes that take them.
     if (WRITE_BASE_PROCEDURES.some((proc) => caps.includes(proc)))
       caps.push(CAP_WRITE_BASE);

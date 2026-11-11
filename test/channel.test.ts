@@ -9,6 +9,8 @@ import {
 } from "../src/rpc/responseSigning.js";
 import {
   CAP_ACTOR_RESOURCES_NAME,
+  CAP_ACTOR_RESOURCES_WEAR,
+  CAP_ACTOR_ITEMS_ARMOUR,
   CAP_KNIGHT_NPC_RESOURCES,
   CAP_WRITE_BASE,
   CAP_DND5E_RULES_MODERN,
@@ -1056,6 +1058,7 @@ describe("Channel response signing", () => {
     expect(unsigned).not.toContain("actor.resources.v1");
     expect(unsigned).not.toContain(CAP_ACTOR_RESOURCES_NAME);
     expect(unsigned).not.toContain(CAP_KNIGHT_NPC_RESOURCES);
+    expect(unsigned).not.toContain(CAP_ACTOR_RESOURCES_WEAR);
     expect(unsigned).not.toContain(CAP_WRITE_BASE);
     expect(unsigned).not.toContain("combat.sync.v1");
 
@@ -1068,6 +1071,7 @@ describe("Channel response signing", () => {
     expect(capabilities).toContain("actor.resources.v1");
     expect(capabilities).toContain(CAP_ACTOR_RESOURCES_NAME);
     expect(capabilities).toContain(CAP_KNIGHT_NPC_RESOURCES);
+    expect(capabilities).toContain(CAP_ACTOR_RESOURCES_WEAR);
     expect(capabilities).toContain(CAP_WRITE_BASE);
     expect(capabilities).toContain("combat.sync.v1");
     expect(capabilities).toContain(CAP_RESPONSE_SIG);
@@ -1116,6 +1120,9 @@ describe("Channel response signing", () => {
     // The name token rides the resources lane: withheld with it.
     expect(capabilities).not.toContain(CAP_ACTOR_RESOURCES_NAME);
     expect(capabilities).not.toContain(CAP_WRITE_BASE);
+    // The armour and wear tokens ride the items and resources lanes.
+    expect(capabilities).not.toContain(CAP_ACTOR_ITEMS_ARMOUR);
+    expect(capabilities).not.toContain(CAP_ACTOR_RESOURCES_WEAR);
     expect(Object.keys(mixed.unsupported as object).sort()).toEqual(
       AUTHOR_LANES,
     );
@@ -1134,6 +1141,10 @@ describe("Channel response signing", () => {
     );
     expect(admitted.capabilities as string[]).toContain(
       CAP_KNIGHT_NPC_RESOURCES,
+    );
+    expect(admitted.capabilities as string[]).toContain(CAP_ACTOR_ITEMS_ARMOUR);
+    expect(admitted.capabilities as string[]).toContain(
+      CAP_ACTOR_RESOURCES_WEAR,
     );
     expect(admitted.unsupported).toBeUndefined();
   });

@@ -22,9 +22,12 @@ export interface KnightEquipmentCrosswalkDocumentV1 {
 
 type Entry = readonly KnightEquipmentCrosswalkDocumentV1[];
 
-const armour = (documentId: string): Entry => [
+const armour = (
+  documentId: string,
+  pack = "knight-compendium.armours-base",
+): Entry => [
   {
-    pack: "knight-compendium.armours-base",
+    pack,
     documentId,
     itemType: "armure",
   },
@@ -63,6 +66,38 @@ export const KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1: Readonly<
   "knight.armour.bard": armour("9268f377d44809a2"),
   "knight.armour.wizard": armour("5463cd447204b6e0"),
   "knight.armour.barbarian": armour("640288b9621eef7b"),
+  "knight.armour.monk": armour(
+    "8cc5ff7fa8719d04",
+    "knight-compendium.armours-2038",
+  ),
+  "knight.armour.psion": armour(
+    "1878049ffaf13ea9",
+    "knight-compendium.armours-2038",
+  ),
+  "knight.armour.necromancer": armour(
+    "9b894a6545c1fa19",
+    "knight-compendium.armours-2038-necromancer",
+  ),
+  "knight.armour.sorcerer": armour(
+    "jDHJ4haKZOCKGMrh",
+    "knight-compendium.armours-2038-sorcerer",
+  ),
+  "knight.armour.shaman": armour(
+    "ccf27e4b17e94702",
+    "knight-compendium.armours-atlas",
+  ),
+  "knight.armour.warlock": armour(
+    "c1f1193feb1f4192",
+    "knight-compendium.armours-atlas",
+  ),
+  "knight.armour.berserk": armour(
+    "34ca401ec8ca57e0",
+    "knight-compendium.armours-atlas-berserk",
+  ),
+  "knight.armour.druid": armour(
+    "04183e3e1e2f0323",
+    "knight-compendium.armours-codex",
+  ),
 
   "knight.weapon.pistolet-de-service": weapon(
     "df9dd63546eda43e",

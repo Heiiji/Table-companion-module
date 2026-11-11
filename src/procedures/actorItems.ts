@@ -4,6 +4,7 @@ import { KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1 } from "../refdata/knightCompendiumC
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import { pairedAgentUser } from "../setup/identity.js";
+import { paragraphsHtml } from "../util/html.js";
 import { compendiumAvailabilityWarning } from "./actorUpsert.equipment.js";
 import { readable } from "./compendium.js";
 import {
@@ -19,6 +20,7 @@ import {
 } from "./upsertShared.js";
 import {
   type ItemDoc,
+  at,
   isDict,
   sameName,
   readFields,
@@ -29,11 +31,15 @@ import {
   type ItemKind,
   FOUNDRY_TYPE,
   type ItemSourceV1,
+  type ItemFieldsV1,
   type ActorItemsOpV1,
   validateKnightActorItemsV1,
   PROCEDURE,
   ACTOR_TYPE,
   type ActorItemsResultV1,
+  OVERDRIVES,
+  SLOT_KEYS,
+  SLOTS,
 } from "./actorItems.validate.js";
 import { fieldPatch } from "./actorItems.patch.js";
 
@@ -51,6 +57,15 @@ import { fieldPatch } from "./actorItems.patch.js";
  * id or `entryId` is ever touched. Created Items carry the `entryId` flag and
  * never the equipment-catalog flags, so `actor.upsert.v1` never reconciles
  * them away.
+ *
+ * The armour (kind `armour`, `add` only) is the actor's FIRST `armure` Item,
+ * the one the Knight system reads. An add replaces it: compare-and-set on its
+ * name (`expectedName`), refused with `armour_guarded` when it holds what a
+ * delete would lose for good (applied evolutions, their archives, an active
+ * capacity) unless `force` is set, then deleted and the new armour created.
+ * A re-send after a failure between the delete and the create finds no armour
+ * and creates it; a re-send after the create finds it flagged and writes
+ * nothing. It never writes `system.wear` nor any other Item.
  */
 
 // ------------------------------------------------------------- the procedure
@@ -184,6 +199,156 @@ async function addItem(
   return docId(item);
 }
 
+const anyTrue = (node: unknown): boolean =>
+  node === true || (isDict(node) && Object.values(node).some(anyTrue));
+
+const anyApplied = (node: unknown): boolean =>
+  isDict(node) &&
+  Object.entries(node).some(
+    ([key, value]) =>
+      (key === "applied" && value === true) || anyApplied(value),
+  );
+
+/** Whether deleting this `armure` Item loses data held nowhere else: an
+ * applied evolution (regular or special), a pre-evolution archive, or a
+ * capacity left active. */
+export function armourGuarded(item: ItemDoc): boolean {
+  const sy = item.system;
+  const liste = at(sy, "evolutions.liste");
+  const archivage = at(sy, "archivage");
+  const selected = at(sy, "capacites.selected");
+  return (
+    (isDict(liste) &&
+      Object.values(liste).some((e) => at(e, "applied") === true)) ||
+    anyApplied(at(sy, "evolutions.special")) ||
+    (isDict(archivage) &&
+      Object.values(archivage).some((v) =>
+        typeof v === "string"
+          ? v !== ""
+          : typeof v === "object" && v !== null && Object.keys(v).length > 0,
+      )) ||
+    (isDict(selected) &&
+      Object.values(selected).some((c) => anyTrue(at(c, "active"))))
+  );
+}
+
+/** The `armure` source built from the app's fields: no capacities, no
+ * evolutions. */
+function builtArmour(f: ItemFieldsV1): Dict {
+  const overdrives: Dict = {};
+  for (const key of f.overdrives!) {
+    const [aspect, , c] = OVERDRIVES[key].split(".");
+    ((overdrives[aspect] ??= { liste: {} }) as { liste: Dict }).liste[c] = {
+      value: 1,
+    };
+  }
+  return {
+    name: f.name,
+    type: FOUNDRY_TYPE.armour,
+    system: {
+      generation: f.generation,
+      armure: { base: f.armourBase },
+      energie: { base: f.energyBase },
+      champDeForce: { base: f.forceFieldBase },
+      slots: Object.fromEntries(
+        SLOT_KEYS.map((k) => [SLOTS[k], { value: f.slots![k] }]),
+      ),
+      overdrives,
+      description: paragraphsHtml(f.description!),
+    },
+  };
+}
+
+async function addArmour(
+  actor: ActorLike,
+  add: Extract<ActorItemsOpV1, { add: unknown }>["add"],
+  warnings: string[],
+): Promise<string> {
+  const catalogId = (add.source as { catalogId: string }).catalogId;
+  const armours = actorItems(actor).filter(
+    (item) => item.type === FOUNDRY_TYPE.armour,
+  );
+  const [current] = armours;
+  if (
+    armours.length === 1 &&
+    flagValue(current, FLAG_KEYS.entryId) === add.entryId &&
+    flagValue(current, FLAG_KEYS.armourCatalogId) === catalogId
+  )
+    return docId(current);
+  if (armours.length > 1)
+    throw new RpcError(
+      "item_conflict",
+      "the Actor carries several armours: the Knight system reads only the first",
+    );
+  if (current) {
+    if (
+      add.expectedName === undefined ||
+      !sameName(current, add.expectedName, true)
+    )
+      throw new RpcError("item_conflict", "the armour changed in Foundry");
+    if (armourGuarded(current)) {
+      if (add.force !== true)
+        throw new RpcError(
+          "armour_guarded",
+          "the armour has evolutions, archives or an active capacity",
+        );
+      warnings.push("armour_replaced_guarded");
+    }
+    if (typeof actor.deleteEmbeddedDocuments !== "function")
+      throw new RpcError(
+        "unsupported_runtime",
+        "Actor.deleteEmbeddedDocuments is unavailable",
+      );
+    await actor.deleteEmbeddedDocuments("Item", [docId(current)]);
+  }
+  if (typeof actor.createEmbeddedDocuments !== "function")
+    throw new RpcError(
+      "unsupported_runtime",
+      "Actor.createEmbeddedDocuments is unavailable",
+    );
+  const mapped = KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1[catalogId][0];
+  const doc =
+    compendiumAvailabilityWarning() === null
+      ? await gamePacks()?.get(mapped.pack)?.getDocument(mapped.documentId)
+      : undefined;
+  const fromCompendium = gameItems()?.fromCompendium;
+  // fromCompendium stamps `_stats.compendiumSource` (the Item's identity).
+  const raw = doc
+    ? typeof fromCompendium === "function"
+      ? fromCompendium.call(gameItems(), doc)
+      : doc.toObject()
+    : undefined;
+  let source: Dict;
+  if (isDict(raw) && raw.type === FOUNDRY_TYPE.armour) {
+    source = { ...raw, name: add.item.name };
+    delete source._id;
+    delete source.folder;
+    delete source.ownership;
+  } else {
+    warnings.push("item_built");
+    source = builtArmour(add.item);
+  }
+  // Never the equipment-catalog flags, which would hand the armour to
+  // actor.upsert's reconciliation.
+  source.flags = {
+    ...(isDict(source.flags) ? source.flags : {}),
+    [MODULE_ID]: {
+      [FLAG_KEYS.entryId]: add.entryId,
+      [FLAG_KEYS.armourCatalogId]: catalogId,
+    },
+  };
+  const created = await actor.createEmbeddedDocuments("Item", [source]);
+  const item =
+    (Array.isArray(created)
+      ? (created[0] as ItemDoc | undefined)
+      : undefined) ??
+    actorItems(actor).find(
+      (i) => flagValue(i, FLAG_KEYS.armourCatalogId) === catalogId,
+    );
+  if (!item) throw new Error("Foundry did not return the created Item");
+  return docId(item);
+}
+
 export const actorItemsV1: Procedure = async (payload) => {
   const req = validateKnightActorItemsV1(payload);
   assertKnightUpsertAuthority(PROCEDURE);
@@ -199,7 +364,12 @@ export const actorItemsV1: Procedure = async (payload) => {
     itemId,
   });
   const op = req.op;
-  if ("add" in op) return result(await addItem(actor, op.add, warnings));
+  if ("add" in op)
+    return result(
+      op.add.kind === "armour"
+        ? await addArmour(actor, op.add, warnings)
+        : await addItem(actor, op.add, warnings),
+    );
 
   const { itemId, kind } = "update" in op ? op.update : op.remove;
   const found = actorItems(actor).find((item) => docId(item) === itemId);

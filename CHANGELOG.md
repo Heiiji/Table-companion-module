@@ -4,6 +4,20 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Knight armour from the app (`actor.items.v1`, new `armour` kind, advertised by the new
+  `actorItemsArmourV1` capability): an armour picked in the app replaces the character's armour in
+  Foundry, copied from Knight Compendium 14.0.1 (now covering all 17 armours) or built from the app's
+  fields. Modules and weapons are kept. An armour carrying applied evolutions, archived data or an
+  active capacity is refused (`armour_guarded`) unless the Gamemaster confirms the replacement
+  (`force`, reported as `armour_replaced_guarded`).
+- Knight armour deploy and fold from the app (`actor.resources.v1` `wear` / `previousWear`, advertised
+  by the new `actorResourcesWearV1` capability): a compare-and-set on the wear Foundry shows
+  (`wear_conflict` when it moved first, a capacity holds the ascension, or there is no armour);
+  a generation 4 armour stays worn (`wear_forced`).
+
 ## [0.24.0] - 2026-11-11
 
 ### Added

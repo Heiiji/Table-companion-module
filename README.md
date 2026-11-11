@@ -96,7 +96,10 @@ Gamemaster can open setup from the console with
   additive, constrained actor-provisioning integration. Exact equipment materialization optionally
   uses Knight Compendium 14.0.1; other/missing versions remain safely partial.
 - **Live resources:** on Knight, the current resources a character spends in the app (health, armour,
-  energy and the like) are written to its linked Foundry Actor as they change (`actor.resources.v1`).
+  energy and the like) are written to its linked Foundry Actor as they change (`actor.resources.v1`),
+  and so is deploying or folding the armour (`actorResourcesWearV1`). An armour picked in the app
+  replaces the Actor's armour (`actor.items.v1`, `actorItemsArmourV1`), never one carrying evolutions,
+  archived data or an active capacity unless the Gamemaster confirms.
 - **Fifth Edition live counters:** on dnd5e 6.1.0 or a later 6.x on Foundry 14 or later, a linked
   character's hit points, temporary hit points, spell slots, exhaustion, conditions, death saves
   and inspiration are written from the app (`dnd5e.resources.v1`), which reports back the

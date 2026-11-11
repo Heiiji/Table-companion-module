@@ -123,7 +123,7 @@ export const AUTHORED_PATHS: readonly string[] = [
  * `ascension` reads as `tenueCivile` (the system's `whatWear`), so writes go
  * where Foundry reads. An absent or malformed selector reads as the schema's
  * initial `tenueCivile`. */
-function wornGear(actor: ActorLike): string {
+export function wornGear(actor: ActorLike): string {
   const armour = contentsOf(actor.items).find((item) => item.type === "armure");
   const generation = Number((armour?.system as Dict | undefined)?.generation);
   if (generation >= 4) return "armure";

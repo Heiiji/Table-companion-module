@@ -82,6 +82,8 @@ a new code is an additive change.
 | `level_mismatch` | A Pathfinder 2e completion whose level differs from the Actor's; nothing is written. |
 | `item_conflict` | A Knight Item moved, was renamed or is of another kind in Foundry; nothing is written. |
 | `item_missing` | The Knight Item the request updates is gone. |
+| `armour_guarded` | The Knight armour an add would replace holds applied evolutions, archived data or an active capacity, and the add is not forced; nothing is written. |
+| `wear_conflict` | The Knight armour's wear moved in Foundry first, a capacity holds the ascension, or there is no armour to deploy; nothing is written. |
 | `knight_api_missing` | The Knight system's roller is not available. |
 | `weapon_not_found` | No weapon on the Actor is bound to the attack's entry. |
 | `weapon_unsupported` | The Knight weapon has no attack roll (an active barrage). |

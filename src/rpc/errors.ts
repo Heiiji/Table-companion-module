@@ -32,6 +32,8 @@ export type RpcErrorCode =
   | "level_mismatch"
   | "item_conflict"
   | "item_missing"
+  | "armour_guarded"
+  | "wear_conflict"
   // Knight attacks.
   | "knight_api_missing"
   | "weapon_not_found"

@@ -94,6 +94,18 @@ export const KEY_ENROLL_EVENT = "responseKey.enroll";
 export const CAP_ACTOR_RESOURCES_NAME = "actorResourcesNameV1";
 
 /** Capability token advertised alongside `actor.resources.v1`: this build
+ * accepts the optional `wear` / `previousWear` fields on that procedure (deploy
+ * or fold a player character's armour). Apps send a wear only when the world
+ * advertises it. NOT a procedure name — it has no handler. */
+export const CAP_ACTOR_RESOURCES_WEAR = "actorResourcesWearV1";
+
+/** Capability token advertised alongside `actor.items.v1`: this build accepts
+ * the `armour` kind on that procedure's `add` (replace the player character's
+ * armour, with `expectedName` and `force`). Apps send one only when the world
+ * advertises it. NOT a procedure name — it has no handler. */
+export const CAP_ACTOR_ITEMS_ARMOUR = "actorItemsArmourV1";
+
+/** Capability token advertised alongside `actor.resources.v1`: this build
  * accepts `actorType` "pnj", "creature", "bande" or "vehicule" on that
  * procedure (health, armour and energy currents on the Actor's own pools) and
  * pools without `current` on `npc.upsert.v1`. Apps send either only when the

@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyEquipment } from "../src/procedures/actorUpsert.equipment.js";
 import { actorItemsV1 } from "../src/procedures/actorItems.js";
 import { readWeaponAttacks } from "../src/procedures/actorItems.read.js";
 import {
@@ -1029,5 +1031,583 @@ describe("actor.items.v1 weapons", () => {
       "system.optionsmunitions.value": 1,
     });
     expect(sys(item).optionsmunitions.liste["0"].raw).toEqual(["perce 2"]);
+  });
+});
+
+// --------------------------------------------------------------- the armour
+
+const ARMOUR_FIXTURE = JSON.parse(
+  readFileSync(
+    new URL("./fixtures/knight-armure-3.58.37-model.json", import.meta.url),
+    "utf8",
+  ),
+) as Record<string, any>;
+
+const ARMOUR_SLOTS = {
+  tete: 5,
+  torse: 12,
+  bras_gauche: 5,
+  bras_droit: 5,
+  jambe_gauche: 5,
+  jambe_droite: 20,
+};
+
+const ARMOUR = {
+  name: "Paladin",
+  generation: 1,
+  armourBase: 120,
+  energyBase: 20,
+  forceFieldBase: 8,
+  slots: ARMOUR_SLOTS,
+  overdrives: ["chair_force", "dame_sang_froid"],
+  description: "Shrine <x>.\n\nWatchtower.",
+};
+
+/** The 8 armours beyond the base book, by app catalog id. */
+const NEW_ARMOURS: Record<string, [string, string]> = {
+  "knight.armour.monk": ["knight-compendium.armours-2038", "8cc5ff7fa8719d04"],
+  "knight.armour.psion": ["knight-compendium.armours-2038", "1878049ffaf13ea9"],
+  "knight.armour.necromancer": [
+    "knight-compendium.armours-2038-necromancer",
+    "9b894a6545c1fa19",
+  ],
+  "knight.armour.sorcerer": [
+    "knight-compendium.armours-2038-sorcerer",
+    "jDHJ4haKZOCKGMrh",
+  ],
+  "knight.armour.shaman": [
+    "knight-compendium.armours-atlas",
+    "ccf27e4b17e94702",
+  ],
+  "knight.armour.warlock": [
+    "knight-compendium.armours-atlas",
+    "c1f1193feb1f4192",
+  ],
+  "knight.armour.berserk": [
+    "knight-compendium.armours-atlas-berserk",
+    "34ca401ec8ca57e0",
+  ],
+  "knight.armour.druid": [
+    "knight-compendium.armours-codex",
+    "04183e3e1e2f0323",
+  ],
+};
+
+const PALADIN: [string, string] = [
+  "knight-compendium.armours-base",
+  "add808cf4f4dcdc1",
+];
+const WARRIOR: [string, string] = [
+  "knight-compendium.armours-base",
+  "22826f541c384281",
+];
+
+function addArmour(
+  catalogId = "knight.armour.paladin",
+  over: Record<string, unknown> = {},
+  item: Record<string, unknown> = ARMOUR,
+) {
+  return {
+    add: {
+      entryId: ENTRY,
+      kind: "armour",
+      source: { catalogId },
+      item,
+      ...over,
+    },
+  };
+}
+
+/** A compendium `armure` document, shape only, with stale flags of ours. */
+function armureDoc(id: string, name: string): Record<string, unknown> {
+  return {
+    ...structuredClone(ARMOUR_FIXTURE.fresh),
+    _id: id,
+    name,
+    folder: "f",
+    ownership: { default: 0 },
+    flags: { [MODULE_ID]: { equipmentCatalogId: "stale" } },
+  };
+}
+
+/** A world whose compendium holds `docs` and whose `game.items` clones a
+ * document as Foundry's `fromCompendium` does (stamping its source). */
+function armourWorld(
+  docs: Array<[string, string, string]> = [[...PALADIN, "Paladin"]],
+  options: {
+    active?: boolean;
+    version?: string;
+    fromCompendium?: boolean;
+  } = {},
+): StubCompendium {
+  const documents: StubCompendium["documents"] = {};
+  for (const [pack, id, name] of docs)
+    (documents[pack] ??= {})[id] = armureDoc(id, name);
+  const compendium: StubCompendium = {
+    documents,
+    requests: [],
+    ...(options.active === undefined ? {} : { active: options.active }),
+    ...(options.version === undefined ? {} : { version: options.version }),
+  };
+  world(compendium);
+  if (options.fromCompendium === false) return compendium;
+  const game = (globalThis as unknown as { game: Record<string, any> }).game;
+  vi.stubGlobal("game", {
+    ...game,
+    items: {
+      ...game.items,
+      fromCompendium: (doc: { toObject(): Record<string, unknown> }) => {
+        const source = doc.toObject();
+        return {
+          ...source,
+          _stats: {
+            compendiumSource: `Compendium.x.Item.${String(source._id)}`,
+          },
+        };
+      },
+    },
+  });
+  return compendium;
+}
+
+/** An `armure` Item already on the Actor: the fixture's fresh shape with
+ * `system` overrides. */
+function ownArmour(
+  id: string,
+  over: Record<string, unknown> = {},
+  system: Record<string, unknown> = {},
+): Item {
+  const item: Item = {
+    id,
+    type: "armure",
+    name: "Warrior",
+    system: { ...structuredClone(ARMOUR_FIXTURE.fresh.system), ...system },
+    flags: {},
+    ...over,
+  };
+  actor.items.contents.push(item);
+  return item;
+}
+
+const armours = () => items().filter((i) => i.type === "armure");
+
+describe("actor.items.v1 armour validation", () => {
+  const refuse = (op: unknown) =>
+    expect(() => validateKnightActorItemsV1(request(op))).toThrowError(
+      RpcError,
+    );
+
+  it("accepts an armour add with every field and an expected name", () => {
+    const op = addArmour(undefined, { expectedName: "Warrior" });
+    expect(validateKnightActorItemsV1(request(op)).op).toEqual(op);
+    validateKnightActorItemsV1(
+      request(addArmour(undefined, {}, { ...ARMOUR, overdrives: [] })),
+    );
+  });
+
+  it("refuses an armour on update or remove, and any source but a catalog armour", () => {
+    refuse({
+      update: {
+        itemId: "aB3dE5fG7hJ9kL1m",
+        kind: "armour",
+        item: { name: "X" },
+        expected: { name: "Y" },
+      },
+    });
+    refuse({
+      remove: { itemId: "aB3dE5fG7hJ9kL1m", kind: "armour", expectedName: "X" },
+    });
+    for (const source of [
+      { custom: true },
+      { live: { pack: "", docId: WORLD_ITEM } },
+      { catalogId: "knight.armour.armurelegende" },
+      { catalogId: "knight.module.saut.l1" },
+    ])
+      refuse({ add: { ...addArmour().add, source } });
+  });
+
+  it("requires every armour field and keeps module and weapon keys apart", () => {
+    for (const key of Object.keys(ARMOUR)) {
+      const item: Record<string, unknown> = { ...ARMOUR };
+      delete item[key];
+      refuse(addArmour(undefined, {}, item));
+    }
+    for (const extra of [
+      { level: 1 },
+      { energy: 1 },
+      { active: true },
+      { chargesCurrent: 1, chargesMax: 1 },
+      { profiles: [] },
+    ])
+      refuse(addArmour(undefined, {}, { ...ARMOUR, ...extra }));
+    // An armour key, or an expected name, on a module or a weapon add.
+    for (const extra of [
+      { generation: 1 },
+      { armourBase: 1 },
+      { energyBase: 1 },
+      { forceFieldBase: 1 },
+      { overdrives: [] },
+    ])
+      refuse(addModule({ name: "Saut", ...extra }));
+    refuse({ add: { ...addModule({ name: "Saut" }).add, expectedName: "X" } });
+  });
+
+  it("bounds every armour field", () => {
+    for (const over of [
+      { name: " " },
+      { generation: 5 },
+      { generation: -1 },
+      { armourBase: 1000 },
+      { energyBase: -1 },
+      { forceFieldBase: 1.5 },
+      { slots: { ...ARMOUR_SLOTS, torse: 21 } },
+      { overdrives: ["chair_force", "chair_force"] },
+      { overdrives: ["dame_sangFroid"] },
+      { overdrives: "chair_force" },
+      { description: "é".repeat(4097) },
+    ])
+      refuse(addArmour(undefined, {}, { ...ARMOUR, ...over }));
+    refuse(addArmour(undefined, { expectedName: "a\0b" }));
+  });
+});
+
+describe("actor.items.v1 armour add", () => {
+  it("copies the compendium armour through fromCompendium on a bare actor, flagged and never worn", async () => {
+    armourWorld();
+    const result = await run(addArmour());
+    expect(result.warnings).toEqual([]);
+    expect(armours()).toHaveLength(1);
+    const item = armours()[0];
+    expect(result.itemId).toBe(item.id);
+    expect(item.name).toBe("Paladin");
+    expect(flags(item)).toEqual({
+      entryId: ENTRY,
+      armourCatalogId: "knight.armour.paladin",
+    });
+    expect(item._stats).toEqual({
+      compendiumSource: `Compendium.x.Item.${PALADIN[1]}`,
+    });
+    expect(item._id).toBeUndefined();
+    expect(item.folder).toBeUndefined();
+    expect(item.ownership).toBeUndefined();
+    // The copy keeps its own numbers: the app's fields only name it.
+    expect(sys(item).armure.base).toBe(100);
+    expect(actor.updates).toEqual([]);
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+  });
+
+  it("copies with toObject when fromCompendium is unavailable", async () => {
+    armourWorld(undefined, { fromCompendium: false });
+    const result = await run(addArmour());
+    expect(result.warnings).toEqual([]);
+    const item = armours()[0];
+    expect(item._id).toBeUndefined();
+    expect(item.folder).toBeUndefined();
+    expect(item.ownership).toBeUndefined();
+    expect(flags(item)).toEqual({
+      entryId: ENTRY,
+      armourCatalogId: "knight.armour.paladin",
+    });
+  });
+
+  it("resolves each armour beyond the base book through the crosswalk", async () => {
+    for (const [catalogId, [pack, doc]] of Object.entries(NEW_ARMOURS)) {
+      const compendium = armourWorld([[pack, doc, catalogId]]);
+      const result = await run(addArmour(catalogId));
+      expect(result.warnings).toEqual([]);
+      expect(compendium.requests).toEqual([`${pack}:${doc}`]);
+      expect(flags(armours()[0])).toMatchObject({ armourCatalogId: catalogId });
+    }
+  });
+
+  it("builds the armour from the app's fields when the compendium cannot provide it", async () => {
+    const cases: Array<() => void> = [
+      () => world(),
+      () => armourWorld(undefined, { active: false }),
+      () => armourWorld(undefined, { version: "14.0.0" }),
+      () => armourWorld([["knight-compendium.other", PALADIN[1], "X"]]),
+      () => armourWorld([[PALADIN[0], "0000000000000000", "X"]]),
+    ];
+    for (const setup of cases) {
+      setup();
+      const result = await run(addArmour());
+      expect(result.warnings).toEqual(["item_built"]);
+      const item = armours()[0];
+      expect(item.name).toBe("Paladin");
+      expect(flags(item)).toEqual({
+        entryId: ENTRY,
+        armourCatalogId: "knight.armour.paladin",
+      });
+      expect(item.system).toEqual({
+        generation: 1,
+        armure: { base: 120 },
+        energie: { base: 20 },
+        champDeForce: { base: 8 },
+        slots: {
+          tete: { value: 5 },
+          torse: { value: 12 },
+          brasGauche: { value: 5 },
+          brasDroit: { value: 5 },
+          jambeGauche: { value: 5 },
+          jambeDroite: { value: 20 },
+        },
+        overdrives: {
+          chair: { liste: { force: { value: 1 } } },
+          dame: { liste: { sangFroid: { value: 1 } } },
+        },
+        description: "<p>Shrine &lt;x&gt;.</p><p>Watchtower.</p>",
+      });
+      expect(actor.updates).toEqual([]);
+    }
+  });
+
+  it("re-sent once applied, writes nothing", async () => {
+    armourWorld();
+    const first = await run(addArmour());
+    const created = actor.createEmbeddedDocuments.mock.calls.length;
+    const again = await run(addArmour(undefined, { expectedName: "Warrior" }));
+    expect(again.itemId).toBe(first.itemId);
+    expect(again.warnings).toEqual([]);
+    expect(actor.createEmbeddedDocuments.mock.calls.length).toBe(created);
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+    expect(armours()).toHaveLength(1);
+  });
+
+  it("replaces the armour named by expectedName and leaves modules and weapons", async () => {
+    armourWorld();
+    ownArmour("oldArmour0000001", {
+      flags: {
+        [MODULE_ID]: {
+          entryId: ENTRY,
+          armourCatalogId: "knight.armour.warrior",
+        },
+      },
+    });
+    const mod = ownModule("module0000000001");
+    const weapon = ownModule("weapon0000000001", {
+      type: "arme",
+      name: "Fusil",
+    });
+    const result = await run(addArmour(undefined, { expectedName: "Warrior" }));
+    expect(actor.deleteEmbeddedDocuments).toHaveBeenCalledExactlyOnceWith(
+      "Item",
+      ["oldArmour0000001"],
+    );
+    expect(armours()).toHaveLength(1);
+    expect(armours()[0].name).toBe("Paladin");
+    expect(result.itemId).toBe(armours()[0].id);
+    expect(items()).toContain(mod);
+    expect(items()).toContain(weapon);
+    expect(mod.update).not.toHaveBeenCalled();
+    expect(weapon.update).not.toHaveBeenCalled();
+    expect(actor.updates).toEqual([]);
+  });
+
+  it("matches the expected name after NFC, and a blank Foundry name matches any", async () => {
+    armourWorld();
+    ownArmour("oldArmour0000001", { name: "Guérrier" });
+    await run(addArmour(undefined, { expectedName: "Guérrier" }));
+    expect(armours()[0].name).toBe("Paladin");
+    armourWorld();
+    ownArmour("oldArmour0000001", { name: " " });
+    await run(addArmour(undefined, { expectedName: "Warrior" }));
+    expect(armours()[0].name).toBe("Paladin");
+  });
+
+  it("refuses item_conflict on a stale or absent expectedName, deleting nothing", async () => {
+    for (const over of [{ expectedName: "Bard" }, {}]) {
+      armourWorld();
+      const old = ownArmour("oldArmour0000001");
+      await refused(addArmour(undefined, over), "item_conflict");
+      expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+      expect(actor.createEmbeddedDocuments).not.toHaveBeenCalled();
+      expect(armours()).toEqual([old]);
+    }
+  });
+
+  it("refuses item_conflict when the Actor carries several armours", async () => {
+    armourWorld();
+    ownArmour("oldArmour0000001");
+    ownArmour("oldArmour0000002", { name: "Bard" });
+    await refused(
+      addArmour(undefined, { expectedName: "Warrior" }),
+      "item_conflict",
+    );
+    // Even when the first one is this lane's own.
+    armourWorld();
+    ownArmour("oldArmour0000001", {
+      flags: {
+        [MODULE_ID]: {
+          entryId: ENTRY,
+          armourCatalogId: "knight.armour.paladin",
+        },
+      },
+    });
+    ownArmour("oldArmour0000002", { name: "Bard" });
+    await refused(addArmour(), "item_conflict");
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+    expect(actor.createEmbeddedDocuments).not.toHaveBeenCalled();
+  });
+
+  it("guards an armour holding evolutions, archives or an active capacity", async () => {
+    for (const shape of [
+      "evolved",
+      "longbowEvolved",
+      "archived",
+      "activeCapacity",
+    ]) {
+      armourWorld();
+      ownArmour("oldArmour0000001", {}, ARMOUR_FIXTURE[shape]);
+      await refused(
+        addArmour(undefined, { expectedName: "Warrior" }),
+        "armour_guarded",
+      );
+      expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+      expect(actor.createEmbeddedDocuments).not.toHaveBeenCalled();
+      expect(armours()).toHaveLength(1);
+    }
+    // A boolean active, and a nested one.
+    for (const active of [true, { personnel: { x: true } }]) {
+      armourWorld();
+      ownArmour(
+        "oldArmour0000001",
+        {},
+        {
+          capacites: { selected: { ghost: { active } } },
+        },
+      );
+      await refused(
+        addArmour(undefined, { expectedName: "Warrior" }),
+        "armour_guarded",
+      );
+    }
+  });
+
+  it("does not guard a fresh compendium copy", async () => {
+    armourWorld([
+      [...PALADIN, "Paladin"],
+      [...WARRIOR, "Warrior"],
+    ]);
+    await run(
+      addArmour("knight.armour.warrior", {}, { ...ARMOUR, name: "Warrior" }),
+    );
+    await run(addArmour(undefined, { expectedName: "Warrior" }));
+    expect(armours()).toHaveLength(1);
+    expect(flags(armours()[0])).toMatchObject({
+      armourCatalogId: "knight.armour.paladin",
+    });
+  });
+
+  it("converges on a re-send after a failure between the delete and the create", async () => {
+    armourWorld();
+    ownArmour("oldArmour0000001");
+    actor.createEmbeddedDocuments.mockRejectedValueOnce(
+      new Error("connection lost"),
+    );
+    await expect(
+      run(addArmour(undefined, { expectedName: "Warrior" })),
+    ).rejects.toThrow("connection lost");
+    expect(armours()).toHaveLength(0);
+    await run(addArmour(undefined, { expectedName: "Warrior" }));
+    expect(armours()).toHaveLength(1);
+    expect(armours()[0].name).toBe("Paladin");
+  });
+
+  it("is never reconciled away by actor.upsert's equipment import", async () => {
+    armourWorld();
+    await run(addArmour());
+    const [armour] = armours();
+    // An Item actor.upsert manages, which an empty selection reconciles away.
+    ownArmour("managed000000001", {
+      flags: { [MODULE_ID]: { equipmentCatalogId: "knight.armour.warrior" } },
+    });
+    await applyEquipment(actor as never, []);
+    expect(actor.deleteEmbeddedDocuments).toHaveBeenCalledWith("Item", [
+      "managed000000001",
+    ]);
+    expect(armours()).toEqual([armour]);
+  });
+});
+
+describe("actor.items.v1 armour force", () => {
+  it("accepts force only as a boolean on an armour add", () => {
+    validateKnightActorItemsV1(request(addArmour(undefined, { force: true })));
+    validateKnightActorItemsV1(request(addArmour(undefined, { force: false })));
+    for (const op of [
+      addArmour(undefined, { force: "yes" }),
+      addArmour(undefined, { force: 1 }),
+      { add: { ...addModule({ name: "Saut" }).add, force: true } },
+      {
+        update: {
+          itemId: "aB3dE5fG7hJ9kL1m",
+          kind: "module",
+          item: { name: "X" },
+          expected: { name: "Y" },
+          force: true,
+        },
+      },
+      {
+        remove: {
+          itemId: "aB3dE5fG7hJ9kL1m",
+          kind: "module",
+          expectedName: "X",
+          force: true,
+        },
+      },
+    ])
+      expect(() => validateKnightActorItemsV1(request(op))).toThrowError(
+        RpcError,
+      );
+  });
+
+  it("guarded without force refuses and deletes nothing", async () => {
+    armourWorld();
+    ownArmour("oldArmour0000001", {}, ARMOUR_FIXTURE.evolved);
+    await refused(
+      addArmour(undefined, { expectedName: "Warrior", force: false }),
+      "armour_guarded",
+    );
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+    expect(armours()[0].id).toBe("oldArmour0000001");
+  });
+
+  it("guarded with force replaces the armour and warns", async () => {
+    for (const shape of [
+      "evolved",
+      "longbowEvolved",
+      "archived",
+      "activeCapacity",
+    ]) {
+      armourWorld();
+      ownArmour("oldArmour0000001", {}, ARMOUR_FIXTURE[shape]);
+      const mod = ownModule("module0000000001");
+      const result = await run(
+        addArmour(undefined, { expectedName: "Warrior", force: true }),
+      );
+      expect(result.warnings).toEqual(["armour_replaced_guarded"]);
+      expect(armours()).toHaveLength(1);
+      expect(armours()[0].name).toBe("Paladin");
+      expect(items()).toContain(mod);
+    }
+  });
+
+  it("force on an unguarded armour is a plain swap, without a warning", async () => {
+    armourWorld();
+    ownArmour("oldArmour0000001");
+    const result = await run(
+      addArmour(undefined, { expectedName: "Warrior", force: true }),
+    );
+    expect(result.warnings).toEqual([]);
+    expect(armours()[0].name).toBe("Paladin");
+  });
+
+  it("force never overrides the name compare-and-set", async () => {
+    armourWorld();
+    ownArmour("oldArmour0000001", {}, ARMOUR_FIXTURE.evolved);
+    await refused(
+      addArmour(undefined, { expectedName: "Bard", force: true }),
+      "item_conflict",
+    );
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
   });
 });
