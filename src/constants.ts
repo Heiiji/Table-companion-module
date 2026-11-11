@@ -93,6 +93,14 @@ export const KEY_ENROLL_EVENT = "responseKey.enroll";
  * no handler. */
 export const CAP_ACTOR_RESOURCES_NAME = "actorResourcesNameV1";
 
+/** Capability token advertised alongside `actor.resources.v1`: this build
+ * accepts `actorType` "pnj", "creature", "bande" or "vehicule" on that
+ * procedure (health, armour and energy currents on the Actor's own pools) and
+ * pools without `current` on `npc.upsert.v1`. Apps send either only when the
+ * world advertises it, since an older build refuses them. NOT a procedure
+ * name — it has no handler. */
+export const CAP_KNIGHT_NPC_RESOURCES = "knightNpcResourcesV1";
+
 /** Capability token advertised with any lane that takes the optional `base`
  * compare-and-set values (`actor.resources.v1`, `actor.upsert.v1`,
  * `npc.upsert.v1`, `dnd5e.resources.v1`, `pf2e.resources.v1`): apps send a

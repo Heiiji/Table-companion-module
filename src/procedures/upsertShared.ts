@@ -828,11 +828,14 @@ function companionUserId(foundryUserId: string | undefined): string {
   return id && id !== foundryUserId ? id : "";
 }
 
-/** The ownership map a provisioning lane creates an Actor with: default NONE,
- * the player OWNER when given, the Companion user OBSERVER (without it the
- * backend never sees the Actor). */
-export function normalizedOwnership(foundryUserId: string | undefined): Dict {
-  const ownership: Dict = { default: OWNERSHIP_NONE };
+/** The ownership map a provisioning lane creates an Actor with: default NONE
+ * (or `defaultLevel`), the player OWNER when given, the Companion user OBSERVER
+ * (without it the backend never sees the Actor). */
+export function normalizedOwnership(
+  foundryUserId: string | undefined,
+  defaultLevel = OWNERSHIP_NONE,
+): Dict {
+  const ownership: Dict = { default: defaultLevel };
   if (foundryUserId) ownership[foundryUserId] = OWNERSHIP_OWNER;
   const companion = companionUserId(foundryUserId);
   if (companion) ownership[companion] = OWNERSHIP_OBSERVER;
@@ -840,15 +843,16 @@ export function normalizedOwnership(foundryUserId: string | undefined): Dict {
 }
 
 // Actor.create receives the plain normalized map; Actor.update receives the
-// merge-safe replacement, which ends with exactly default:NONE, one OWNER when
+// merge-safe replacement, which ends with exactly the default, one OWNER when
 // supplied, and the Companion user at its existing level but at least OBSERVER
 // — whatever other grants an adopted or bound Actor carried. The Companion
 // grant is never deleted or lowered, so setup's « Share » survives a revision.
 export function normalizedOwnershipUpdate(
   actor: ActorLike,
   foundryUserId: string | undefined,
+  defaultLevel = OWNERSHIP_NONE,
 ): Dict {
-  const update = ownershipReplacement(actor, OWNERSHIP_NONE, foundryUserId);
+  const update = ownershipReplacement(actor, defaultLevel, foundryUserId);
   const companion = companionUserId(foundryUserId);
   if (companion) {
     // Drop the companion's deletion entry (under Foundry 14's operator the

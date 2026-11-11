@@ -9,6 +9,7 @@ import {
 } from "../src/rpc/responseSigning.js";
 import {
   CAP_ACTOR_RESOURCES_NAME,
+  CAP_KNIGHT_NPC_RESOURCES,
   CAP_WRITE_BASE,
   CAP_DND5E_RULES_MODERN,
   CAP_PF2E_NPC_WRITES,
@@ -1054,6 +1055,7 @@ describe("Channel response signing", () => {
     expect(unsigned).not.toContain("npc.upsert.v1");
     expect(unsigned).not.toContain("actor.resources.v1");
     expect(unsigned).not.toContain(CAP_ACTOR_RESOURCES_NAME);
+    expect(unsigned).not.toContain(CAP_KNIGHT_NPC_RESOURCES);
     expect(unsigned).not.toContain(CAP_WRITE_BASE);
     expect(unsigned).not.toContain("combat.sync.v1");
 
@@ -1065,6 +1067,7 @@ describe("Channel response signing", () => {
     expect(capabilities).toContain("npc.upsert.v1");
     expect(capabilities).toContain("actor.resources.v1");
     expect(capabilities).toContain(CAP_ACTOR_RESOURCES_NAME);
+    expect(capabilities).toContain(CAP_KNIGHT_NPC_RESOURCES);
     expect(capabilities).toContain(CAP_WRITE_BASE);
     expect(capabilities).toContain("combat.sync.v1");
     expect(capabilities).toContain(CAP_RESPONSE_SIG);
@@ -1114,6 +1117,11 @@ describe("Channel response signing", () => {
     expect(Object.keys(mixed.unsupported as object).sort()).toEqual(
       AUTHOR_LANES,
     );
+    // A later major is withheld the same way, and the npc token with it.
+    const major = helloOn("4.0.0").capabilities as string[];
+    expect(major).not.toContain("actor.resources.v1");
+    expect(major).not.toContain(CAP_KNIGHT_NPC_RESOURCES);
+    expect(capabilities).not.toContain(CAP_KNIGHT_NPC_RESOURCES);
 
     // 3.58.36 is above the floor: every lane is advertised, none withheld.
     const admitted = helloOn("3.58.36");
@@ -1121,6 +1129,9 @@ describe("Channel response signing", () => {
       expect(admitted.capabilities as string[]).toContain(lane);
     expect(admitted.capabilities as string[]).toContain(
       CAP_ACTOR_RESOURCES_NAME,
+    );
+    expect(admitted.capabilities as string[]).toContain(
+      CAP_KNIGHT_NPC_RESOURCES,
     );
     expect(admitted.unsupported).toBeUndefined();
   });

@@ -26,13 +26,15 @@ import {
   record,
   text,
   type LiveHeaderV1,
+  type ActorLike,
   type Dict,
   type StoredResultV1,
   FLAG_KEYS,
 } from "./upsertShared.js";
 
 /**
- * Live current resources of a Knight player character (`actor.resources.v1`).
+ * Live current resources of a Knight player character (`actor.resources.v1`),
+ * and of the non-player types in `NPC_POOLS` (health, armour, energy only).
  * Provisioning (`actor.upsert.v1`) writes current values once per approved
  * revision; this lane re-pushes them on every edit made in the app. It touches
  * ONLY the Actor bound to the character (which must be the one the app expects)
@@ -51,8 +53,24 @@ import {
  * `base_conflict`.
  */
 
-const ACTOR_TYPE = "knight";
-export interface KnightActorResourcesV1 extends LiveHeaderV1<"knight"> {
+/**
+ * The non-player Knight types the lane also writes, with the resources each
+ * carries and the `system` pool holding them. Their current is the top-level
+ * `<pool>.value` (never the PC's worn gear), clamped to the prepared
+ * `<pool>.max`; a pool the Actor's `options` switch off is not written.
+ * Resilience and the derived pools (force field, shield) stay Foundry's.
+ */
+const NPC_POOLS = {
+  pnj: { health: "sante", armour: "armure", energy: "energie" },
+  creature: { health: "sante", armour: "armure", energy: "energie" },
+  bande: { health: "sante" },
+  vehicule: { armour: "armure", energy: "energie" },
+} as const satisfies Record<string, Partial<Record<ResourceKey, string>>>;
+
+const ACTOR_TYPES = ["knight", ...Object.keys(NPC_POOLS)] as ActorType[];
+type ActorType = "knight" | keyof typeof NPC_POOLS;
+
+export interface KnightActorResourcesV1 extends LiveHeaderV1<ActorType> {
   sequence: number;
   resources: Partial<Record<ResourceKey, number>>;
   name?: string;
@@ -68,12 +86,15 @@ export type ActorResourcesResultV1 = StoredResultV1;
 function resourceValues(
   value: unknown,
   path: string,
+  actorType: ActorType,
 ): Partial<Record<ResourceKey, number>> {
   const r = value === undefined ? {} : record(value, path, RESOURCE_KEYS);
   const resources: Partial<Record<ResourceKey, number>> = {};
   for (const key of RESOURCE_KEYS) {
-    if (r[key] !== undefined)
-      resources[key] = integer(r[key], `${path}.${key}`, 0, MAX_RESOURCE_VALUE);
+    if (r[key] === undefined) continue;
+    if (actorType !== "knight" && !(key in NPC_POOLS[actorType]))
+      invalid(`${path}.${key} is not written on a ${actorType}`);
+    resources[key] = integer(r[key], `${path}.${key}`, 0, MAX_RESOURCE_VALUE);
   }
   return resources;
 }
@@ -89,8 +110,11 @@ export function validateKnightActorResourcesV1(
     "previousName",
     "base",
   ]);
-  const header = liveHeader(p, ACTOR_TYPE);
-  const resources = resourceValues(p.resources, "resources");
+  if (!ACTOR_TYPES.includes(p.actorType as ActorType))
+    invalid("actorType must be knight, pnj, creature, bande or vehicule");
+  const header = liveHeader(p, p.actorType as ActorType);
+  const type = header.actorType;
+  const resources = resourceValues(p.resources, "resources", type);
   const base =
     p.base === undefined
       ? undefined
@@ -98,8 +122,12 @@ export function validateKnightActorResourcesV1(
           resources: resourceValues(
             record(p.base, "base", ["resources"]).resources,
             "base.resources",
+            type,
           ),
         };
+  // A non-player Actor keeps Foundry's name: an app NPC's rides npc.upsert.
+  if (type !== "knight" && p.name !== undefined)
+    invalid(`name is not written on a ${type}`);
   const name =
     p.name === undefined ? undefined : text(p.name, "name", MAX_NAME, true);
   if (p.previousName !== undefined && name === undefined)
@@ -120,11 +148,27 @@ export function validateKnightActorResourcesV1(
   };
 }
 
+/** Stored current and prepared-maximum paths of each resource the Actor
+ * carries: the PC's wear-aware ones, else the type's top-level pools that its
+ * `options` leave on. */
+function resourcePathsOf(
+  actor: ActorLike,
+  actorType: ActorType,
+): Partial<Record<ResourceKey, [string, string?]>> {
+  if (actorType === "knight") return resourcePaths(actor);
+  const options = valueAt(actor.system, "options") as Dict | undefined;
+  return Object.fromEntries(
+    Object.entries(NPC_POOLS[actorType])
+      .filter(([, pool]) => options?.[pool] !== false)
+      .map(([key, pool]) => [key, [`${pool}.value`, `${pool}.max`]]),
+  );
+}
+
 export const actorResourcesV1: Procedure = async (payload) => {
   const req = validateKnightActorResourcesV1(payload);
   assertKnightUpsertAuthority("actor.resources.v1");
   const digest = await canonicalDigest(req);
-  const actor = linkedActor(req, ACTOR_TYPE);
+  const actor = linkedActor(req, req.actorType);
   const id = docId(actor);
 
   const stored = parseStoredResult(actor, FLAG_KEYS.actorResources);
@@ -146,7 +190,7 @@ export const actorResourcesV1: Procedure = async (payload) => {
       "the Actor was renamed in Foundry first",
     );
 
-  const paths = resourcePaths(actor);
+  const paths = resourcePathsOf(actor, req.actorType);
   const pathOf = (field: string): string | undefined => {
     if (!field.startsWith("resources.")) return undefined;
     const path = paths[field.slice("resources.".length) as ResourceKey]?.[0];
@@ -166,8 +210,8 @@ export const actorResourcesV1: Procedure = async (payload) => {
   for (const key of RESOURCE_KEYS) {
     let value = req.resources[key];
     if (value === undefined) continue;
-    const [path, maxPath] = paths[key];
-    if (!hasPath(actor.system, path)) {
+    const [path, maxPath] = paths[key] ?? [""];
+    if (!path || !hasPath(actor.system, path)) {
       warnings.push(`resource_unavailable:${key}`);
       continue;
     }

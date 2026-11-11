@@ -6,10 +6,12 @@ import {
   type KnightNpcUpsertV1,
   type NpcUpsertResultV1,
 } from "../src/procedures/npcUpsert.js";
-import { MODULE_ID } from "../src/constants.js";
+import { MODULE_ID, SETTING_AGENT_USER } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
 
 const ACTOR_ID = "actor00000000pnj";
+/** The paired Companion user, which the backend reads the world as. */
+const COMPANION = "companion0000001";
 
 interface PnjSchemaFixture {
   foundryGeneration: number;
@@ -146,6 +148,7 @@ function stubFoundry(
     version: "3.58.33",
   },
   isGM = true,
+  paired = COMPANION,
 ): ReturnType<typeof vi.fn> {
   const collection = {
     contents: actors,
@@ -178,6 +181,10 @@ function stubFoundry(
     actors: collection,
     system,
     release: { generation },
+    settings: {
+      get: (_scope: string, key: string) =>
+        key === SETTING_AGENT_USER ? paired : "",
+    },
   });
   vi.stubGlobal("Actor", { implementation: { create: createFn } });
   return createFn;
@@ -261,10 +268,13 @@ describe("npc.upsert.v1", () => {
     expect(create).toHaveBeenCalledTimes(1);
     const data = create.mock.calls[0][0] as Record<string, unknown>;
     expect(data.type).toBe("pnj");
-    expect(data.ownership).toEqual({ default: 0 });
-    expect(data.prototypeToken).toEqual({ disposition: -2 });
+    // The Companion user observes it (the backend reads the world as that
+    // user); players get nothing. Its token is linked: an app NPC is one
+    // individual, so damage dealt on the scene lands on this Actor.
+    expect(data.ownership).toEqual({ default: 0, [COMPANION]: 2 });
+    expect(data.prototypeToken).toEqual({ disposition: -2, actorLink: true });
     const actor = actors[0];
-    expect(actor.ownership).toEqual({ default: 0 });
+    expect(actor.ownership).toEqual({ default: 0, [COMPANION]: 2 });
     expect(actor.prototypeToken.disposition).toBe(-2);
     expect(actor.system).toMatchObject({
       aspects: { bete: { value: 7 }, masque: { value: 3 } },
@@ -295,7 +305,7 @@ describe("npc.upsert.v1", () => {
       {} as never,
     );
 
-    expect(actors[0].ownership).toEqual({ default: 1 });
+    expect(actors[0].ownership).toEqual({ default: 1, [COMPANION]: 2 });
     expect(actors[0].prototypeToken.disposition).toBe(0);
   });
 
@@ -303,7 +313,7 @@ describe("npc.upsert.v1", () => {
     const req = request({ contentRevision: 2_000_000_000_000 });
     const actor = fakeActor();
     binding(actor, req);
-    actor.ownership = { default: 1, user000000000001: 3 };
+    actor.ownership = { default: 1, user000000000001: 3, [COMPANION]: 1 };
     actor.prototypeToken = { disposition: 0 };
     stubFoundry([actor]);
 
@@ -313,9 +323,76 @@ describe("npc.upsert.v1", () => {
     )) as NpcUpsertResultV1;
 
     expect(result.outcome).toBe("updated");
-    expect(actor.ownership).toEqual({ default: 0 });
+    // Hidden from players, still read by the Companion user.
+    expect(actor.ownership).toEqual({ default: 0, [COMPANION]: 2 });
     // The disposition is a creation-time default only; the GM owns it after.
     expect(actor.prototypeToken.disposition).toBe(0);
+  });
+
+  it("never lowers the Companion user's level, and grants nothing before pairing", async () => {
+    const req = request({ contentRevision: 2_000_000_000_000 });
+    const actor = fakeActor();
+    binding(actor, req);
+    actor.ownership = { default: 0, [COMPANION]: 3 };
+    stubFoundry([actor]);
+    await npcUpsertV1(req as unknown as Record<string, unknown>, {} as never);
+    expect(actor.ownership).toEqual({ default: 0, [COMPANION]: 3 });
+
+    const actors: FakeActor[] = [];
+    const create = stubFoundry(actors, undefined, 13, undefined, true, "");
+    await npcUpsertV1(
+      request() as unknown as Record<string, unknown>,
+      {} as never,
+    );
+    expect(
+      (create.mock.calls[0][0] as Record<string, unknown>).ownership,
+    ).toEqual({ default: 0 });
+    expect(actors[0].ownership).toEqual({ default: 0 });
+  });
+
+  it("starts a pool sent without current full on create", async () => {
+    const actors: FakeActor[] = [];
+    stubFoundry(actors);
+    const result = (await npcUpsertV1(
+      request({
+        resources: { health: { max: 30 }, armour: { max: 20, current: 5 } },
+      }) as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+    expect(result.warnings).toEqual([]);
+    expect(actors[0].system).toMatchObject({
+      sante: { base: 30, value: 30 },
+      armure: { base: 20, value: 5 },
+    });
+  });
+
+  it("writes only the maximum of a pool sent without current on an update", async () => {
+    const actors: FakeActor[] = [];
+    stubFoundry(actors);
+    await npcUpsertV1(
+      request() as unknown as Record<string, unknown>,
+      {} as never,
+    );
+    // Damage dealt in Foundry since: the next stat edit must not undo it.
+    setPath(actors[0] as never, "system.sante.value", 3);
+    const updates = actors[0].updates.length;
+    const result = (await npcUpsertV1(
+      request({
+        contentRevision: 1_755_555_556_000,
+        resources: { health: { max: 32 }, energy: { max: 12 } },
+      }) as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+    expect(result.outcome).toBe("updated");
+    expect(actors[0].system).toMatchObject({
+      sante: { base: 32, value: 3 },
+      energie: { base: 12, value: 10 },
+    });
+    const written = actors[0].updates
+      .slice(updates)
+      .flatMap((update) => Object.keys(update));
+    expect(written).not.toContain("system.sante.value");
+    expect(written).not.toContain("system.energie.value");
   });
 
   it("keeps a HOSTILE token disposition set in Foundry on the next upsert", async () => {

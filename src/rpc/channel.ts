@@ -1,5 +1,6 @@
 import {
   CAP_ACTOR_RESOURCES_NAME,
+  CAP_KNIGHT_NPC_RESOURCES,
   CAP_WRITE_BASE,
   WRITE_BASE_PROCEDURES,
   CAP_DND5E_RULES_MODERN,
@@ -219,7 +220,8 @@ export class Channel {
 
   /** Capabilities advertised in hello / hello.ack: the registered procedures,
    * plus the response-signing token when this client signs, and the
-   * resources-name token whenever `actor.resources.v1` is advertised, the
+   * resources-name and Knight npc-resources tokens whenever
+   * `actor.resources.v1` is advertised, the
    * write-base token with any lane that takes `base`, the
    * 2024-rules token with `dnd5e.resources.v1` on a world playing them, and
    * the Pathfinder 2e sheet-writes and npc-writes tokens with
@@ -237,9 +239,10 @@ export class Channel {
       .capabilities()
       .filter((name) => !this.registry.isSignedOnly(name) || this.canSign());
     if (this.canSign()) caps.push(CAP_RESPONSE_SIG);
-    // The name fields ride the resources lane: advertised only with it.
+    // The name fields and the Knight non-player types ride the resources
+    // lane: advertised only with it.
     if (caps.includes("actor.resources.v1"))
-      caps.push(CAP_ACTOR_RESOURCES_NAME);
+      caps.push(CAP_ACTOR_RESOURCES_NAME, CAP_KNIGHT_NPC_RESOURCES);
     // The base values ride the lanes that take them.
     if (WRITE_BASE_PROCEDURES.some((proc) => caps.includes(proc)))
       caps.push(CAP_WRITE_BASE);

@@ -4,6 +4,16 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Knight live counters (`actor.resources.v1`) also write non-player Actors (`pnj`, `creature`, `bande`,
+  `vehicule`), advertised by the new `knightNpcResourcesV1` capability: health, armour and energy on
+  the Actor's own pools, clamped to their prepared maximum; `npc.upsert.v1` pools may leave out
+  `current` so a stat edit keeps damage dealt in Foundry, NPCs it creates have linked tokens, the
+  backend's Companion user keeps Observer on them (players unchanged), and « Share » also covers
+  hidden NPCs the app created.
+
 ## [0.23.0] - 2026-11-11
 
 ### Added
