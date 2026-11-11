@@ -18,6 +18,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Knight attacks from the app (`knight.attack.v1`): a card posted as a self or blind roll is now also
   whispered to the backend's Companion user, so the app can still read its result when the reply was
   lost.
+- Knight character provisioning (`actor.upsert.v1`): an approved character written onto an Actor
+  already created for it keeps each field the Gamemaster changed in Foundry since the module last
+  wrote it, and reports how many with one `foundry_kept:<n>` warning.
 
 ## [0.23.0] - 2026-11-11
 

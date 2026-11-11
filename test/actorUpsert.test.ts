@@ -7,6 +7,10 @@ import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
 import { ownershipReplacement } from "../src/procedures/upsertShared.js";
 import {
+  AUTHORED_PATHS,
+  authoredPatch,
+} from "../src/procedures/actorUpsert.patch.js";
+import {
   ACTOR_ID,
   KNIGHT_SCHEMA_FIXTURES,
   USER_ID,
@@ -828,5 +832,107 @@ describe("actor.upsert.v1 revisions", () => {
     )) as ActorUpsertResultV1;
     expect(result.appliedRevision).toBe(2);
     expect(actor.updates).toHaveLength(writes);
+  });
+});
+
+describe("actor.upsert.v1 keeps what the Gamemaster changed in Foundry", () => {
+  const CHAIR = "system.aspects.chair.base";
+  const draft = () => approved({ state: "draft", approvedRevision: 0 });
+
+  /** A world where the draft creates a Knight-shaped Actor (the fixture's
+   * defaults), as Foundry would. */
+  function world(): FakeActor[] {
+    const actors: FakeActor[] = [];
+    stubFoundry(
+      actors,
+      vi.fn(async () => {
+        const actor = fakeActor();
+        actor.system = structuredClone(KNIGHT_SCHEMA_FIXTURES[1].actor.system);
+        actors.push(actor);
+        return actor;
+      }),
+    );
+    return actors;
+  }
+
+  const upsert = async (req: unknown) =>
+    (await actorUpsertV1(req as never, {} as never)) as ActorUpsertResultV1;
+  const written = (actor: FakeActor) =>
+    actor.updates.flatMap((update) => Object.keys(update));
+  const flagOf = (actor: FakeActor) =>
+    (actor.flags[MODULE_ID] as Record<string, any>).actorUpsertV1;
+
+  it("names exactly the paths an approved patch writes", () => {
+    const req = approved();
+    const keys = Object.keys(
+      authoredPatch(fakeActor() as never, req, {
+        schemaVersion: 1,
+        worldId: req.worldId,
+        tableId: req.tableId,
+        characterId: req.characterId,
+      }),
+    ).filter((key) => key.startsWith("system."));
+    expect([...AUTHORED_PATHS].sort()).toEqual(keys.sort());
+  });
+
+  it("records what Foundry holds after the draft", async () => {
+    const actors = world();
+    await upsert(draft());
+    expect(flagOf(actors[0]).written.fields[CHAIR]).toBe(0);
+    expect(flagOf(actors[0]).written.fields["system.description"]).toBe("");
+  });
+
+  it("keeps a field the Gamemaster moved since the draft and writes the rest", async () => {
+    const actors = world();
+    await upsert(draft());
+    const actor = actors[0];
+    (actor.system.aspects as any).chair.base = 9;
+    const before = actor.updates.length;
+    const result = await upsert(approved({ equipment: undefined }));
+    expect(result.outcome).toBe("updated");
+    expect(result.warnings).toContain("foundry_kept:1");
+    expect((actor.system.aspects as any).chair.base).toBe(9);
+    const now = actor.updates.slice(before).flatMap((u) => Object.keys(u));
+    expect(now).not.toContain(CHAIR);
+    expect(now).toContain("system.aspects.bete.base");
+    expect(now).toContain("system.description");
+    expect((actor.system.aspects as any).bete.base).toBe(2);
+    // A replay of the same revision answers the stored result, unwritten.
+    const writes = actor.updates.length;
+    expect(await upsert(approved({ equipment: undefined }))).toEqual(result);
+    expect(actor.updates).toHaveLength(writes);
+  });
+
+  it("writes everything when nothing moved", async () => {
+    const actors = world();
+    await upsert(draft());
+    const result = await upsert(approved({ equipment: undefined }));
+    expect(result.warnings.some((w) => w.startsWith("foundry_kept"))).toBe(
+      false,
+    );
+    expect(written(actors[0])).toContain(CHAIR);
+    expect((actors[0].system.aspects as any).chair.base).toBe(3);
+  });
+
+  it("writes everything over an Actor drafted without the record", async () => {
+    const actors = world();
+    await upsert(draft());
+    delete flagOf(actors[0]).written.fields;
+    (actors[0].system.aspects as any).chair.base = 9;
+    const result = await upsert(approved({ equipment: undefined }));
+    expect(result.warnings.some((w) => w.startsWith("foundry_kept"))).toBe(
+      false,
+    );
+    expect((actors[0].system.aspects as any).chair.base).toBe(3);
+  });
+
+  it("never keeps on create: the approved pass writes everything", async () => {
+    const actors = world();
+    const result = await upsert(approved({ equipment: undefined }));
+    expect(result.outcome).toBe("created");
+    expect(result.warnings.some((w) => w.startsWith("foundry_kept"))).toBe(
+      false,
+    );
+    expect((actors[0].system.aspects as any).chair.base).toBe(3);
   });
 });
