@@ -903,6 +903,20 @@ describe("actor.upsert.v1 keeps what the Gamemaster changed in Foundry", () => {
     expect(actor.updates).toHaveLength(writes);
   });
 
+  it("still keeps that field at the next approved revision", async () => {
+    const actors = world();
+    await upsert(draft());
+    const actor = actors[0];
+    (actor.system.aspects as any).chair.base = 9;
+    await upsert(approved({ equipment: undefined }));
+    const later = await upsert(
+      approved({ approvedRevision: 2, equipment: undefined, name: "Perceval" }),
+    );
+    expect(later.outcome).toBe("updated");
+    expect(later.warnings).toContain("foundry_kept:1");
+    expect((actor.system.aspects as any).chair.base).toBe(9);
+  });
+
   it("writes everything when nothing moved", async () => {
     const actors = world();
     await upsert(draft());

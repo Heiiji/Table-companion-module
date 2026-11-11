@@ -174,14 +174,14 @@ export const actorUpsertV1: Procedure = async (payload) => {
   // ponytail: a Foundry edit back to exactly the value the lane last wrote
   // reads as unmoved, as assertBase's.
   const fields = (lastWritten?.fields ?? {}) as Dict;
-  let kept = 0;
+  const kept = new Set<string>();
   if (outcome === "updated")
     for (const path of AUTHORED_PATHS) {
       if (!(path in patch) || !(path in fields)) continue;
       const now = valueAt(target, path);
       if (now !== fields[path] && now !== patch[path]) {
         delete patch[path];
-        kept += 1;
+        kept.add(path);
       }
     }
   await actor.update(patch);
@@ -217,20 +217,23 @@ export const actorUpsertV1: Procedure = async (payload) => {
       ...motivationWarnings,
       ...resourceWarnings,
       ...equipment.warnings,
-      ...(kept > 0 ? [`foundry_kept:${kept}`] : []),
+      ...(kept.size > 0 ? [`foundry_kept:${kept.size}`] : []),
     ],
   };
   // `written` (the name and authored paths Foundry now holds) serves the next
-  // base compare and the next pass's per-field check.
+  // base compare and the next pass's per-field check. A kept path keeps the
+  // value this lane last wrote, so the Gamemaster's value still reads as
+  // theirs at the next revision.
   const sync: SyncV1 & { written: { name?: string; fields: Dict } } = {
     ...result,
     state: req.state,
     written: {
       name: target.name,
       fields: Object.fromEntries(
-        AUTHORED_PATHS.map((path) => [path, valueAt(target, path)]).filter(
-          ([, value]) => value !== undefined,
-        ),
+        AUTHORED_PATHS.map((path) => [
+          path,
+          kept.has(path) ? fields[path] : valueAt(target, path),
+        ]).filter(([, value]) => value !== undefined),
       ),
     },
   };
