@@ -447,13 +447,33 @@ describe("knight.attack.v1 roll", () => {
     await knightAttackV1(payload({ visibility: "blind" }), {} as never);
     const card = world.messages.contents[0] as Message;
     expect(card.author).toBeUndefined();
-    expect(card.whisper).toEqual([GM]);
+    // A blind roll reaches the service user too, so the backend can still
+    // read its result when the reply was lost.
+    expect(card.whisper).toEqual([GM, COMPANION]);
     expect(card.blind).toBe(true);
   });
 
-  it("whispers a self roll to its author only", async () => {
+  it("whispers a self roll to its author and the service user", async () => {
     await knightAttackV1(payload({ visibility: "self" }), {} as never);
-    expect((world.messages.contents[0] as Message).whisper).toEqual([PLAYER]);
+    expect((world.messages.contents[0] as Message).whisper).toEqual([
+      PLAYER,
+      COMPANION,
+    ]);
+  });
+
+  it("adds a renamed service user to a self roll by id, and whispers a public roll to no one", async () => {
+    world.users.contents[2].name = "Table app";
+    world.users.contents[1].name = "Companion";
+    await knightAttackV1(payload({ visibility: "self" }), {} as never);
+    expect((world.messages.contents[0] as Message).whisper).toEqual([
+      PLAYER,
+      COMPANION,
+    ]);
+    await knightAttackV1(
+      payload({ eventId: "00000000-0000-4000-8000-000000000005" }),
+      {} as never,
+    );
+    expect((world.messages.contents[1] as Message).whisper).toEqual([]);
   });
 
   it("never makes the app's service user the author", async () => {

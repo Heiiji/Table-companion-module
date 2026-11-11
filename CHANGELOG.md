@@ -14,6 +14,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   backend's Companion user keeps Observer on them (players unchanged), and « Share » also covers
   hidden NPCs the app created.
 
+### Fixed
+- Knight attacks from the app (`knight.attack.v1`): a card posted as a self or blind roll is now also
+  whispered to the backend's Companion user, so the app can still read its result when the reply was
+  lost.
+
 ## [0.23.0] - 2026-11-11
 
 ### Added

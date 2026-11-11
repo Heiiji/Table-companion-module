@@ -87,13 +87,17 @@ export function visibilityOf(
   authorId: string,
 ): { whisper: string[]; blind: boolean } {
   if (visibility === "public") return { whisper: [], blind: false };
-  if (visibility === "self") return { whisper: [authorId], blind: false };
-  // A GM roll also reaches the service user, so the backend, which reads the
-  // world as that user, sees the card and its result; a blind roll stays GM-only.
-  const readers = contentsOf(foundryGame()?.users)
-    .filter(
-      (u) => u.id && (u.isGM || (visibility === "gm" && isServiceUserId(u.id))),
-    )
+  // Every whispered card also reaches the service user, so the backend, which
+  // reads the world as that user, sees the card and its result even when the
+  // reply was lost; a blind roll stays blind.
+  const users = contentsOf(foundryGame()?.users);
+  const service = users
+    .filter((u) => u.id && isServiceUserId(u.id) && u.id !== authorId)
+    .map((u) => u.id as string);
+  if (visibility === "self")
+    return { whisper: [authorId, ...service], blind: false };
+  const readers = users
+    .filter((u) => u.id && (u.isGM || isServiceUserId(u.id)))
     .map((u) => u.id as string);
   return { whisper: readers, blind: visibility === "blind" };
 }
