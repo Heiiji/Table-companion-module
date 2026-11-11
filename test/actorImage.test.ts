@@ -185,6 +185,19 @@ describe("actor.image.v1", () => {
     }
   });
 
+  // Knight sets its per-type default in `KnightActor.create`, not through
+  // `getDefaultArtwork`, so the default artwork check alone never sees it.
+  it("ifPlaceholder replaces a Knight default icon", async () => {
+    for (const type of ["knight", "ia", "creature", "bande", "vehicule"]) {
+      stubFoundry(`systems/knight/assets/icons/${type}.svg`);
+      const reply = (await send(jpeg(100), { mode: "ifPlaceholder" })) as {
+        applied: boolean;
+      };
+      expect(reply.applied).toBe(true);
+      expect(actor.update).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it("ifPlaceholder keeps a chosen image and files the upload", async () => {
     stubFoundry("worlds/demo-world/art/korry.webp");
     const reply = (await send(jpeg(100), { mode: "ifPlaceholder" })) as Record<

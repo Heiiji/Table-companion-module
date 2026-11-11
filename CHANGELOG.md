@@ -4,6 +4,13 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Character images from the app (`actor.image.v1`): on a Knight world, the icon the Knight system
+  gives a new Actor is now recognised as a placeholder, so an image chosen in the app replaces it
+  instead of being set aside.
+
 ## [0.22.0] - 2026-11-10
 
 ### Added

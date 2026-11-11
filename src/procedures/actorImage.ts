@@ -119,11 +119,16 @@ function defaultArtwork(actor: ImageActor): string {
   return FALLBACK_ARTWORK;
 }
 
-/** Not an image someone chose: empty, a core icon, or the default artwork. */
+/** Not an image someone chose: empty, a core icon, the default artwork, or a
+ * Knight system icon (Knight sets its per-type default when it creates the
+ * Actor, without overriding `getDefaultArtwork`). */
 function isPlaceholder(actor: ImageActor): boolean {
   const img = actor.img ?? "";
   return (
-    img === "" || img.startsWith("icons/svg/") || img === defaultArtwork(actor)
+    img === "" ||
+    img.startsWith("icons/svg/") ||
+    img.startsWith("systems/knight/assets/icons/") ||
+    img === defaultArtwork(actor)
   );
 }
 
