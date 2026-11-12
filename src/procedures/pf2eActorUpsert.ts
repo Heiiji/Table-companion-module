@@ -10,6 +10,7 @@ import type { Procedure } from "../rpc/registry.js";
 import {
   actorCollection,
   alreadyApplied,
+  replayDigests,
   assertLaneAuthority,
   bindingFor,
   bindingId,
@@ -325,7 +326,12 @@ export const pf2eActorUpsertV1: Procedure = async (payload) => {
   const previous = storedResult(actor);
   if (
     previous &&
-    alreadyApplied(previous, req.approvedRevision, digest, "draft")
+    alreadyApplied(
+      previous,
+      req.approvedRevision,
+      await replayDigests(req, actor, digest),
+      "draft",
+    )
   )
     return { ...previous, warnings: [...previous.warnings] };
   // A re-send after a failed first apply on an Actor this lane created.

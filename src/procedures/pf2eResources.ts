@@ -14,6 +14,7 @@ import {
   PF2E_RESOURCES_REQUIREMENT,
   LIVE_HEADER_KEYS,
   alreadyApplied,
+  replayDigests,
   assertBase,
   assertLaneAuthority,
   canonicalDigest,
@@ -1120,7 +1121,15 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
 
   const stored = parseStoredResult(actor, FLAG_KEYS.pf2eResources);
   const previous = stored?.result ?? null;
-  if (previous && alreadyApplied(previous, req.sequence, digest, "sequence"))
+  if (
+    previous &&
+    alreadyApplied(
+      previous,
+      req.sequence,
+      await replayDigests(sent, actor, digest),
+      "sequence",
+    )
+  )
     return {
       ...previous,
       created: storedCreated(stored!.flag),

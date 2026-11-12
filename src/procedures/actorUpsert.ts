@@ -6,6 +6,7 @@ import {
   actorCollection,
   docId,
   alreadyApplied,
+  replayDigests,
   assertBase,
   assertKnightUpsertAuthority,
   bindingFor,
@@ -145,7 +146,12 @@ export const actorUpsertV1: Procedure = async (payload) => {
   const previous = syncOf(actor);
   if (
     previous &&
-    alreadyApplied(previous, req.approvedRevision, digest, "approved")
+    alreadyApplied(
+      previous,
+      req.approvedRevision,
+      await replayDigests(req, actor, digest),
+      "approved",
+    )
   ) {
     return {
       schemaVersion: 1,

@@ -12,6 +12,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   capability token `knightAttackItemIdV1`.
 
 ### Fixed
+- Unlinking a world in the app and linking it again no longer duplicates its NPCs nor blocks writes to its
+  characters: an Actor is bound to its character by table and character, whatever the world link's id, and a
+  re-send of an already applied revision under the new link replays instead of conflicting.
 - On Foundry 14, the Knight character, Knight NPC and Pathfinder 2e character upserts (`actor.upsert.v1`,
   `npc.upsert.v1`, `pf2e.actor.upsert.v1`) no longer lose their whole update to Foundry refusing the
   ownership change: the ownership map is now replaced with Foundry 14's `ForcedReplacement`, and a lane

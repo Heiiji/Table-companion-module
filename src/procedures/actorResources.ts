@@ -15,6 +15,7 @@ import {
   LIVE_HEADER_KEYS,
   docId,
   alreadyApplied,
+  replayDigests,
   assertKnightUpsertAuthority,
   assertBase,
   canonicalDigest,
@@ -218,7 +219,15 @@ export const actorResourcesV1: Procedure = async (payload) => {
 
   const stored = parseStoredResult(actor, FLAG_KEYS.actorResources);
   const previous = stored?.result ?? null;
-  if (previous && alreadyApplied(previous, req.sequence, digest, "sequence")) {
+  if (
+    previous &&
+    alreadyApplied(
+      previous,
+      req.sequence,
+      await replayDigests(req, actor, digest),
+      "sequence",
+    )
+  ) {
     return { ...previous, warnings: [...previous.warnings] };
   }
   // Compare-and-set on the name, after the replay above (an applied rename

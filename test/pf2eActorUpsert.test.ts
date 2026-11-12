@@ -688,3 +688,22 @@ describe("pf2e.actor.upsert.v1 replay", () => {
     );
   });
 });
+
+describe("pf2e.actor.upsert.v1 after the world is linked again", () => {
+  it("creates no second Actor under the new world id: same revision replays, a newer one updates and rebinds", async () => {
+    const world = stubWorld();
+    const first = await run(draft());
+    const actor = world.actors[0];
+    const updates = actor.updates.length;
+    await expect(run(draft({ worldId: "world-2" }))).resolves.toEqual(first);
+    expect(actor.updates.length).toBe(updates);
+
+    await run(draft({ worldId: "world-2", approvedRevision: 2 }));
+    expect(world.create).toHaveBeenCalledTimes(1);
+    expect(world.actors).toHaveLength(1);
+    expect(
+      (actor.flags[MODULE_ID] as { binding: { worldId: string } }).binding
+        .worldId,
+    ).toBe("world-2");
+  });
+});

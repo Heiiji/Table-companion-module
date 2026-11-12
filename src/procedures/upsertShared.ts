@@ -552,10 +552,16 @@ export function bindingOf(actor: ActorLike): BindingV1 | null {
   };
 }
 
-function exactBinding(binding: BindingV1 | null, expected: BindingV1): boolean {
+/** True when `binding` names the same character as `expected`: the table and
+ * character ids, which the app keeps for good. The world id is the backend's
+ * id of the world link and changes when the world is unlinked and linked
+ * again, so it is not part of the identity. */
+export function sameCharacter(
+  binding: BindingV1 | null,
+  expected: { tableId: string; characterId: string },
+): boolean {
   return (
     binding?.schemaVersion === 1 &&
-    binding.worldId === expected.worldId &&
     binding.tableId === expected.tableId &&
     binding.characterId === expected.characterId
   );
@@ -575,22 +581,41 @@ export function bindingFor(req: {
   };
 }
 
-/** The one Actor carrying exactly this binding, or undefined when none does.
- * Two carriers means the world was hand-edited into an ambiguous state, so the
- * upsert refuses rather than guess which one is the character. */
+/** The one Actor bound to this character, or undefined when none is. The one
+ * carrying the binding's world id too wins: an older Actor bound under a
+ * previous link of the world is ignored. Two candidates at the same rank mean
+ * an ambiguous world, so the upsert refuses rather than guess. */
 export function uniqueBoundActor(
   collection: ActorsLike,
   binding: BindingV1,
 ): ActorLike | undefined {
-  const matches = contentsOf(collection).filter((actor) =>
-    exactBinding(bindingOf(actor), binding),
+  const same = contentsOf(collection).filter((actor) =>
+    sameCharacter(bindingOf(actor), binding),
   );
-  if (matches.length > 1)
+  const exact = same.filter(
+    (actor) => bindingOf(actor)?.worldId === binding.worldId,
+  );
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1 || same.length > 1)
     throw new RpcError(
       "binding_collision",
       "multiple Actors carry this Table Companion binding",
     );
-  return matches[0];
+  return same[0];
+}
+
+/** The digests a stored result of `actor` may carry for `req` at the same
+ * revision: the request's own, and, when the Actor is still bound under a
+ * previous world id, the digest of the same request under that id (a re-send
+ * after the world was linked again carries the same content). */
+export async function replayDigests(
+  req: { worldId: string },
+  actor: ActorLike,
+  digest: string,
+): Promise<string[]> {
+  const bound = bindingOf(actor)?.worldId;
+  if (bound === undefined || bound === req.worldId) return [digest];
+  return [digest, await canonicalDigest({ ...req, worldId: bound })];
 }
 
 /** The PC a live lane writes: the Actor bound to the character (which must be
@@ -684,12 +709,14 @@ export function parseStoredResult(
  * same revision with different content is a conflict; the same revision with
  * the same content returns true, and the caller replays the stored result
  * without writing anything. False means the request must be applied.
- * `revisionKind` names the lane's revision in the error messages.
+ * `digest` may list several digests that all carry the request's content
+ * (`replayDigests`). `revisionKind` names the lane's revision in the error
+ * messages.
  */
 export function alreadyApplied(
   previous: { appliedRevision: number; appliedDigest: string } | null,
   revision: number,
-  digest: string,
+  digest: string | readonly string[],
   revisionKind: "approved" | "content" | "sequence" | "draft",
 ): boolean {
   if (!previous) return false;
@@ -700,7 +727,7 @@ export function alreadyApplied(
     );
   }
   if (previous.appliedRevision !== revision) return false;
-  if (previous.appliedDigest !== digest) {
+  if (![digest].flat().includes(previous.appliedDigest)) {
     throw new RpcError(
       "revision_conflict",
       `the same ${revisionKind} revision carries different content`,

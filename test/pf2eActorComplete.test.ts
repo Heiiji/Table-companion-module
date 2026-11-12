@@ -994,3 +994,14 @@ describe("pf2e.actor.complete.v1 replay", () => {
     expect(storedFlag(actor)).toMatchObject({ revision: 1 });
   });
 });
+
+describe("pf2e.actor.complete.v1 after the world is linked again", () => {
+  it("completes the character bound under the old world id, and replays a re-send", async () => {
+    const actor = character();
+    stubWorld([actor]);
+    const first = await run(request());
+    const updates = actor.updates.length;
+    await expect(run(request({ worldId: "world-2" }))).resolves.toEqual(first);
+    expect(actor.updates.length).toBe(updates);
+  });
+});

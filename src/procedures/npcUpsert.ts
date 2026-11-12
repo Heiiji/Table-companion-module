@@ -11,6 +11,7 @@ import {
   actorCollection,
   docId,
   alreadyApplied,
+  replayDigests,
   assertBase,
   assertOwnershipApplied,
   assertKnightUpsertAuthority,
@@ -389,7 +390,12 @@ export const npcUpsertV1: Procedure = async (payload) => {
   const previous = npcSyncOf(actor);
   if (
     previous &&
-    alreadyApplied(previous, req.contentRevision, digest, "content")
+    alreadyApplied(
+      previous,
+      req.contentRevision,
+      await replayDigests(req, actor, digest),
+      "content",
+    )
   ) {
     return {
       schemaVersion: 1,

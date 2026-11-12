@@ -1014,3 +1014,48 @@ describe("actor.upsert.v1 on Foundry 14", () => {
     expect(create.mock.calls[0][0].prototypeToken).toEqual({ actorLink: true });
   });
 });
+
+describe("actor.upsert.v1 after the world is linked again", () => {
+  // The backend mints a new world id when the world is unlinked and linked
+  // again; the table and character ids stay the same.
+  it("replays the same revision under the new world id without writing or creating", async () => {
+    const actor = fakeActor();
+    binding(actor, approved());
+    const create = vi.fn();
+    stubFoundry([actor], create);
+    const first = await actorUpsertV1(approved(), {} as never);
+    const writes = actor.updates.length;
+
+    const replay = await actorUpsertV1(
+      approved({ worldId: "world-2" }),
+      {} as never,
+    );
+    expect(replay).toEqual(first);
+    expect(actor.updates).toHaveLength(writes);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("updates the bound Actor named by expectedActorId on a higher revision and rebinds it", async () => {
+    const actor = fakeActor();
+    binding(actor, approved());
+    const create = vi.fn();
+    stubFoundry([actor], create);
+    await actorUpsertV1(approved(), {} as never);
+
+    const result = (await actorUpsertV1(
+      approved({
+        worldId: "world-2",
+        approvedRevision: 2,
+        expectedActorId: ACTOR_ID,
+      }),
+      {} as never,
+    )) as ActorUpsertResultV1;
+    expect(result.outcome).toBe("updated");
+    expect(result.resultDocId).toBe(ACTOR_ID);
+    expect(create).not.toHaveBeenCalled();
+    expect(
+      (actor.flags[MODULE_ID] as { binding: { worldId: string } }).binding
+        .worldId,
+    ).toBe("world-2");
+  });
+});

@@ -826,3 +826,89 @@ describe("npc.upsert.v1 base (compare-and-set)", () => {
     );
   });
 });
+
+describe("npc.upsert.v1 after the world is linked again", () => {
+  // The backend mints a new world id when the world is unlinked and linked
+  // again; the table and character ids stay the same.
+  const bindingOfActor = (actor: FakeActor) =>
+    (actor.flags[MODULE_ID] as Record<string, unknown>).binding as Record<
+      string,
+      unknown
+    >;
+
+  it("replays the same revision under the new world id: no second Actor, nothing written", async () => {
+    const actors: FakeActor[] = [];
+    const create = stubFoundry(actors);
+    const first = await npcUpsertV1(
+      request() as unknown as Record<string, unknown>,
+      {} as never,
+    );
+    const writes = actors[0].updates.length;
+
+    const replay = await npcUpsertV1(
+      request({ worldId: "world-2" }) as unknown as Record<string, unknown>,
+      {} as never,
+    );
+    expect(replay).toEqual(first);
+    expect(actors).toHaveLength(1);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(actors[0].updates.length).toBe(writes);
+  });
+
+  it("updates the same Actor on a higher revision and rebinds it to the new world id", async () => {
+    const actors: FakeActor[] = [];
+    stubFoundry(actors);
+    await npcUpsertV1(
+      request() as unknown as Record<string, unknown>,
+      {} as never,
+    );
+    const result = (await npcUpsertV1(
+      request({
+        worldId: "world-2",
+        contentRevision: 1_755_555_556_000,
+      }) as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+    expect(result.outcome).toBe("updated");
+    expect(actors).toHaveLength(1);
+    expect(bindingOfActor(actors[0]).worldId).toBe("world-2");
+  });
+
+  it("prefers the Actor bound under the current world id over an older duplicate, and refuses a third id", async () => {
+    const older = fakeActor("actor00000000aaa");
+    const current = fakeActor("actor00000000bbb");
+    binding(older, request());
+    binding(current, request({ worldId: "world-2" }));
+    const create = stubFoundry([older, current]);
+    const result = (await npcUpsertV1(
+      request({ worldId: "world-2" }) as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+    expect(result.resultDocId).toBe("actor00000000bbb");
+    expect(older.updates).toHaveLength(0);
+    expect(create).not.toHaveBeenCalled();
+
+    await expectRpcError(
+      npcUpsertV1(
+        request({ worldId: "world-3" }) as unknown as Record<string, unknown>,
+        {} as never,
+      ),
+      "binding_collision",
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("never takes an Actor of another table under the same world id", async () => {
+    const elsewhere = fakeActor("actor00000000aaa");
+    binding(elsewhere, request({ tableId: "table-2" }));
+    const actors = [elsewhere];
+    const create = stubFoundry(actors);
+    const result = (await npcUpsertV1(
+      request() as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+    expect(result.outcome).toBe("created");
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(elsewhere.updates).toHaveLength(0);
+  });
+});

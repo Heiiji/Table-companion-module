@@ -1185,3 +1185,33 @@ describe("actor.resources.v1 wear", () => {
     );
   });
 });
+
+describe("actor.resources.v1 after the world is linked again", () => {
+  // The backend mints a new world id when the world is unlinked and linked
+  // again; the table and character ids stay the same.
+  it("writes the Actor bound under the old world id, and replays a re-sent sequence", async () => {
+    const actor = boundActor();
+    stubFoundry([actor]);
+    const first = await apply(request());
+    expect(actor.updates).toHaveLength(1);
+    expect(await apply(request({ worldId: "world-2" }))).toEqual(first);
+    expect(actor.updates).toHaveLength(1);
+
+    const next = await apply(
+      request({ worldId: "world-2", sequence: 8, resources: { health: 13 } }),
+    );
+    expect(next.resultDocId).toBe(ACTOR_ID);
+    expect(actor.updates).toHaveLength(2);
+    expect(actor.updates[1]).toMatchObject({ "system.sante.value": 13 });
+  });
+
+  it("still refuses an Actor bound to another table under the same world id", async () => {
+    const elsewhere = boundActor();
+    (
+      elsewhere.flags[MODULE_ID] as { binding: { tableId: string } }
+    ).binding.tableId = "table-2";
+    stubFoundry([elsewhere]);
+    expect(await rpcCode(apply(request()))).toBe("binding_conflict");
+    expect(elsewhere.updates).toHaveLength(0);
+  });
+});

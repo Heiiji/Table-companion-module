@@ -7,6 +7,7 @@ import {
   FLAG_KEYS,
   LIVE_HEADER_KEYS,
   alreadyApplied,
+  replayDigests,
   assertBase,
   assertLaneAuthority,
   canonicalDigest,
@@ -407,7 +408,15 @@ export const dnd5eResourcesV1: Procedure = async (payload) => {
 
   const stored = parseStoredResult(actor, FLAG_KEYS.dnd5eResources);
   const previous = stored?.result ?? null;
-  if (previous && alreadyApplied(previous, req.sequence, digest, "sequence"))
+  if (
+    previous &&
+    alreadyApplied(
+      previous,
+      req.sequence,
+      await replayDigests(req, actor, digest),
+      "sequence",
+    )
+  )
     return {
       ...previous,
       warnings: [...previous.warnings],
