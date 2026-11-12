@@ -7,6 +7,11 @@
       "done": "Done",
       "refresh": "Refresh"
     },
+    "chatMark": {
+      "annulled": "Cancelled",
+      "rerolled": "Rerolled",
+      "revokedByGM": "Removed by the GM"
+    },
     "display": {
       "status": "In play"
     },

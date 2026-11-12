@@ -166,3 +166,20 @@
 .tca-projector-board .tca-field-value {
   font-variant-numeric: tabular-nums;
 }
+
+/* A chat card the companion apps cancelled: greyed, still readable and
+ * selectable, under a banner. */
+.chat-message.tca-marked .message-content {
+  opacity: 0.55;
+}
+
+.chat-message .tca-mark {
+  margin: 0.25rem 0;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--color-level-warning, #aa5502);
+  border-radius: 4px;
+  color: var(--color-level-warning, #aa5502);
+  font-size: var(--font-size-12, 12px);
+  font-weight: bold;
+  text-transform: uppercase;
+}

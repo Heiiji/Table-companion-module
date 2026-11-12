@@ -24,6 +24,7 @@ import {
 } from "./rpc/responseSigning.js";
 import { appPresence } from "./setup/appPresence.js";
 import { startPresenceWatcher } from "./setup/presence.js";
+import { startChatMarks } from "./ui/chatMarks.js";
 import { startKnightRollCards } from "./ui/knightRollCard.js";
 import { startKnightAttackFollowUps } from "./procedures/knightAttackFollowUps.js";
 import { offerSetupIfNeeded, openSetupApp } from "./ui/SetupApp.js";
@@ -141,6 +142,8 @@ Hooks.once("init", () => {
 
   // Every client: app rolls on a Knight world drawn as the system's roll card.
   startKnightRollCards();
+  // Every client: a card the companion apps cancelled is greyed under a banner.
+  startChatMarks();
   // Knight: damage / violence cards rolled from an app attack card are tagged
   // with that attack (the elected responder stamps them).
   startKnightAttackFollowUps();

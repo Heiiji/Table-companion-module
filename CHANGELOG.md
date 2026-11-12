@@ -7,6 +7,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- A chat card the companion apps cancelled (undone, rerolled or removed by the GM) stays in the
+  chat, greyed under a « Cancelled », « Rerolled » or « Removed by the GM » banner.
 - The Knight `sheet` group of `actor.resources.v1` takes the unspent Glory (`gloryCurrent`,
   advertised as `knightSheetGloryV1`). It is written as one « other expense » line named
   « Table Companion » in the character's Glory table, whose cost moves with each change (a refund
