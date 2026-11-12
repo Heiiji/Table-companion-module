@@ -95,6 +95,9 @@ a new code is an additive change.
 | `spell_not_found` | The Pathfinder 2e spell is not on the Actor (or not in that spellcasting entry), or pf2e built no card for it. |
 | `item_not_found` | The Pathfinder 2e item whose card is asked for is not on the Actor, or is not a kind with a card. |
 | `roll_refused` | pf2e did not roll, or Foundry did not create the card; nothing was posted. |
+| `source_not_found` | No source card for the requested Pathfinder 2e Actor carries the source event ID. |
+| `reroll_refused` | The source is already a reroll, or pf2e did not reroll the card. |
+| `followup_refused` | The source card cannot produce the requested damage or effect, pf2e returned an unusable roll, or no follow-up card was created. |
 | `invalid_request` | An actor image request failed validation (an op, an id, a size, or a chunk out of order). |
 | `upload_unknown` | The actor image upload is gone (expired, replaced by a newer one, or never begun). |
 | `invalid_image` | The actor image's length, SHA-256 or JPEG signature does not match. |
