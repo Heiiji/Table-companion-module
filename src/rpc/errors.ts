@@ -48,6 +48,8 @@ export type RpcErrorCode =
   | "spell_not_found"
   | "item_not_found"
   | "roll_refused"
+  | "source_not_found"
+  | "reroll_refused"
   // Actor images.
   | "invalid_request"
   | "upload_unknown"
