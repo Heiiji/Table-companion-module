@@ -90,6 +90,9 @@ export interface Pf2eCardResultV1 {
 
 interface CardItem {
   type?: string;
+  /** A spell's rank as pf2e prepares it (a focus spell or a cantrip is
+   * heightened by itself). */
+  rank?: number;
   toMessage?(
     event: null,
     options: Dict,
@@ -140,15 +143,16 @@ async function post(req: Pf2eCardV1): Promise<Pf2eCardResultV1> {
     );
   if (!item || !fits || typeof item.toMessage !== "function") throw missing();
 
+  // A rank under the spell's own is no cast pf2e knows: its toMessage then
+  // recurses without end. The spell's own rank stands.
+  const heightened =
+    req.castRank !== null && req.castRank > (item.rank ?? 0)
+      ? { castRank: req.castRank }
+      : {};
   const message = await item.toMessage(null, {
     create: false,
     mode: req.visibility,
-    ...(isSpell
-      ? {
-          actualCast: true,
-          data: req.castRank === null ? {} : { castRank: req.castRank },
-        }
-      : {}),
+    ...(isSpell ? { actualCast: true, data: heightened } : {}),
   });
   const source = message?.toObject?.();
   if (!source) throw missing();

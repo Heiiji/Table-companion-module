@@ -202,6 +202,25 @@ describe("pf2e.card.v1", () => {
     nothingSpent();
   });
 
+  it("leaves the rank to pf2e when the app asks below the spell's own rank", async () => {
+    // pf2e's toMessage never returns for a rank under the spell's (a focus
+    // spell or a cantrip is heightened by itself): it recurses until the stack ends.
+    actor.spell.rank = 4;
+    await call(payload({ castRank: 1 }));
+    expect(actor.spell.toMessage).toHaveBeenCalledWith(null, {
+      create: false,
+      mode: "public",
+      actualCast: true,
+      data: {},
+    });
+    actor.spell.toMessage.mockClear();
+    await call(payload({ eventId: EVENT.replace(/.$/, "0"), castRank: 5 }));
+    expect(actor.spell.toMessage).toHaveBeenCalledWith(
+      null,
+      expect.objectContaining({ data: { castRank: 5 } }),
+    );
+  });
+
   it("leaves the rank to pf2e when the app sent none", async () => {
     await call(payload({ castRank: null }));
     expect(actor.spell.toMessage).toHaveBeenCalledWith(null, {

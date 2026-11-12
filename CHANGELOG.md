@@ -10,6 +10,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A Gamemaster-only roll or card posted for a player's character is no longer readable by that
   player in Foundry's chat: the Gamemaster now authors it. A player's own private Gamemaster roll
   still shows to that player, as in Foundry.
+- A spell card asked at a rank below the spell's own rank (a focus spell or a cantrip) no longer
+  hangs the Gamemaster's browser: the card is posted at the spell's rank.
 
 ## [0.26.1] - 2026-11-11
 
