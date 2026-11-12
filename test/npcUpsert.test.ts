@@ -9,9 +9,9 @@ import {
 import { MODULE_ID, SETTING_AGENT_USER } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
 import {
-  applyOwnership,
   ownershipRefused,
   stubOperators,
+  applyUpdate,
 } from "./support/actorUpsertHarness.js";
 
 const ACTOR_ID = "actor00000000pnj";
@@ -117,11 +117,7 @@ function fakeActor(id = ACTOR_ID, name = "Existing", type = "pnj"): FakeActor {
     update: async (changes) => {
       actor.updates.push(changes);
       if (ownershipRefused(changes)) return;
-      for (const [key, value] of Object.entries(changes)) {
-        if (key === "name") actor.name = String(value);
-        else if (key === "ownership") applyOwnership(actor, value);
-        else setPath(actor as unknown as Record<string, unknown>, key, value);
-      }
+      applyUpdate(actor as unknown as Record<string, unknown>, changes);
     },
   };
   return actor;
@@ -781,7 +777,7 @@ describe("npc.upsert.v1 base (compare-and-set)", () => {
     await upsert(next());
     const flag = (actors[0].flags[MODULE_ID] as Record<string, any>)
       .npcUpsertV1;
-    expect(flag.written["resources.health.current"]).toBe(5);
+    expect(flag.written.resources.health.current).toBe(5);
   });
 
   it("ignores a base for a field the request does not write", async () => {

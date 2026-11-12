@@ -11,6 +11,7 @@ import {
   setPath,
   USER_ID,
   type FakeActor,
+  applyUpdate,
 } from "./support/actorUpsertHarness.js";
 
 // SYNTHETIC, shape-only: the pf2e paths these fakes carry are source-derived
@@ -114,8 +115,7 @@ function packs(): Packs {
 function item(source: Record<string, unknown>): Record<string, unknown> {
   const doc: Record<string, unknown> = { ...structuredClone(source) };
   doc.update = vi.fn(async (changes: Record<string, unknown>) => {
-    for (const [key, value] of Object.entries(changes))
-      setPath(doc, key, value);
+    applyUpdate(doc, changes);
   });
   return doc;
 }

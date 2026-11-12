@@ -7,7 +7,7 @@ import {
 } from "../src/procedures/pf2eResources.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
-import { hasFixturePath } from "./support/actorUpsertHarness.js";
+import { applyUpdate, hasFixturePath } from "./support/actorUpsertHarness.js";
 import FIXTURE from "./fixtures/pf2e-8.6.1-character.json";
 import PLAN from "./fixtures/pf2e-sheet-writes-plan.json";
 
@@ -47,8 +47,7 @@ function item(
     flags: extra.flags ?? {},
     ...(extra.isLocked === undefined ? {} : { isLocked: extra.isLocked }),
     update: vi.fn(async (changes: Record<string, unknown>) => {
-      for (const [k, v] of Object.entries(changes))
-        setPath(it as unknown as Record<string, unknown>, k, v);
+      applyUpdate(it as unknown as Record<string, unknown>, changes);
     }),
   };
   return it;
@@ -66,14 +65,6 @@ function condition(
     { slug, value: { isValued: value !== null, value }, references: {} },
     extra,
   );
-}
-
-function setPath(root: Record<string, unknown>, path: string, value: unknown) {
-  const keys = path.split(".");
-  let at = root;
-  for (const key of keys.slice(0, -1))
-    at = (at[key] ??= {}) as Record<string, unknown>;
-  at[keys[keys.length - 1]] = value;
 }
 
 function fakeCharacter(
@@ -102,8 +93,7 @@ function fakeCharacter(
     updates: [] as Record<string, unknown>[],
     update: vi.fn(async (changes: Record<string, unknown>) => {
       actor.updates.push(changes);
-      for (const [key, value] of Object.entries(changes))
-        setPath(actor as unknown as Record<string, unknown>, key, value);
+      applyUpdate(actor as unknown as Record<string, unknown>, changes);
     }),
     increaseCondition: vi.fn(
       async (slug: string, { value }: { value: number }) => {

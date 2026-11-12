@@ -18,6 +18,7 @@ import {
   invalid,
   normalizedOwnership,
   parseStoredResult,
+  recordedFields,
   uniqueBoundActor,
   valueAt,
   type ActorLike,
@@ -186,7 +187,7 @@ export const actorUpsertV1: Procedure = async (payload) => {
   // name (an Actor drafted by an older build) is written as before.
   // ponytail: a Foundry edit back to exactly the value the lane last wrote
   // reads as unmoved, as assertBase's.
-  const fields = (lastWritten?.fields ?? {}) as Dict;
+  const fields = recordedFields(lastWritten?.fields);
   const kept = new Set<string>();
   if (outcome === "updated")
     for (const path of AUTHORED_PATHS) {

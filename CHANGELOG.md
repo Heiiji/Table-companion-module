@@ -11,6 +11,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `system.origin`, which the Knight system reads as the being's nature (`humain`, `anatheme`,
   `autre`); a character an earlier version had written this way gets `humain` back at its next
   approved revision, unless its origin was changed in Foundry since.
+- An approved Knight character update now really keeps the fields the Gamemaster changed in Foundry
+  since the app's last write, and the NPC and resources writes again accept a base read before
+  their own last write landed: the record of what was written is read the way Foundry stores it. A
+  `dnd5e.resources.v1` replay no longer answers an effective hit-point maximum the Actor no longer has.
 
 ## [0.26.0] - 2026-11-11
 

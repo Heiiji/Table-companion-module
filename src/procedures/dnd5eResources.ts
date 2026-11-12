@@ -1,5 +1,5 @@
 import { MODULE_ID } from "../constants.js";
-import { dnd5eRulesVersion } from "../foundry/runtime.js";
+import { deletionEntry, dnd5eRulesVersion } from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import {
@@ -479,6 +479,11 @@ export const dnd5eResourcesV1: Procedure = async (payload) => {
   await actor.update({
     [`flags.${MODULE_ID}.${FLAG_KEYS.dnd5eResources}`]: {
       ...final,
+      // Foundry merges the stored flag: an absent maximum must be deleted, or
+      // the previous pass's would still answer a replay.
+      ...(final.hpEffectiveMax === undefined
+        ? Object.fromEntries([deletionEntry("hpEffectiveMax")])
+        : {}),
       contentDigest,
       // What Foundry holds after this write, for the next base compare.
       // dnd5e 6.0.x prepares `attributes.exhaustion` from the exhaustion

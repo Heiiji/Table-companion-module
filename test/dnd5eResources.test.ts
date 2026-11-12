@@ -6,7 +6,7 @@ import {
 } from "../src/procedures/dnd5eResources.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
-import { hasFixturePath } from "./support/actorUpsertHarness.js";
+import { applyUpdate, hasFixturePath } from "./support/actorUpsertHarness.js";
 import FIXTURE from "./fixtures/dnd5e-6.0.6-character.json";
 
 // SYNTHETIC, shape-only: a prepared dnd5e `character` (the fixture) and its
@@ -43,14 +43,6 @@ function conditionEffect(id: string, level: number | null = null): FakeEffect {
   };
 }
 
-function setPath(root: Record<string, unknown>, path: string, value: unknown) {
-  const keys = path.split(".");
-  let at = root;
-  for (const key of keys.slice(0, -1))
-    at = (at[key] ??= {}) as Record<string, unknown>;
-  at[keys[keys.length - 1]] = value;
-}
-
 function fakeCharacter(effects: FakeEffect[] = []) {
   const actor = {
     id: ACTOR_ID,
@@ -76,8 +68,7 @@ function fakeCharacter(effects: FakeEffect[] = []) {
     },
     update: vi.fn(async (changes: Record<string, unknown>) => {
       actor.updates.push(changes);
-      for (const [key, value] of Object.entries(changes))
-        setPath(actor as unknown as Record<string, unknown>, key, value);
+      applyUpdate(actor as unknown as Record<string, unknown>, changes);
     }),
     // Core toggleStatusEffect over static ids, with dnd5e's override for a
     // levelled condition (exhaustion): it ignores `active` and adds a level.

@@ -7,8 +7,8 @@ import { MODULE_ID } from "../src/constants.js";
 import {
   approved,
   fakeActor,
-  setPath,
   stubFoundry,
+  applyUpdate,
 } from "./support/actorUpsertHarness.js";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -28,8 +28,7 @@ describe("actor.upsert.v1 minor motivations", () => {
         },
       };
       item.update = vi.fn(async (changes: Record<string, unknown>) => {
-        for (const [key, value] of Object.entries(changes))
-          setPath(item, key, value);
+        applyUpdate(item, changes);
       });
       return item;
     };

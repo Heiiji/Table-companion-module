@@ -17,6 +17,7 @@ import {
   stubFoundry,
   type FakeActor,
   type StubCompendium,
+  applyUpdate,
 } from "./support/actorUpsertHarness.js";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -166,15 +167,7 @@ function ownModule(
     ...over,
   };
   item.update = vi.fn(async (changes: Record<string, unknown>) => {
-    for (const [key, value] of Object.entries(changes)) {
-      const parts = key.split(".");
-      let cursor: Record<string, unknown> = item;
-      for (const part of parts.slice(0, -1)) {
-        cursor[part] ??= {};
-        cursor = cursor[part] as Record<string, unknown>;
-      }
-      cursor[parts.at(-1)!] = value;
-    }
+    applyUpdate(item as unknown as Record<string, unknown>, changes);
   });
   actor.items.contents.push(item);
   return item;

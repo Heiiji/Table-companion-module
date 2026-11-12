@@ -749,6 +749,23 @@ export function fieldsOf(value: object, prefix = ""): Dict {
   return out;
 }
 
+/** A lane's stored record as `path → value`. Foundry expands the dotted keys
+ * of update data at every depth, so a record written as `{"system.age": …}`
+ * is stored nested (`{system: {age: …}}`): nested objects flatten back to
+ * dotted keys, arrays and primitives are values (left unsorted), and a key
+ * still dotted (an older fake or a hand-written flag) reads the same. */
+export function recordedFields(value: unknown, prefix = ""): Dict {
+  const out: Dict = {};
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return out;
+  for (const [key, v] of Object.entries(value)) {
+    if (typeof v === "object" && v !== null && !Array.isArray(v))
+      Object.assign(out, recordedFields(v, `${prefix}${key}.`));
+    else out[prefix + key] = v;
+  }
+  return out;
+}
+
 /** Compare-and-set on the optional `base`: the request-shaped values the app
  * last saw in Foundry. Every field the request writes AND the base names must
  * still hold its base value in Foundry, already hold the requested one, or
@@ -769,8 +786,7 @@ export function assertBase(
 ): void {
   if (!base) return;
   const wanted = fieldsOf(req);
-  const last =
-    typeof written === "object" && written !== null ? (written as Dict) : {};
+  const last = recordedFields(written);
   const same = (a: unknown, b: unknown) => canonicalize(a) === canonicalize(b);
   const moved = Object.entries(fieldsOf(base))
     .filter(([field, was]) => {

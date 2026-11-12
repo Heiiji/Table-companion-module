@@ -881,8 +881,10 @@ describe("actor.upsert.v1 keeps what the Gamemaster changed in Foundry", () => {
   it("records what Foundry holds after the draft", async () => {
     const actors = world();
     await upsert(draft());
-    expect(flagOf(actors[0]).written.fields[CHAIR]).toBe(0);
-    expect(flagOf(actors[0]).written.fields["system.description"]).toBe("");
+    // Foundry expands the record's dotted keys: it is stored nested.
+    const fields = flagOf(actors[0]).written.fields;
+    expect(fields.system.aspects.chair.base).toBe(0);
+    expect(fields.system.description).toBe("");
   });
 
   it("keeps a field the Gamemaster moved since the draft and writes the rest", async () => {
@@ -918,6 +920,27 @@ describe("actor.upsert.v1 keeps what the Gamemaster changed in Foundry", () => {
     expect(later.outcome).toBe("updated");
     expect(later.warnings).toContain("foundry_kept:1");
     expect((actor.system.aspects as any).chair.base).toBe(9);
+  });
+
+  it("keeps the age and nickname the Gamemaster changed after an approved create, revision after revision", async () => {
+    const actors = world();
+    await upsert(approved({ equipment: undefined }));
+    const actor = actors[0];
+    expect(flagOf(actor).written.fields.system.age).toBe("32");
+    actor.system.age = "40";
+    actor.system.surnom = "Le Vieux";
+    for (const approvedRevision of [2, 3]) {
+      const result = await upsert(
+        approved({ approvedRevision, equipment: undefined }),
+      );
+      expect(result.warnings).toContain("foundry_kept:2");
+      expect(actor.system.age).toBe("40");
+      expect(actor.system.surnom).toBe("Le Vieux");
+      // The record keeps the lane's own last value, so the next revision
+      // still reads Foundry's as the Gamemaster's.
+      expect(flagOf(actor).written.fields.system.age).toBe("32");
+      expect(flagOf(actor).written.fields.system.surnom).toBe("Sol");
+    }
   });
 
   it("writes everything when nothing moved", async () => {
@@ -977,15 +1000,25 @@ describe("actor.upsert.v1 leaves the Knight origin to the system", () => {
     (await actorUpsertV1(req as never, {} as never)) as ActorUpsertResultV1;
   const flagOf = (actor: FakeActor) =>
     (actor.flags[MODULE_ID] as Record<string, any>).actorUpsertV1;
+  /** Records `origin` as the lane's last write, the way Foundry stores it. */
+  const record = (actor: FakeActor, origin: string) =>
+    actor.update({
+      [`flags.${MODULE_ID}.actorUpsertV1.written.fields`]: {
+        [ORIGIN]: origin,
+      },
+    });
   /** An Actor an earlier build provisioned: it wrote « Europe » and recorded it. */
   async function provisionedWithEurope(): Promise<FakeActor> {
     const actors = world();
     await upsert(approved({ equipment: undefined }));
     const actor = actors[0];
     actor.system.origin = "Europe";
-    flagOf(actor).written.fields[ORIGIN] = "Europe";
+    await record(actor, "Europe");
+    expect(flagOf(actor).written.fields.system.origin).toBe("Europe");
     return actor;
   }
+  const originWrites = (actor: FakeActor, from = 0) =>
+    actor.updates.slice(from).filter((u) => ORIGIN in u);
   const next = () =>
     upsert(approved({ approvedRevision: 2, equipment: undefined }));
 
@@ -1005,7 +1038,10 @@ describe("actor.upsert.v1 leaves the Knight origin to the system", () => {
     const result = await next();
     expect(result.outcome).toBe("updated");
     expect(actor.system.origin).toBe("humain");
-    expect(flagOf(actor).written.fields).not.toHaveProperty(ORIGIN);
+    // Once: the next revision finds `humain`, not the recorded free text.
+    const before = actor.updates.length;
+    await upsert(approved({ approvedRevision: 3, equipment: undefined }));
+    expect(originWrites(actor, before)).toHaveLength(0);
     expect(result.warnings.some((w) => w.startsWith("foundry_kept"))).toBe(
       false,
     );
@@ -1016,14 +1052,13 @@ describe("actor.upsert.v1 leaves the Knight origin to the system", () => {
     actor.system.origin = "anatheme";
     await next();
     expect(actor.system.origin).toBe("anatheme");
-    const keys = actor.updates.flatMap((u) => Object.keys(u));
-    expect(keys.filter((k) => k === ORIGIN)).toHaveLength(0);
+    expect(originWrites(actor)).toHaveLength(0);
   });
 
   it("leaves alone a system origin the record only observed", async () => {
     const actor = await provisionedWithEurope();
     actor.system.origin = "anatheme";
-    flagOf(actor).written.fields[ORIGIN] = "anatheme";
+    await record(actor, "anatheme");
     await next();
     expect(actor.system.origin).toBe("anatheme");
   });
