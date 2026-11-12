@@ -17,7 +17,7 @@ import {
   uuid,
 } from "./upsertShared.js";
 import {
-  playerOf,
+  cardAuthor,
   stampedCard,
   visibilityOf,
   type CardMessage,
@@ -194,7 +194,7 @@ async function test(req: KnightTestV1): Promise<KnightTestResultV1> {
       "actor_unsupported",
       `${PROCEDURE}: a vehicle's tests are its pilot's`,
     );
-  const author = playerOf(actor);
+  const author = cardAuthor(actor, req.visibility, req.origin === "player");
   const authorId = author?.id ?? foundryGame()?.user?.id ?? "";
   const { whisper, blind } = visibilityOf(req.visibility, authorId);
   const disarm = armStamp(req.actorId, req.dice, {

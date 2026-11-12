@@ -25,6 +25,7 @@ import {
   type ActorLike,
 } from "./upsertShared.js";
 import {
+  cardAuthor,
   newDocumentId,
   playerOf,
   postUnposted,
@@ -493,10 +494,11 @@ async function check(req: Pf2eCheckV1): Promise<Pf2eCheckResultV1> {
   const context = (dictAt(flags.pf2e, "context") ?? {}) as Dict;
   const messageId = newDocumentId();
   const result = checkResult(req, roll, context, messageId);
-  const author = playerOf(actor);
+  const visibility = secretMode(context) ?? req.visibility;
+  // A pf2e GM roll is a secret from the player, whoever asked for it.
+  const author = cardAuthor(actor, visibility, false);
   const authorId = author?.id ?? foundryGame()?.user?.id ?? "";
-  const secret = secretMode(context);
-  const { whisper, blind } = visibilityOf(secret ?? req.visibility, authorId);
+  const { whisper, blind } = visibilityOf(visibility, authorId);
   const posted = await postUnposted(source, {
     _id: messageId,
     ...(author?.id ? { author: author.id } : {}),

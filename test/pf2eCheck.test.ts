@@ -686,6 +686,16 @@ describe("pf2e.check.v1", () => {
     expect(result.messageMode).toBe("gm");
   });
 
+  it.each(["app", "player"])(
+    "authors a GM roll (origin %s) as the GM, so the player cannot read it",
+    async (origin) => {
+      await call(payload({ visibility: "gm", origin }));
+      expect(created[0].data).not.toHaveProperty("author");
+      expect(created[0].data.whisper).toEqual([GM, COMPANION]);
+      expect(created[0].data.blind).toBe(false);
+    },
+  );
+
   it("keeps a check secret when pf2e made it so, whatever the request asked", async () => {
     outcome = {
       faces: [9],
@@ -697,6 +707,9 @@ describe("pf2e.check.v1", () => {
     const result = await call(payload({ statistic: "stealth" }));
     expect(result.messageMode).toBe("gm");
     expect(created[0].data.whisper).toEqual([GM, COMPANION]);
+    expect(created[0].data.blind).toBe(false);
+    // Secret to the player too: the GM, not the player, authors it.
+    expect(created[0].data).not.toHaveProperty("author");
     // The GM's own chat mode alone does not make an app roll secret.
     outcome = { faces: [9], total: 15, messageMode: "gm" };
     stubWorld();

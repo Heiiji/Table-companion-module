@@ -520,10 +520,21 @@ describe("knight.attack.v1 roll", () => {
     // The real service user was renamed; a player took the default name.
     world.users.contents[2].name = "Table app";
     world.users.contents[1].name = "Companion";
-    await knightAttackV1(payload({ visibility: "gm" }), {} as never);
+    await knightAttackV1(
+      payload({ visibility: "gm", origin: "player" }),
+      {} as never,
+    );
     const card = world.messages.contents[0] as Message;
     expect(card.author).toBe(PLAYER);
     expect(card.whisper).toEqual([GM, COMPANION]);
+  });
+
+  it("authors the app's GM roll as the GM, not the PC's player", async () => {
+    await knightAttackV1(payload({ visibility: "gm" }), {} as never);
+    const card = world.messages.contents[0] as Message;
+    expect(card.author).toBeUndefined();
+    expect(card.whisper).toEqual([GM, COMPANION]);
+    expect(card.blind).toBe(false);
   });
 
   it("rolls a ranged barrage weapon as an attack, with the option off", async () => {

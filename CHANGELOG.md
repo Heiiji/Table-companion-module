@@ -4,6 +4,13 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- A Gamemaster-only roll or card posted for a player's character is no longer readable by that
+  player in Foundry's chat: the Gamemaster now authors it. A player's own private Gamemaster roll
+  still shows to that player, as in Foundry.
+
 ## [0.26.1] - 2026-11-11
 
 ### Fixed

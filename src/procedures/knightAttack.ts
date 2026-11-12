@@ -23,8 +23,8 @@ import {
   type ActorLike,
 } from "./upsertShared.js";
 import {
+  cardAuthor,
   characterOf,
-  playerOf,
   players,
   stampedCard,
   visibilityOf,
@@ -464,7 +464,7 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
       `${PROCEDURE}: a barrage weapon has no attack roll`,
     );
   const { ids, source } = resolveTargets(actor, req.targetActorIds);
-  const author = playerOf(actor);
+  const author = cardAuthor(actor, req.visibility, req.origin === "player");
   const authorId = author?.id ?? foundryGame()?.user?.id ?? "";
   const { whisper, blind } = visibilityOf(req.visibility, authorId);
 

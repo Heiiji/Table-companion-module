@@ -348,6 +348,8 @@ describe("knight.test.v1 roll", () => {
     await knightTestV1(payload({ visibility: "gm" }), {} as never);
     expect(card(0).whisper).toEqual([GM, COMPANION]);
     expect(card(0).blind).toBe(false);
+    // The app's GM roll is the GM's: the PC's player does not author it.
+    expect(card(0).author).toBeUndefined();
     await knightTestV1(
       payload({
         eventId: "00000000-0000-4000-8000-000000000002",
@@ -357,6 +359,17 @@ describe("knight.test.v1 roll", () => {
     );
     expect(card(1).whisper).toEqual([GM, COMPANION]);
     expect(card(1).blind).toBe(true);
+    expect(card(1).author).toBe(PLAYER);
+  });
+
+  it("keeps the player as author of their own GM roll", async () => {
+    await knightTestV1(
+      payload({ visibility: "gm", origin: "player" }),
+      {} as never,
+    );
+    expect(card(0).author).toBe(PLAYER);
+    expect(card(0).whisper).toEqual([GM, COMPANION]);
+    expect(card(0).blind).toBe(false);
   });
 
   it("answers a retry of the same eventId from the card, never rolling twice", async () => {

@@ -230,6 +230,8 @@ describe("pf2e.card.v1", () => {
     });
     expect(created[0].data.whisper).toEqual([GM, COMPANION]);
     expect(created[0].data.blind).toBe(false);
+    // Authored by the GM, so the PC's player cannot read it.
+    expect(created[0].data).not.toHaveProperty("author");
   });
 
   it("answers a retry from the stamped card and joins one in flight, posting once", async () => {

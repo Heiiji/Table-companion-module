@@ -18,8 +18,8 @@ import {
   uuid,
 } from "./upsertShared.js";
 import {
+  cardAuthor,
   newDocumentId,
-  playerOf,
   postUnposted,
   runOnce,
   visibilityOf,
@@ -155,7 +155,7 @@ async function post(req: Pf2eCardV1): Promise<Pf2eCardResultV1> {
 
   const messageId = newDocumentId();
   const result: Pf2eCardResultV1 = { messageId, alreadyPosted: false };
-  const author = playerOf(actor);
+  const author = cardAuthor(actor, req.visibility, false);
   const authorId = author?.id ?? foundryGame()?.user?.id ?? "";
   const { whisper, blind } = visibilityOf(req.visibility, authorId);
   const posted = await postUnposted(source, {

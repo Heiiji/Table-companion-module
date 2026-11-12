@@ -81,6 +81,20 @@ export function playerOf(actor: ActorLike): Player | undefined {
   );
 }
 
+/**
+ * The card's author: the PC's player, except on a GM-only card, which the
+ * responder GM authors (no `author`: Foundry takes the current user), since
+ * Foundry shows a whispered card's content to its author. A player's own GM
+ * roll (`playerRoll`) keeps the player, as Foundry's private GM roll does.
+ */
+export function cardAuthor(
+  actor: ActorLike,
+  visibility: CardVisibility,
+  playerRoll: boolean,
+): Player | undefined {
+  return visibility === "gm" && !playerRoll ? undefined : playerOf(actor);
+}
+
 /** The card's visibility, in place of the GM's own roll mode. */
 export function visibilityOf(
   visibility: CardVisibility,
