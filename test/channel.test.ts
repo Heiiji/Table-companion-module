@@ -13,6 +13,7 @@ import {
   CAP_ACTOR_ITEMS_ARMOUR,
   CAP_KNIGHT_ATTACK_ITEM_ID,
   CAP_KNIGHT_NPC_RESOURCES,
+  CAP_BINDING_RECLAIM,
   CAP_BINDING_TAKEOVER,
   CAP_KNIGHT_SHEET_GLORY,
   CAP_KNIGHT_SHEET_WRITES,
@@ -1133,6 +1134,7 @@ describe("Channel response signing", () => {
     expect(capabilities).not.toContain(CAP_KNIGHT_SHEET_WRITES);
     // The take-over token rides the Knight write lanes.
     expect(capabilities).not.toContain(CAP_BINDING_TAKEOVER);
+    expect(capabilities).not.toContain(CAP_BINDING_RECLAIM);
     expect(Object.keys(mixed.unsupported as object).sort()).toEqual(
       AUTHOR_LANES,
     );
@@ -1163,6 +1165,7 @@ describe("Channel response signing", () => {
       CAP_KNIGHT_SHEET_WRITES,
     );
     expect(admitted.capabilities as string[]).toContain(CAP_BINDING_TAKEOVER);
+    expect(admitted.capabilities as string[]).toContain(CAP_BINDING_RECLAIM);
     expect(admitted.unsupported).toBeUndefined();
   });
 

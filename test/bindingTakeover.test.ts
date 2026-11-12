@@ -309,7 +309,23 @@ describe("binding take-over", () => {
       expect(create).not.toHaveBeenCalled();
     });
 
-    it("takes it back with reclaim, and leaves the history", async () => {
+    /** A reclaim row as the apps send it: the identity keys, no values. */
+    const reclaimRow = (overrides: Record<string, unknown> = {}) => {
+      const row: Record<string, unknown> = resources({
+        reclaim: true,
+        ...overrides,
+      });
+      if (!("resources" in overrides)) delete row.resources;
+      return row;
+    };
+
+    /** The flags an update carries, everything else being a document field. */
+    const documentFields = (actor: FakeActor) =>
+      actor.updates.flatMap((u) =>
+        Object.keys(u).filter((k) => !k.startsWith(`flags.${MODULE_ID}.`)),
+      );
+
+    it("takes it back with reclaim, writes no value, and leaves the history", async () => {
       vi.useFakeTimers({ toFake: ["Date"] });
       vi.setSystemTime(new Date(NOW));
       try {
@@ -317,8 +333,10 @@ describe("binding take-over", () => {
           entry("table-3", "character-3", "2026-11-01T00:00:00.000Z"),
           entry("table-1", "character-1", "2026-11-02T00:00:00.000Z"),
         ]);
+        actor.name = "Played elsewhere";
         stubFoundry([actor]);
-        const result = await applyResources(resources({ reclaim: true }));
+        const before = structuredClone(actor.system);
+        const result = await applyResources(reclaimRow());
         expect(result.warnings).toEqual(["binding_taken_over"]);
         expect(flags(actor).binding).toMatchObject({
           tableId: "table-1",
@@ -328,9 +346,93 @@ describe("binding take-over", () => {
             entry("table-2", "character-2"),
           ],
         });
+        // The other table's lane records are gone; the reclaim's own records
+        // nothing as written, so the next base compare reads Foundry.
+        expect(flags(actor)).not.toHaveProperty("actorUpsertV1");
+        expect(flags(actor).actorResourcesV1).toMatchObject({
+          appliedRevision: 7,
+          warnings: ["binding_taken_over"],
+          written: {},
+        });
+        expect(actor.updates).toHaveLength(1);
+        expect(documentFields(actor)).toEqual([]);
+        expect(actor.system).toEqual(before);
+        expect(actor.name).toBe("Played elsewhere");
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    it("ignores the values an older app sends with a reclaim, and says so", async () => {
+      const actor = lost();
+      actor.name = "Played elsewhere";
+      stubFoundry([actor]);
+      const before = structuredClone(actor.system);
+      const row = reclaimRow({
+        resources: { health: 12, hope: 3 },
+        name: "Local name",
+        previousName: "Played elsewhere",
+        base: { resources: { health: 2, hope: 4 } },
+      });
+      const result = await applyResources(row);
+      expect(result.warnings).toEqual([
+        "binding_taken_over",
+        "reclaim_values_ignored",
+      ]);
+      expect(flags(actor).binding.tableId).toBe("table-1");
+      expect(documentFields(actor)).toEqual([]);
+      expect(actor.system).toEqual(before);
+      expect(actor.name).toBe("Played elsewhere");
+      expect(flags(actor).actorResourcesV1.written).toEqual({});
+      // A re-send replays, with or without the ignored values.
+      expect(await applyResources(row)).toEqual(result);
+      expect(await applyResources(reclaimRow())).toEqual(result);
+      expect(actor.updates).toHaveLength(1);
+    });
+
+    it("then applies the reclaiming table's next write based on Foundry's values", async () => {
+      const actor = lost();
+      stubFoundry([actor]);
+      await applyResources(reclaimRow());
+      // Foundry holds health 1 (the other table played it). A base naming the
+      // reclaiming table's own old value is refused: the reclaim recorded
+      // nothing as written.
+      expect(
+        await code(
+          applyResources(
+            resources({
+              sequence: 8,
+              resources: { health: 7 },
+              base: { resources: { health: 2 } },
+            }),
+          ),
+        ),
+      ).toBe("base_conflict");
+      // The app adopted Foundry's value: its next write applies.
+      const next = await applyResources(
+        resources({
+          sequence: 9,
+          resources: { health: 5 },
+          base: { resources: { health: 1 } },
+        }),
+      );
+      expect(next.warnings).toEqual([]);
+      expect(next.appliedRevision).toBe(9);
+      expect(actor.system).toMatchObject({ sante: { value: 5 } });
+    });
+
+    it("writes no value on a reclaim by the table that already holds the Actor", async () => {
+      const actor = heldBy("table-1", "character-1", [entry("table-2")]);
+      delete flags(actor).actorResourcesV1;
+      stubFoundry([actor]);
+      const before = structuredClone(actor.system);
+      const result = await applyResources(
+        reclaimRow({ resources: { health: 12 } }),
+      );
+      expect(result.warnings).toEqual(["reclaim_values_ignored"]);
+      expect(documentFields(actor)).toEqual([]);
+      expect(actor.system).toEqual(before);
+      expect(flags(actor).binding.previous).toEqual([entry("table-2")]);
     });
   });
 
@@ -456,6 +558,19 @@ describe("actor.resources.v1 reclaim validation", () => {
     expect(validateKnightActorResourcesV1(req)).toEqual(req);
     expect(Object.keys(validateKnightActorResourcesV1(req)).at(-1)).toBe(
       "reclaim",
+    );
+  });
+
+  it("accepts a reclaim with no value, and nothing else without one", () => {
+    const row: Record<string, unknown> = resources({ reclaim: true });
+    delete row.resources;
+    expect(validateKnightActorResourcesV1(row)).toMatchObject({
+      reclaim: true,
+      resources: {},
+    });
+    delete row.reclaim;
+    expect(() => validateKnightActorResourcesV1(row)).toThrow(
+      "resources needs at least one value",
     );
   });
 

@@ -4,6 +4,15 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Taking a Knight Actor back (`reclaim: true` on `actor.resources.v1`) takes the binding back and
+  writes no value: the reclaiming table then reads Foundry's current values, so nothing the other
+  table played is overwritten. A reclaim row may now carry no value; the values or name an older
+  app still sends with one are ignored and the result warns `reclaim_values_ignored`. Advertised
+  as `bindingReclaimV2`, beside `bindingTakeoverV1`.
+
 ## [0.30.0] - 2026-11-12
 
 ### Added

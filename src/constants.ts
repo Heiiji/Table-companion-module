@@ -122,6 +122,15 @@ export const CAP_KNIGHT_NPC_RESOURCES = "knightNpcResourcesV1";
  * handler. */
 export const CAP_BINDING_TAKEOVER = "bindingTakeoverV1";
 
+/** Capability token advertised with `CAP_BINDING_TAKEOVER`: a `reclaim` on
+ * `actor.resources.v1` takes the binding back and writes no value — the
+ * reclaiming table then reads Foundry's current values. This build accepts a
+ * reclaim row with no values, and ignores (warning `reclaim_values_ignored`)
+ * any an older app still sends with it. Apps send the value-less row only
+ * when the world advertises it, since an older build refuses it. NOT a
+ * procedure name — it has no handler. */
+export const CAP_BINDING_RECLAIM = "bindingReclaimV2";
+
 /** Capability token advertised when both `actor.resources.v1` and
  * `knight.statistics.v1` are: this build accepts the optional `sheet` group
  * (with `base.sheet`) on `actor.resources.v1` for a Knight player character —

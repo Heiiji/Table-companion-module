@@ -118,7 +118,8 @@ export interface KnightActorResourcesV1 extends LiveHeaderV1<ActorType> {
   };
   wear?: Wear;
   previousWear?: Wear | "ascension";
-  /** A table that lost the Actor to another takes it back. */
+  /** A table that lost the Actor to another takes it back: the binding only,
+   * never a value (any sent by an older app is ignored). */
   reclaim?: true;
 }
 
@@ -229,6 +230,7 @@ export function validateKnightActorResourcesV1(
       invalid("wear carries no resources nor base");
   }
   if (
+    !p.reclaim &&
     Object.keys(resources).length === 0 &&
     name === undefined &&
     p.wear === undefined &&
@@ -271,8 +273,27 @@ function resourcePathsOf(
   );
 }
 
+/** A reclaim takes the binding back and writes nothing else: the reclaiming
+ * table then reads Foundry's current values. The values and name an older app
+ * still sends with it are dropped here (before the digest, so a re-send with
+ * or without them replays), and the second item says whether any was. */
+function reclaimOnly(
+  req: KnightActorResourcesV1,
+): [KnightActorResourcesV1, boolean] {
+  if (!req.reclaim) return [req, false];
+  const { resources, name, base, previousName: _p, ...identity } = req;
+  return [
+    { ...identity, resources: {} },
+    Object.keys(resources).length > 0 ||
+      name !== undefined ||
+      base !== undefined,
+  ];
+}
+
 export const actorResourcesV1: Procedure = async (payload) => {
-  const req = validateKnightActorResourcesV1(payload);
+  const [req, valuesIgnored] = reclaimOnly(
+    validateKnightActorResourcesV1(payload),
+  );
   assertKnightUpsertAuthority("actor.resources.v1");
   const digest = await canonicalDigest(req);
   const actor = linkedActor(req, req.actorType, {
@@ -315,6 +336,7 @@ export const actorResourcesV1: Procedure = async (payload) => {
 
   const patch: Dict = {};
   const warnings: string[] = takeover ? ["binding_taken_over"] : [];
+  if (valuesIgnored) warnings.push("reclaim_values_ignored");
   if (req.wear !== undefined) {
     const current = wornGear(actor);
     if (current === "ascension")
