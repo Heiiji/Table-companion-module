@@ -84,8 +84,8 @@ import {
  * show.
  *
  * Foundry drops a refused update whole and resolves without throwing, so every
- * update is read back: a value, the name or the result flag not in place
- * answers `procedure_failed`, and nothing is recorded.
+ * update is read back: the result flag it carried not in place answers
+ * `procedure_failed`, and nothing is recorded.
  */
 
 /**
@@ -399,7 +399,7 @@ export const actorResourcesV1: Procedure = async (payload) => {
       }),
     },
   });
-  assertLanded(actor, patch, req.sequence, warnings);
+  assertLanded(actor, req.sequence, warnings);
 
   // A stat or experience write Foundry does not prepare at its target is
   // undone: never a stored base the sheet does not show. Undoing an aspect can
@@ -425,18 +425,19 @@ export const actorResourcesV1: Procedure = async (payload) => {
       ...undo,
       [flagKey]: { warnings: [...warnings], written: forget },
     });
-    assertLanded(actor, undo, req.sequence, warnings);
+    assertLanded(actor, req.sequence, warnings);
   }
   return result;
 };
 
 /** Foundry drops a refused update whole and resolves without throwing (as it
- * does when nothing differs), so the return value proves nothing: every
- * `system.*` value and the name the update carried, and the result flag's
- * sequence and warnings, must read back. */
+ * does when nothing differs), so the return value proves nothing. The result
+ * flag rides every update of this lane: its sequence and warnings in place
+ * prove the update landed. The values themselves are not compared — Foundry
+ * prepares some of them (a pool clamped to its maximum, a worn armour's
+ * points), and a prepared value that differs is not a dropped update. */
 function assertLanded(
   actor: ActorLike,
-  patch: Dict,
   sequence: number,
   warnings: string[],
 ): void {
@@ -444,13 +445,7 @@ function assertLanded(
     actor.flags,
     `${MODULE_ID}.${FLAG_KEYS.actorResources}`,
   ) as Dict | undefined;
-  const missed = Object.entries(patch).some(([key, value]) =>
-    key.startsWith("system.")
-      ? valueAt(actor.system, key.slice("system.".length)) !== value
-      : key === "name" && actor.name !== value,
-  );
   if (
-    missed ||
     flag?.appliedRevision !== sequence ||
     canonicalize(flag.warnings) !== canonicalize(warnings)
   )

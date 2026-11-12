@@ -1253,6 +1253,23 @@ describe("actor.resources.v1 landed check", () => {
   });
 });
 
+describe("actor.resources.v1 landed check, prepared values", () => {
+  it("is applied when Foundry prepares a written value differently", async () => {
+    const actor = boundActor();
+    // Foundry applies the update, then prepares the pool lower than written
+    // (a derived value): the update landed, so the write is applied.
+    const update = actor.update.bind(actor);
+    actor.update = async (changes) => {
+      await update(changes);
+      (actor.system as { sante: { value: number } }).sante.value = 11;
+    };
+    stubFoundry([actor]);
+    const result = await apply(request());
+    expect(result.outcome).toBe("updated");
+    expect(actor.flags[MODULE_ID]).toHaveProperty("actorResourcesV1");
+  });
+});
+
 describe("actor.resources.v1 sheet validation", () => {
   const sheetOnly = (overrides: Record<string, unknown>) => ({
     ...withoutResources(),

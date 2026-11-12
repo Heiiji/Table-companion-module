@@ -16,7 +16,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   overridden or unreadable one is skipped and reported.
 
 ### Fixed
-- The live resources write now reads its update back: when Foundry refuses the update (which it
+- The live resources write now checks that its update landed: when Foundry refuses the update (which it
   does without an error), the write answers `procedure_failed` and records nothing, instead of
   reporting values that never landed.
 
