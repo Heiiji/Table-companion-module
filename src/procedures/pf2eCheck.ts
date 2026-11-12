@@ -106,6 +106,9 @@ export interface Pf2eCheckV1 {
   rollTwice: (typeof ROLL_TWICE)[number] | null;
   targetActorIds: string[];
   visibility: (typeof VISIBILITIES)[number];
+  /** Optional: `false` hides the request's DC from players on Foundry's card
+   * (pf2e's `dc.visible`). Absent when the request did not send it. */
+  dcVisible?: boolean;
 }
 
 export interface Pf2eCheckResultV1 {
@@ -156,10 +159,11 @@ interface Token extends TokenObj {
 
 // ------------------------------------------------------------- validation
 
-/** The strict payload: every key required, unknown keys refused, and the
- * one identity block its `kind` names (the other two null). */
+/** The strict payload: every key required (but the optional `dcVisible`),
+ * unknown keys refused, and the one identity block its `kind` names (the
+ * other two null). */
 export function validatePf2eCheckV1(payload: unknown): Pf2eCheckV1 {
-  const p = record(payload, "payload", PAYLOAD_KEYS);
+  const p = record(payload, "payload", [...PAYLOAD_KEYS, "dcVisible"]);
   for (const key of PAYLOAD_KEYS)
     if (!(key in p)) invalid(`payload.${key} is required`);
   const kind = oneOf(p.kind, "kind", KINDS);
@@ -174,6 +178,12 @@ export function validatePf2eCheckV1(payload: unknown): Pf2eCheckV1 {
     p.strike === null ? null : record(p.strike, "strike", ["itemId", "slug"]);
   const spell =
     p.spell === null ? null : record(p.spell, "spell", ["entryId", "spellId"]);
+  if ("dcVisible" in p) {
+    if (typeof p.dcVisible !== "boolean")
+      invalid("dcVisible must be a boolean");
+    if (p.dcVisible === false && p.dc === null)
+      invalid("dcVisible false needs a dc");
+  }
   return {
     eventId: identifier(p.eventId, "eventId", uuid),
     origin: oneOf(p.origin, "origin", ORIGINS),
@@ -197,6 +207,7 @@ export function validatePf2eCheckV1(payload: unknown): Pf2eCheckV1 {
       identifier(id, `targetActorIds[${i}]`, documentId),
     ),
     visibility: oneOf(p.visibility, "visibility", VISIBILITIES),
+    ...("dcVisible" in p ? { dcVisible: p.dcVisible as boolean } : {}),
   };
 }
 
@@ -215,11 +226,19 @@ export function supportsPf2eCheckV1Runtime(): boolean {
  * world: a synthetic event passes pf2e's `isRelevantEvent`.
  */
 export function skipDialogEvent(): unknown {
+  return clickSkipping("showCheckDialogs");
+}
+
+/** The damage twin of `skipDialogEvent`: pf2e's damage roll reads the
+ * user's `showDamageDialogs` instead. */
+export function skipDamageDialogEvent(): unknown {
+  return clickSkipping("showDamageDialogs");
+}
+
+function clickSkipping(setting: string): unknown {
   const settings = (foundryGame()?.user as { settings?: Dict } | undefined)
     ?.settings;
-  return new PointerEvent("click", {
-    shiftKey: settings?.showCheckDialogs === true,
-  });
+  return new PointerEvent("click", { shiftKey: settings?.[setting] === true });
 }
 
 function dictAt(v: unknown, key: string): unknown {
@@ -290,7 +309,12 @@ async function withoutGmTargets<T>(roll: () => Promise<T>): Promise<T> {
   }
 }
 
-const dcOf = (dc: number | null) => (dc === null ? null : { value: dc });
+/** The request's DC as pf2e takes it; a hidden one shows the Gamemaster
+ * alone the DC and the margin on the card. */
+const dcOf = (req: Pf2eCheckV1) =>
+  req.dc === null
+    ? null
+    : { value: req.dc, ...(req.dcVisible === false ? { visible: false } : {}) };
 
 /** The pf2e call this request names, ready to roll with a callback. */
 function rollerFor(
@@ -318,7 +342,7 @@ function rollerFor(
     return (callback) =>
       statistic.roll!({
         ...common,
-        dc: dcOf(req.dc),
+        dc: dcOf(req),
         messageMode: req.visibility,
         skipDialog: true,
         callback,
@@ -354,7 +378,7 @@ function rollerFor(
     return run((callback) =>
       (roll as RollFn)({
         ...common,
-        dc: dcOf(req.dc),
+        dc: dcOf(req),
         consumeAmmo: false,
         event: skipDialogEvent(),
         ...(target ? { target } : {}),
@@ -392,7 +416,7 @@ function rollerFor(
       traits: [
         ...new Set([...(Array.isArray(ownTraits) ? ownTraits : []), tradition]),
       ].filter((t) => typeof t === "string"),
-      dc: dcOf(req.dc) ?? {
+      dc: dcOf(req) ?? {
         slug:
           dictAt(dictAt(dictAt(system, "defense"), "passive"), "statistic") ??
           "ac",

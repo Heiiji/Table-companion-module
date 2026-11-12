@@ -120,6 +120,44 @@ export function validatePf2eCardV1(payload: unknown): Pf2eCardV1 {
   };
 }
 
+/** What pf2e rolls when a consumable is used (`system.damage`), and the
+ * item's identity for the use card's `flags.pf2e.origin`. */
+export interface ConsumableEffect {
+  name: string;
+  formula: string;
+  type: string;
+  kind: string;
+  sourceId: string | null;
+  uuid: string | null;
+}
+
+/** A consumable's effect, when it has a formula. */
+export function consumableEffect(item: unknown): ConsumableEffect | undefined {
+  const i = item as {
+    type?: string;
+    name?: string;
+    uuid?: string;
+    sourceId?: string | null;
+    _stats?: { compendiumSource?: string | null };
+    system?: { damage?: { formula?: unknown; type?: unknown; kind?: unknown } };
+  } | null;
+  const damage = i?.system?.damage;
+  if (
+    i?.type !== "consumable" ||
+    typeof damage?.formula !== "string" ||
+    !damage.formula.trim()
+  )
+    return undefined;
+  return {
+    name: String(i.name ?? ""),
+    formula: damage.formula,
+    type: typeof damage.type === "string" ? damage.type : "",
+    kind: typeof damage.kind === "string" ? damage.kind : "damage",
+    sourceId: i.sourceId ?? i._stats?.compendiumSource ?? null,
+    uuid: i.uuid ?? null,
+  };
+}
+
 /** Registration gate: the pf2e live-counters floor. */
 export function supportsPf2eCardV1Runtime(): boolean {
   return supportsPf2eResourcesV1Runtime();
@@ -159,6 +197,9 @@ async function post(req: Pf2eCardV1): Promise<Pf2eCardResultV1> {
 
   const messageId = newDocumentId();
   const result: Pf2eCardResultV1 = { messageId, alreadyPosted: false };
+  // Kept on the card, so its effect can still be rolled once the app has
+  // removed the last one from the Actor.
+  const effect = consumableEffect(item);
   const author = cardAuthor(actor, req.visibility, false);
   const authorId = author?.id ?? foundryGame()?.user?.id ?? "";
   const { whisper, blind } = visibilityOf(req.visibility, authorId);
@@ -174,6 +215,7 @@ async function post(req: Pf2eCardV1): Promise<Pf2eCardResultV1> {
         origin: req.origin,
         lane: CARD_LANE,
         result,
+        ...(effect ? { effect } : {}),
       },
     },
   });

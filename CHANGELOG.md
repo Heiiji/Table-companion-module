@@ -11,6 +11,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   check lane's releases with pf2e's `Check.rerollFromMessage`) is now rerolled by Foundry: its card is
   replaced by the system's own reroll card, with the same author and visibility, and Foundry spends no
   Hero Point (the app spends it).
+- The damage or critical damage of a Pathfinder 2e Strike, the damage of a spell and a consumable's
+  effect that follow a card Foundry rolled or posted for the app (`pf2e.followup.v1`, signed-only, on
+  the check lane's releases) are now rolled by pf2e itself, with its own damage card, which keeps the
+  original card's author and visibility. Dialogs never open and nothing is spent: no ammunition, slot
+  or item (a consumable's use card is built without taking one from its quantity). An item card of a
+  consumable keeps its effect in the card's stamp, so the effect can still be rolled once the item is
+  gone.
+- A Pathfinder 2e check (`pf2e.check.v1`) takes an optional `dcVisible`: `false` hides the app's DC
+  from players on Foundry's card (the Gamemaster still reads the DC and the margin).
 
 ## [0.28.0] - 2026-11-12
 

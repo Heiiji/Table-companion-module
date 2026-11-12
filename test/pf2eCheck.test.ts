@@ -348,10 +348,23 @@ describe("pf2e.check.v1 payload", () => {
     ["a blind roll", { visibility: "blind" }],
     ["a self roll", { visibility: "self" }],
     ["an unknown origin", { origin: "gm" }],
+    ["a non-boolean dcVisible", { dcVisible: "no" }],
+    ["a null dcVisible", { dcVisible: null }],
+    ["a hidden DC without a DC", { dcVisible: false, dc: null }],
   ])("refuses %s", (_label, over) => {
     const p = payload(over);
     for (const [k, v] of Object.entries(p)) if (v === undefined) delete p[k];
     expect(() => validatePf2eCheckV1(p)).toThrow(RpcError);
+  });
+
+  it("accepts the optional dcVisible, and leaves it out when absent", () => {
+    expect(validatePf2eCheckV1(payload({ dcVisible: false }))).toEqual(
+      payload({ dcVisible: false }),
+    );
+    expect(validatePf2eCheckV1(payload({ dcVisible: true, dc: null }))).toEqual(
+      payload({ dcVisible: true, dc: null }),
+    );
+    expect(validatePf2eCheckV1(payload())).not.toHaveProperty("dcVisible");
   });
 
   it("refuses a strike block with an unknown key or a malformed item id", () => {
@@ -633,6 +646,35 @@ describe("pf2e.check.v1", () => {
     expect(pc.entry.consume).not.toHaveBeenCalled();
     expect(pc.update).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["statistic", () => payload(), () => pc.statistics.perception.roll],
+    ["strike", () => strike(), () => pc.variants[0].roll],
+    [
+      "spellAttack",
+      () =>
+        payload({
+          kind: "spellAttack",
+          statistic: null,
+          spell: { entryId: ENTRY, spellId: SPELL },
+        }),
+      () => pc.entry.statistic.check.roll,
+    ],
+  ])(
+    "hides the DC of a %s from players on dcVisible false, and only then",
+    async (_kind, request, roll) => {
+      const hidden = await call({ ...request(), dcVisible: false });
+      expect(roll().mock.calls[0][0].dc).toEqual({ value: 20, visible: false });
+      expect(hidden.degreeSource).toBe("dc");
+      stubWorld();
+      await call({
+        ...request(),
+        eventId: "77777777-6666-4555-8444-333333333333",
+        dcVisible: true,
+      });
+      expect(roll().mock.calls[0][0].dc).toEqual({ value: 20 });
+    },
+  );
 
   it.each([
     ["actor_not_found", payload({ actorId: "missing000000001" })],

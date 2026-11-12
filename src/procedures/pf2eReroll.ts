@@ -66,7 +66,7 @@ export interface Pf2eRerollV1 {
 
 /** A chat message as this lane reads it: Foundry keeps the author's id, the
  * whisper and blind in the source. */
-interface Message extends CardMessage {
+export interface Message extends CardMessage {
   _source?: { author?: string; whisper?: string[]; blind?: boolean };
   whisper?: string[];
   blind?: boolean;
@@ -169,7 +169,7 @@ function rerollResult(
 }
 
 /** The visibility a card was posted with, as the check reply names it. */
-function modeOf(m: Message): Pf2eCheckResultV1["messageMode"] {
+export function modeOf(m: Message): Pf2eCheckResultV1["messageMode"] {
   const whisper = m._source?.whisper ?? m.whisper ?? [];
   return (m._source?.blind ?? m.blind)
     ? "blind"

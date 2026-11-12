@@ -136,6 +136,9 @@ Gamemaster can open setup from the console with
   A Hero Point reroll of such a check is rerolled by pf2e itself (`pf2e.reroll.v1`): pf2e replaces the
   card with its own reroll card, which keeps the original card's author and visibility; Foundry spends
   no Hero Point, the app does.
+  The damage or critical damage of such a Strike, the damage of a spell and a consumable's effect are
+  rolled by pf2e too (`pf2e.followup.v1`), on its own damage card with the original card's author and
+  visibility; nothing is spent. A check may hide its DC from players (`dcVisible: false`).
 - **Knight prepared statistics:** on the same Knight releases, the app reads a Knight character's or
   non-player Actor's aspects, characteristics and overdrives, health, hope, armour, energy, contacts,
   force field, defense, reaction and initiative as the Knight system prepared them
