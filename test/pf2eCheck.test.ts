@@ -428,7 +428,7 @@ describe("pf2e.check.v1", () => {
     // pf2e's own flags are kept; the module's stamp carries the result.
     expect(data.flags.pf2e.context.outcome).toBe("success");
     // The stamp keeps the result without the DC, which pf2e's context holds.
-    const { dcValue: _dc, ...stamped } = result;
+    const stamped = { ...result, dcValue: undefined };
     expect(data.flags[MODULE_ID]).toEqual({
       eventId: EVENT,
       origin: "player",
@@ -478,7 +478,7 @@ describe("pf2e.check.v1", () => {
     expect(data.flags.pf2e.context.dc.value).toBe(TARGET_AC);
     expect(result.dcValue).toBe(TARGET_AC);
     expect(Object.keys(result).at(-1)).toBe("dcValue");
-    const { dcValue: _dc, ...stamped } = result;
+    const stamped = { ...result, dcValue: undefined };
     expect(data.flags[MODULE_ID].result).toEqual(stamped);
     expect(JSON.stringify(data.flags[MODULE_ID])).not.toContain("dcValue");
     expect(Object.keys(result)).not.toContain("dc");

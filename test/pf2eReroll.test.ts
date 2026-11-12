@@ -299,7 +299,7 @@ describe("pf2e.reroll.v1", () => {
     const card = replacement();
     expect(world.messages.contents).toEqual([card]);
     expect(card.id).toBe(reply.messageId);
-    const { dcValue: _dc, ...stamped } = reply;
+    const stamped = { ...reply, dcValue: undefined };
     expect(card.flags[MODULE_ID]).toEqual({
       eventId: EVENT,
       origin: "player",
