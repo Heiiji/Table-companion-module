@@ -123,7 +123,7 @@ Gamemaster can open setup from the console with
   spell slots, prepared spells, focus points and innate uses. A condition another item grants or
   locks, the level and the attributes are never touched.
 - **Pathfinder 2e prepared statistics:** on the same releases, the app reads a character's or NPC's
-  armor class, perception, saves, skills, class DC, spellcasting attack and DC, and strikes (attack
+  armor class, maximum Hit Points, perception, saves, skills, class DC, spellcasting attack and DC, and strikes (attack
   modifiers with the multiple attack penalty, damage formulas) as pf2e prepared them
   (`pf2e.statistics.v1`), to roll with Foundry's own numbers. Nothing is written or rolled in Foundry.
 - **Pathfinder 2e checks and cards:** on pf2e 8.5.1 or a later 8.x on Foundry 14, a check, a

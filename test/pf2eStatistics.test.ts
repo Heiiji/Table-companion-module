@@ -93,6 +93,8 @@ function character(over: Record<string, unknown> = {}) {
     },
     classDC: statistic("rogue", 9, 1),
     system: {
+      // Prepared: the stored maximum is not there, rule elements raise it.
+      attributes: { hp: { value: 50, temp: 3, max: 106 } },
       actions: [
         strike("Rapier", 9, [0, -4, -8]),
         // Area fire is not a strike; a hidden strike is not printed.
@@ -129,6 +131,7 @@ function npc(over: Record<string, unknown> = {}) {
     skills: { athletics: statistic("athletics", 8, null) },
     classDC: statistic("class", 99, null),
     system: {
+      attributes: { hp: { value: 45, temp: 0, max: 45 } },
       actions: [
         // NPC strikes print "1"; one not subject to MAP has a single variant.
         strike("Jaws", 10, [0, -5, -10], { glyph: "1", weaponTraits: [] }),
@@ -194,6 +197,7 @@ describe("pf2e.statistics.v1", () => {
       actorId: PC_ID,
       actorType: "character",
       ac: 21,
+      hp: { max: 106 },
       perception: { mod: 9, dc: 19, rank: 2 },
       saves: {
         fortitude: { mod: 10, dc: 20, rank: 2 },
@@ -253,6 +257,7 @@ describe("pf2e.statistics.v1", () => {
       request({ expectedActorId: NPC_ID, actorType: "npc" }),
     );
     expect(out.classDC).toBeNull();
+    expect(out.hp).toEqual({ max: 45 });
     expect(out.perception).toEqual({ mod: 6, dc: 16, rank: null });
     expect(
       out.strikes.map((s: any) => [s.label, s.variants, s.traits]),
@@ -304,6 +309,44 @@ describe("pf2e.statistics.v1", () => {
         critical: null,
       },
     ]);
+  });
+
+  it("carries the prepared maximum Hit Points only as an integer in 0..9999, leaves the member out otherwise", async () => {
+    const withMax = (max: unknown) =>
+      character({
+        system: {
+          ...character().system,
+          attributes: { hp: { value: 50, temp: 3, max } },
+        },
+      });
+    const full = await read(character());
+    expect(full.hp).toEqual({ max: 106 });
+    const rest = { ...full };
+    delete rest.hp;
+    for (const max of [0, 9999])
+      expect((await read(withMax(max))).hp).toEqual({ max });
+    for (const max of [undefined, null, "106", 1.5, Number.NaN, -1, 10000]) {
+      const out = await read(withMax(max));
+      expect(out).not.toHaveProperty("hp");
+      expect(out).toEqual(rest);
+    }
+    const noAttributes = character({
+      system: { actions: character().system.actions },
+    });
+    expect(await read(noAttributes)).not.toHaveProperty("hp");
+    const throwing = character({
+      system: {
+        ...character().system,
+        attributes: {
+          hp: {
+            get max() {
+              throw new Error("unprepared");
+            },
+          },
+        },
+      },
+    });
+    expect(await read(throwing)).toEqual(rest);
   });
 
   it("cuts a long label to 120 characters and drops a skill without a usable modifier", async () => {

@@ -20,7 +20,8 @@ import {
 
 /**
  * Foundry's prepared numbers for one Pathfinder 2e Actor
- * (`pf2e.statistics.v1`): armor class, perception, saves, skills (lores
+ * (`pf2e.statistics.v1`): armor class, maximum Hit Points, perception, saves,
+ * skills (lores
  * included), class DC, each spellcasting entry's attack and DC, and the
  * strikes with their three multiple-attack-penalty modifiers and damage
  * formulas. A read: it never writes, rolls, posts to chat or opens a sheet.
@@ -35,7 +36,9 @@ import {
  * entry's `statistic` (`item/spellcasting-entry/document.ts`), and the strikes
  * of `system.actions` (`actor/character/document.ts` prepareStrike,
  * `actor/helpers.ts` attackFromMeleeItem): `totalModifier`, `variants[].penalty`,
- * `damage` / `critical` with `{ getFormula: true }`.
+ * `damage` / `critical` with `{ getFormula: true }`. The maximum Hit Points
+ * are `system.attributes.hp.max` once prepared (rule elements such as the
+ * Toughness feat included), which the stored Actor does not carry.
  */
 
 const PROCEDURE = "pf2e.statistics.v1";
@@ -49,6 +52,7 @@ const MAX_TRAITS = 30;
 const MAX_LABEL = 120;
 const MAX_FORMULA = 200;
 const MAX_INT = 999;
+const MAX_HP = 9999;
 
 /** C0 and C1 control characters, DEL included. */
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/g;
@@ -75,6 +79,8 @@ export interface Pf2eStatisticsV1 {
   actorId: string;
   actorType: StatisticsActorType;
   ac: number | null;
+  /** Absent when the prepared maximum is not an integer in 0..9999. */
+  hp?: { max: number };
   perception: Pf2eStatV1 | null;
   saves: {
     fortitude: Pf2eStatV1 | null;
@@ -162,6 +168,7 @@ export const pf2eStatisticsV1: Procedure = async (payload) => {
     actorId,
     actorType,
     ac: safely(() => int(actor.armorClass?.value)),
+    ...hp(actor),
     perception: stat(actor.perception),
     saves: {
       fortitude: stat(saves.fortitude),
@@ -174,6 +181,17 @@ export const pf2eStatisticsV1: Procedure = async (payload) => {
     strikes: await strikes(actor),
   } satisfies Pf2eStatisticsV1;
 };
+
+function hp(actor: StatisticsActor): { hp?: { max: number } } {
+  const max = safely(() =>
+    dictAt(dictAt(dictAt(actor.system, "attributes"), "hp"), "max"),
+  );
+  return Number.isSafeInteger(max) &&
+    (max as number) >= 0 &&
+    (max as number) <= MAX_HP
+    ? { hp: { max: max as number } }
+    : {};
+}
 
 function skills(actor: StatisticsActor): Pf2eStatisticsV1["skills"] {
   const out: Pf2eStatisticsV1["skills"] = [];

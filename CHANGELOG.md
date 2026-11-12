@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- The prepared statistics read (`pf2e.statistics.v1`) carries the actor's maximum Hit Points as
+  Foundry computes them (feats and effects included), as an optional `hp.max`.
+
 ### Fixed
 - A Gamemaster-only roll or card posted for a player's character is no longer readable by that
   player in Foundry's chat: the Gamemaster now authors it. A player's own private Gamemaster roll
