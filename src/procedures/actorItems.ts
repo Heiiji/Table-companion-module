@@ -15,6 +15,9 @@ import {
   FLAG_KEYS,
   flagValue,
   linkedActor,
+  takeoverPatch,
+  bindingOf,
+  sameCharacter,
   type ActorLike,
   type Dict,
 } from "./upsertShared.js";
@@ -361,8 +364,21 @@ export const actorItemsV1: Procedure = async (payload) => {
   const req = validateKnightActorItemsV1(payload);
   assertKnightUpsertAuthority(PROCEDURE);
   const digest = await canonicalDigest(req);
-  const actor = linkedActor(req, ACTOR_TYPE);
+  const actor = linkedActor(req, ACTOR_TYPE, { takeover: true });
   const warnings: string[] = [];
+  // Another table's Actor is taken over first: this lane writes Items, not
+  // the Actor, so the binding rides an update of its own, checked by reading
+  // the binding back (Foundry drops a refused update without an error).
+  const takeover = takeoverPatch(actor, req);
+  if (takeover) {
+    await actor.update(takeover);
+    if (!sameCharacter(bindingOf(actor), req))
+      throw new RpcError(
+        "procedure_failed",
+        `${PROCEDURE}: Foundry did not apply the update`,
+      );
+    warnings.push("binding_taken_over");
+  }
   const result = (itemId: string): ActorItemsResultV1 => ({
     schemaVersion: 1,
     resultDocId: docId(actor),

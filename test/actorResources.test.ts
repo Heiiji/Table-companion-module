@@ -1215,14 +1215,17 @@ describe("actor.resources.v1 after the world is linked again", () => {
     expect(actor.updates[1]).toMatchObject({ "system.sante.value": 13 });
   });
 
-  it("still refuses an Actor bound to another table under the same world id", async () => {
+  it("takes over an Actor bound to another table under the same world id", async () => {
     const elsewhere = boundActor();
     (
       elsewhere.flags[MODULE_ID] as { binding: { tableId: string } }
     ).binding.tableId = "table-2";
     stubFoundry([elsewhere]);
-    expect(await rpcCode(apply(request()))).toBe("binding_conflict");
-    expect(elsewhere.updates).toHaveLength(0);
+    expect((await apply(request())).warnings).toEqual(["binding_taken_over"]);
+    expect(
+      (elsewhere.flags[MODULE_ID] as { binding: { tableId: string } }).binding
+        .tableId,
+    ).toBe("table-1");
   });
 });
 

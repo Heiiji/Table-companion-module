@@ -596,6 +596,39 @@ describe("npc.upsert.v1", () => {
     );
   });
 
+  it("answers binding_lost, never a second Actor, when another table took the NPC over", async () => {
+    const req = request();
+    const taken = fakeActor("actor00000000ddd");
+    taken.flags[MODULE_ID] = {
+      binding: {
+        schemaVersion: 1,
+        worldId: req.worldId,
+        tableId: "table-2",
+        characterId: "npc-9",
+        previous: [
+          {
+            tableId: req.tableId,
+            characterId: req.characterId,
+            at: "2026-11-12T13:05:00.000Z",
+          },
+        ],
+      },
+    };
+    const create = stubFoundry([taken]);
+    await expectRpcError(
+      npcUpsertV1(req as unknown as Record<string, unknown>, {} as never),
+      "binding_lost",
+    );
+    expect(create).not.toHaveBeenCalled();
+    expect(taken.updates).toHaveLength(0);
+    // A table it was never taken from creates its own NPC as before.
+    await npcUpsertV1(
+      { ...req, tableId: "table-5" } as unknown as Record<string, unknown>,
+      {} as never,
+    );
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
   it("requires a GM responder and an admitted Knight runtime", async () => {
     stubFoundry([], undefined, 13, { id: "knight", version: "3.58.33" }, false);
     await expectRpcError(

@@ -23,6 +23,7 @@ export type RpcErrorCode =
   | "actor_not_found"
   | "binding_collision"
   | "binding_conflict"
+  | "binding_lost"
   | "deleted_link"
   // Ordering and compare-and-set guards.
   | "stale_revision"

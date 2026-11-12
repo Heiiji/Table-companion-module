@@ -1,6 +1,7 @@
 import { MODULE_ID } from "../constants.js";
 import {
   actorImplementation,
+  deletionEntry,
   forcedReplacement,
   foundryGame,
   foundryGeneration,
@@ -49,6 +50,39 @@ export interface BindingV1 {
   worldId: string;
   tableId: string;
   characterId: string;
+  /** The tables this Actor was taken from, oldest first (Knight lanes). */
+  previous?: PreviousHolderV1[];
+}
+
+/** A table + character that held the Actor before, and when it lost it. */
+export interface PreviousHolderV1 {
+  tableId: string;
+  characterId: string;
+  at: string;
+}
+
+/** How many previous holders a binding keeps. */
+const MAX_PREVIOUS = 16;
+
+/** The history of a stored binding; a malformed one reads as empty. */
+function previousOf(value: unknown): PreviousHolderV1[] {
+  if (
+    !Array.isArray(value) ||
+    !value.every(
+      (e) =>
+        typeof e === "object" &&
+        e !== null &&
+        typeof e.tableId === "string" &&
+        typeof e.characterId === "string" &&
+        typeof e.at === "string",
+    )
+  )
+    return [];
+  return value.map(({ tableId, characterId, at }) => ({
+    tableId,
+    characterId,
+    at,
+  }));
 }
 
 /** Foundry document ownership levels used by the provisioning lanes. */
@@ -549,6 +583,7 @@ export function bindingOf(actor: ActorLike): BindingV1 | null {
     worldId: p.worldId as string,
     tableId: p.tableId as string,
     characterId: p.characterId as string,
+    ...(p.previous === undefined ? {} : { previous: previousOf(p.previous) }),
   };
 }
 
@@ -618,10 +653,104 @@ export async function replayDigests(
   return [digest, await canonicalDigest({ ...req, worldId: bound })];
 }
 
+/** The lane records another table leaves on an Actor (stored results with
+ * their revision, digest and `written` values), dropped when the Actor is
+ * taken over. */
+const LANE_RECORDS = [
+  FLAG_KEYS.actorResources,
+  FLAG_KEYS.actorUpsert,
+  FLAG_KEYS.npcUpsert,
+] as const;
+
+/** Options of the Knight lanes, which take over an Actor another table holds
+ * (the other systems' lanes never do). `reclaim`: a table that lost the Actor
+ * takes it back. */
+export interface TakeoverOptions {
+  takeover: true;
+  reclaim?: boolean;
+}
+
+/** May the request take over `bound`, an Actor bound to another character?
+ * Never within one table (two characters on one Actor is a defect); never
+ * automatically for a table that lost it (`binding_lost`) unless it reclaims
+ * it. Without the option the binding is a conflict, as on every other lane. */
+export function assertTakeover(
+  bound: BindingV1,
+  req: { tableId: string; characterId: string },
+  conflict: string,
+  options?: TakeoverOptions,
+): void {
+  if (!options?.takeover || bound.tableId === req.tableId)
+    throw new RpcError("binding_conflict", conflict);
+  if (!options.reclaim && lostBy(bound, req))
+    throw new RpcError("binding_lost", "another table took this Actor over");
+}
+
+function lostBy(
+  bound: BindingV1 | null,
+  req: { tableId: string; characterId: string },
+): boolean {
+  return (bound?.previous ?? []).some(
+    (e) => e.tableId === req.tableId && e.characterId === req.characterId,
+  );
+}
+
+/** Refuse `binding_lost` when another table took over this character's Actor:
+ * a lane about to create one (or to answer `deleted_link`) would otherwise
+ * make a second Actor of the same character. */
+export function assertNotLost(
+  collection: ActorsLike,
+  req: { tableId: string; characterId: string },
+): void {
+  if (contentsOf(collection).some((actor) => lostBy(bindingOf(actor), req)))
+    throw new RpcError("binding_lost", "another table took this Actor over");
+}
+
+/**
+ * The update entries that hand `actor` to the request's table and character
+ * when another table holds it, or undefined when it is unbound or already
+ * the request's. The binding is replaced (the request's ids, and the holder
+ * it is taken from appended to `previous` at the current time: unique per
+ * table and character, the 16 latest kept, the request's own entry removed on
+ * a reclaim), and the other table's lane records are deleted.
+ */
+export function takeoverPatch(
+  actor: ActorLike,
+  req: { worldId: string; tableId: string; characterId: string },
+): Dict | undefined {
+  const old = bindingOf(actor);
+  if (!old || sameCharacter(old, req)) return undefined;
+  const same = (
+    a: PreviousHolderV1,
+    b: { tableId: string; characterId: string },
+  ) => a.tableId === b.tableId && a.characterId === b.characterId;
+  const previous = [
+    ...(old.previous ?? []).filter((e) => !same(e, req) && !same(e, old)),
+    {
+      tableId: old.tableId,
+      characterId: old.characterId,
+      at: new Date().toISOString(),
+    },
+  ].slice(-MAX_PREVIOUS);
+  const binding: BindingV1 = { ...bindingFor(req), previous };
+  return {
+    ...Object.fromEntries(
+      LANE_RECORDS.map((key) => {
+        const [k, v] = deletionEntry(key);
+        return [`flags.${MODULE_ID}.${k}`, v];
+      }),
+    ),
+    [`flags.${MODULE_ID}.${FLAG_KEYS.binding}`]:
+      forcedReplacement(binding) ?? binding,
+  };
+}
+
 /** The PC a live lane writes: the Actor bound to the character (which must be
  * the one the app expects) or, for a character imported from Foundry, the
  * unbound Actor of `actorType` the app names. Never created, bound or matched
- * by name. */
+ * by name. With `options` (the Knight lanes), the Actor the app names may be
+ * bound to another table: `assertTakeover` decides, and the lane writes
+ * `takeoverPatch` with its update. */
 export function linkedActor(
   req: {
     worldId: string;
@@ -630,6 +759,7 @@ export function linkedActor(
     expectedActorId: string;
   },
   actorType: string,
+  options?: TakeoverOptions,
 ): ActorLike {
   const collection = actorCollection();
   let actor = uniqueBoundActor(collection, bindingFor(req));
@@ -640,10 +770,13 @@ export function linkedActor(
     actor = collection.get(req.expectedActorId);
     if (!actor)
       throw new RpcError("deleted_link", "the linked Actor no longer exists");
-    if (bindingOf(actor))
-      throw new RpcError(
-        "binding_conflict",
+    const bound = bindingOf(actor);
+    if (bound)
+      assertTakeover(
+        bound,
+        req,
         "the Actor is bound to another character",
+        options,
       );
   }
   if (actor.type !== actorType || docId(actor) !== req.expectedActorId)

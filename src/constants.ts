@@ -113,6 +113,15 @@ export const CAP_ACTOR_ITEMS_ARMOUR = "actorItemsArmourV1";
  * name — it has no handler. */
 export const CAP_KNIGHT_NPC_RESOURCES = "knightNpcResourcesV1";
 
+/** Capability token advertised alongside `actor.resources.v1`: on the Knight
+ * lanes (`actor.resources.v1`, `actor.items.v1`, `actor.upsert.v1`,
+ * `npc.upsert.v1`) this build takes over an Actor another table holds (the
+ * binding keeps a `previous` history), answers `binding_lost` to a table that
+ * lost one, and accepts `reclaim` on `actor.resources.v1`. Apps send `reclaim`
+ * only when the world advertises it. NOT a procedure name — it has no
+ * handler. */
+export const CAP_BINDING_TAKEOVER = "bindingTakeoverV1";
+
 /** Capability token advertised when both `actor.resources.v1` and
  * `knight.statistics.v1` are: this build accepts the optional `sheet` group
  * (with `base.sheet`) on `actor.resources.v1` for a Knight player character —

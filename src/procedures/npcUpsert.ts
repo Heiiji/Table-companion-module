@@ -28,6 +28,7 @@ import {
   record,
   text,
   uniqueBoundActor,
+  assertNotLost,
   writtenFields,
   type ActorLike,
   type AspectScoresV1,
@@ -380,6 +381,8 @@ export const npcUpsertV1: Procedure = async (payload) => {
     );
   }
   if (!actor) {
+    // Another table took this NPC over: never a second Actor of it.
+    assertNotLost(actorCollection(), req);
     actor = await createNpcActor(req, binding);
     outcome = "created";
   }

@@ -252,7 +252,8 @@ describe("actor.upsert.v1", () => {
       binding: {
         schemaVersion: 1,
         worldId: "other",
-        tableId: "other",
+        // The same table, another character: never taken over.
+        tableId: "table-1",
         characterId: "other",
       },
     };

@@ -279,6 +279,14 @@ describe("dnd5e.resources.v1 actor resolution", () => {
     ].characterId = "someone-else";
     await rejects(run(other, request({ hp: 5 })), "binding_conflict");
 
+    // Another table's Actor is never taken over on this lane.
+    const elsewhere = fakeCharacter();
+    (elsewhere.flags[MODULE_ID] as Record<string, Record<string, unknown>>)[
+      "binding"
+    ].tableId = "another-table";
+    await rejects(run(elsewhere, request({ hp: 5 })), "binding_conflict");
+    expect(elsewhere.updates).toHaveLength(0);
+
     const npc = fakeCharacter();
     npc.type = "npc";
     await rejects(run(npc, request({ hp: 5 })), "binding_conflict");

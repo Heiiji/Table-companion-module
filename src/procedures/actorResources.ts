@@ -1,5 +1,5 @@
 import { MODULE_ID } from "../constants.js";
-import { deletionEntry } from "../foundry/runtime.js";
+import { deletionEntry, forcedReplacement } from "../foundry/runtime.js";
 import { canonicalize } from "../util/canonicalJson.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
@@ -30,6 +30,7 @@ import {
   fieldsOf,
   hasPath,
   linkedActor,
+  takeoverPatch,
   liveHeader,
   liveSequence,
   valueAt,
@@ -117,6 +118,8 @@ export interface KnightActorResourcesV1 extends LiveHeaderV1<ActorType> {
   };
   wear?: Wear;
   previousWear?: Wear | "ascension";
+  /** A table that lost the Actor to another takes it back. */
+  reclaim?: true;
 }
 
 /** The wears the app may set; `ascension` is a capacity's, never written. */
@@ -157,11 +160,16 @@ export function validateKnightActorResourcesV1(
     "base",
     "wear",
     "previousWear",
+    "reclaim",
   ]);
   if (!ACTOR_TYPES.includes(p.actorType as ActorType))
     invalid("actorType must be knight, pnj, creature, bande or vehicule");
   const header = liveHeader(p, p.actorType as ActorType);
   const type = header.actorType;
+  if (p.reclaim !== undefined && p.reclaim !== true)
+    invalid("reclaim must be true when present");
+  if (p.reclaim && (p.sheet !== undefined || p.wear !== undefined))
+    invalid("reclaim never rides with sheet or wear");
   if (p.sheet !== undefined && type !== "knight")
     invalid(`sheet is not written on a ${type}`);
   if (p.sheet !== undefined && p.wear !== undefined)
@@ -243,6 +251,7 @@ export function validateKnightActorResourcesV1(
           wear: p.wear as Wear,
           previousWear: p.previousWear as Wear | "ascension",
         }),
+    ...(p.reclaim ? { reclaim: true as const } : {}),
   };
 }
 
@@ -266,10 +275,18 @@ export const actorResourcesV1: Procedure = async (payload) => {
   const req = validateKnightActorResourcesV1(payload);
   assertKnightUpsertAuthority("actor.resources.v1");
   const digest = await canonicalDigest(req);
-  const actor = linkedActor(req, req.actorType);
+  const actor = linkedActor(req, req.actorType, {
+    takeover: true,
+    reclaim: req.reclaim,
+  });
+  // Another table's Actor taken over: its lane records are that table's
+  // (sequences, digests, written values), so none is read here.
+  const takeover = takeoverPatch(actor, req);
   const id = docId(actor);
 
-  const stored = parseStoredResult(actor, FLAG_KEYS.actorResources);
+  const stored = takeover
+    ? null
+    : parseStoredResult(actor, FLAG_KEYS.actorResources);
   const previous = stored?.result ?? null;
   if (
     previous &&
@@ -297,7 +314,7 @@ export const actorResourcesV1: Procedure = async (payload) => {
     );
 
   const patch: Dict = {};
-  const warnings: string[] = [];
+  const warnings: string[] = takeover ? ["binding_taken_over"] : [];
   if (req.wear !== undefined) {
     const current = wornGear(actor);
     if (current === "ascension")
@@ -390,25 +407,29 @@ export const actorResourcesV1: Procedure = async (payload) => {
   )
     return result;
   const flagKey = `flags.${MODULE_ID}.${FLAG_KEYS.actorResources}`;
+  const record = {
+    ...result,
+    warnings: [...warnings],
+    contentDigest,
+    ...(sheet.gloryLineId === undefined
+      ? {}
+      : { gloryLineId: sheet.gloryLineId }),
+    // What Foundry holds once this update lands, for the next base compare.
+    written: writtenFields(req, (field) => {
+      if (field.startsWith("sheet.")) return sheet.written[field];
+      const path = pathOf(field);
+      if (path === undefined) return undefined;
+      return `system.${path}` in patch
+        ? patch[`system.${path}`]
+        : valueAt(actor.system, path);
+    }),
+  };
   await actor.update({
     ...patch,
-    [flagKey]: {
-      ...result,
-      warnings: [...warnings],
-      contentDigest,
-      ...(sheet.gloryLineId === undefined
-        ? {}
-        : { gloryLineId: sheet.gloryLineId }),
-      // What Foundry holds once this update lands, for the next base compare.
-      written: writtenFields(req, (field) => {
-        if (field.startsWith("sheet.")) return sheet.written[field];
-        const path = pathOf(field);
-        if (path === undefined) return undefined;
-        return `system.${path}` in patch
-          ? patch[`system.${path}`]
-          : valueAt(actor.system, path);
-      }),
-    },
+    ...takeover,
+    // On a take-over the record replaces the other table's (Foundry 14);
+    // before 14 the deletion entry in `takeover` precedes it.
+    [flagKey]: takeover ? (forcedReplacement(record) ?? record) : record,
   });
   assertLanded(actor, req.sequence, warnings);
 

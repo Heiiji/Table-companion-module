@@ -4,6 +4,7 @@ import {
   CAP_ACTOR_RESOURCES_WEAR,
   CAP_KNIGHT_ATTACK_ITEM_ID,
   CAP_KNIGHT_NPC_RESOURCES,
+  CAP_BINDING_TAKEOVER,
   CAP_KNIGHT_SHEET_GLORY,
   CAP_KNIGHT_SHEET_WRITES,
   CAP_WRITE_BASE,
@@ -252,6 +253,7 @@ export class Channel {
         CAP_ACTOR_RESOURCES_NAME,
         CAP_ACTOR_RESOURCES_WEAR,
         CAP_KNIGHT_NPC_RESOURCES,
+        CAP_BINDING_TAKEOVER,
       );
     // The Knight sheet group rides the resources lane, its values in the
     // prepared numbers the statistics lane reads: advertised with both.

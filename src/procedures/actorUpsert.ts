@@ -20,6 +20,9 @@ import {
   parseStoredResult,
   recordedFields,
   uniqueBoundActor,
+  assertNotLost,
+  assertTakeover,
+  takeoverPatch,
   valueAt,
   type ActorLike,
   type Dict,
@@ -92,6 +95,9 @@ function createActor(
   });
 }
 
+/** This Knight lane takes over an Actor another table holds. */
+const TAKEOVER = { takeover: true } as const;
+
 /**
  * Durable Knight actor provisioning. Lookup is exclusively by the unique Table
  * Companion binding (or an explicit unbound assignedActorId); names are never a
@@ -107,12 +113,29 @@ export const actorUpsertV1: Procedure = async (payload) => {
   const collection = actorCollection();
   let actor = uniqueBoundActor(collection, binding);
   let outcome: Outcome = "updated";
-  if (req.expectedActorId) {
-    if (!actor)
+  if (req.expectedActorId && !actor) {
+    // The Actor the app names may be held by another table now: a take-over
+    // (or `binding_lost` for a table that lost it). Unbound, it is a link the
+    // Gamemaster removed, as before.
+    const named = collection.get(req.expectedActorId);
+    const bound = named ? bindingOf(named) : null;
+    if (named && bound) {
+      assertTakeover(
+        bound,
+        req,
+        "the Actor is bound to another character",
+        TAKEOVER,
+      );
+      actor = named;
+    } else {
+      assertNotLost(collection, req);
       throw new RpcError(
         "deleted_link",
         "the previously linked Actor no longer exists",
       );
+    }
+  }
+  if (req.expectedActorId && actor) {
     if (docId(actor) !== req.expectedActorId)
       throw new RpcError(
         "binding_conflict",
@@ -132,13 +155,17 @@ export const actorUpsertV1: Procedure = async (payload) => {
       throw new RpcError("actor_not_found", "assignedActorId does not exist");
     if (actor.type !== ACTOR_TYPE)
       invalid("assignedActorId must identify a Knight actor");
-    if (bindingOf(actor))
-      throw new RpcError(
-        "binding_conflict",
+    const bound = bindingOf(actor);
+    if (bound)
+      assertTakeover(
+        bound,
+        req,
         "assignedActorId is already bound to another character",
+        TAKEOVER,
       );
     outcome = "adopted";
   } else if (!actor) {
+    assertNotLost(collection, req);
     actor = await createActor(req, binding);
     outcome = "created";
   }
@@ -147,7 +174,10 @@ export const actorUpsertV1: Procedure = async (payload) => {
   if (!foundryId.test(id))
     throw new Error("Foundry returned an invalid Actor id");
 
-  const previous = syncOf(actor);
+  // Taken over from another table: its records (revision, digest, written
+  // fields) are that table's, so none is read here.
+  const takeover = takeoverPatch(actor, req);
+  const previous = takeover ? null : syncOf(actor);
   if (
     previous &&
     alreadyApplied(
@@ -171,8 +201,10 @@ export const actorUpsertV1: Procedure = async (payload) => {
   // The name the app last saw (`base.name`) guards the name write; a created
   // or just-adopted Actor has nothing the app saw to compare.
   const target = actor;
-  const lastWritten = parseStoredResult(target, FLAG_KEYS.actorUpsert)?.flag
-    .written as Dict | undefined;
+  const lastWritten = takeover
+    ? undefined
+    : (parseStoredResult(target, FLAG_KEYS.actorUpsert)?.flag.written as
+        Dict | undefined);
   if (outcome === "updated")
     assertBase(
       req,
@@ -180,7 +212,7 @@ export const actorUpsertV1: Procedure = async (payload) => {
       (field) => (field === "name" ? target.name : undefined),
       lastWritten,
     );
-  const patch = authoredPatch(actor, req, binding);
+  const patch = { ...authoredPatch(actor, req, binding), ...takeover };
   // Foundry wins per field: an authored path the Gamemaster moved in Foundry
   // since this lane last wrote it (it holds neither that value nor the
   // requested one) is kept, the rest written. A path the record does not
@@ -246,6 +278,7 @@ export const actorUpsertV1: Procedure = async (payload) => {
       ...resourceWarnings,
       ...equipment.warnings,
       ...(kept.size > 0 ? [`foundry_kept:${kept.size}`] : []),
+      ...(takeover ? ["binding_taken_over"] : []),
     ],
   };
   // `written` (the name and authored paths Foundry now holds) serves the next

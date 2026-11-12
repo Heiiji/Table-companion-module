@@ -13,6 +13,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   lowers it); the Glory total and the Items' prices are left alone. A line renamed in Foundry is
   kept, a deleted one is created again at the next change, and a change Foundry does not show is
   put back and reported as `stat_clamped:gloryCurrent`.
+- The Knight write lanes (`actor.resources.v1`, `actor.items.v1`, `actor.upsert.v1`) take over an
+  Actor another table holds, advertised as `bindingTakeoverV1`: the binding records the tables it
+  was taken from (`previous`, the 16 latest), the other table's records of those lanes are
+  dropped, and the result warns `binding_taken_over`. A table that lost an Actor is answered the
+  new error `binding_lost` on every Knight lane (and `actor.upsert.v1` / `npc.upsert.v1` no longer
+  create a second Actor for it) until it takes the Actor back with `reclaim: true` on
+  `actor.resources.v1`. Another character of the same table, and the other systems' lanes, still
+  answer `binding_conflict`.
 
 ## [0.28.0] - 2026-11-12
 

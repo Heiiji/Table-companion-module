@@ -74,6 +74,7 @@ a new code is an additive change.
 | `actor_not_found` | The Actor the request assigns does not exist. |
 | `binding_collision` | More than one Actor carries the same Table Companion binding. |
 | `binding_conflict` | The binding or the expected Actor points at a different Actor than the request. |
+| `binding_lost` | Another table took this Actor over from the request's table and character; nothing is written (a Knight resources write may take it back with `reclaim`). |
 | `deleted_link` | The previously linked Actor no longer exists. |
 | `stale_revision` | The Actor already carries a newer revision than the request. |
 | `revision_conflict` | The same revision was sent again with different content. |
