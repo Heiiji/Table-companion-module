@@ -34,7 +34,7 @@ const GM = "gmUser0000000001";
 const PLAYER = "player0000000001";
 const COMPANION = "companion0000001";
 /** The target's AC as pf2e would record it: never in the reply. */
-const TARGET_AC = 17;
+const TARGET_AC = 18;
 /** pf2e's world setting `metagame_showResults` (« Show Check Outcomes »). */
 let showResults: unknown;
 
