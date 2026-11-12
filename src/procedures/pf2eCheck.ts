@@ -30,6 +30,7 @@ import {
   playerOf,
   postUnposted,
   runOnce,
+  stampedCard,
   visibilityOf,
   type TokenObj,
 } from "./chatCards.js";
@@ -106,6 +107,9 @@ export interface Pf2eCheckV1 {
   rollTwice: (typeof ROLL_TWICE)[number] | null;
   targetActorIds: string[];
   visibility: (typeof VISIBILITIES)[number];
+  /** Optional: `false` hides the request's DC from players on Foundry's card
+   * (pf2e's `dc.visible`). Absent when the request did not send it. */
+  dcVisible?: boolean;
 }
 
 export interface Pf2eCheckResultV1 {
@@ -119,12 +123,44 @@ export interface Pf2eCheckResultV1 {
   unadjustedDegree: Degree | null;
   /** Where pf2e took the DC of `degree` from: the request's `dc`, or the
    * target (its AC for an attack) when the request sent none. Null exactly
-   * when `degree` is. The DC or AC value itself never leaves Foundry. */
+   * when `degree` is. The value itself is `dcValue`. */
   degreeSource: "dc" | "target" | null;
   /** pf2e's world setting `metagame_showResults` (« Show Check Outcomes »):
    * whether pf2e shows players this card's degree of success. */
   resultsShown: boolean;
   messageMode: "public" | "gm" | "blind";
+  /** The DC or AC pf2e judged the roll against, read from the card's own
+   * context at reply time (never kept in this module's stamp); null when
+   * there is none or it is unreadable. Answered to the Gamemaster's device. */
+  dcValue: number | null;
+}
+
+/** The result as stamped on the card: the reply without `dcValue`. */
+export type Pf2eCheckStampV1 = Omit<Pf2eCheckResultV1, "dcValue">;
+
+/** The DC or AC in a card's `flags.pf2e.context`, a whole number in 0 … 200. */
+export function dcValueOf(context: unknown): number | null {
+  const v = dictAt(dictAt(context, "dc"), "value");
+  return Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 200
+    ? (v as number)
+    : null;
+}
+
+/** A card's `flags.pf2e.context`. */
+export function cardContext(card: { flags?: Dict } | undefined): Dict {
+  return (dictAt(card?.flags?.pf2e, "context") ?? {}) as Dict;
+}
+
+/** A stamped result answered again, with the DC its card carries. */
+export function replayed(
+  lane: string,
+  eventId: string,
+): (r: Pf2eCheckStampV1 | Pf2eCheckResultV1) => Pf2eCheckResultV1 {
+  return (r) => ({
+    ...r,
+    alreadyRolled: true,
+    dcValue: dcValueOf(cardContext(stampedCard(eventId, lane))),
+  });
 }
 
 // ------------------------------------------------------- structural views
@@ -156,10 +192,11 @@ interface Token extends TokenObj {
 
 // ------------------------------------------------------------- validation
 
-/** The strict payload: every key required, unknown keys refused, and the
- * one identity block its `kind` names (the other two null). */
+/** The strict payload: every key required (but the optional `dcVisible`),
+ * unknown keys refused, and the one identity block its `kind` names (the
+ * other two null). */
 export function validatePf2eCheckV1(payload: unknown): Pf2eCheckV1 {
-  const p = record(payload, "payload", PAYLOAD_KEYS);
+  const p = record(payload, "payload", [...PAYLOAD_KEYS, "dcVisible"]);
   for (const key of PAYLOAD_KEYS)
     if (!(key in p)) invalid(`payload.${key} is required`);
   const kind = oneOf(p.kind, "kind", KINDS);
@@ -174,6 +211,12 @@ export function validatePf2eCheckV1(payload: unknown): Pf2eCheckV1 {
     p.strike === null ? null : record(p.strike, "strike", ["itemId", "slug"]);
   const spell =
     p.spell === null ? null : record(p.spell, "spell", ["entryId", "spellId"]);
+  if ("dcVisible" in p) {
+    if (typeof p.dcVisible !== "boolean")
+      invalid("dcVisible must be a boolean");
+    if (p.dcVisible === false && p.dc === null)
+      invalid("dcVisible false needs a dc");
+  }
   return {
     eventId: identifier(p.eventId, "eventId", uuid),
     origin: oneOf(p.origin, "origin", ORIGINS),
@@ -197,6 +240,7 @@ export function validatePf2eCheckV1(payload: unknown): Pf2eCheckV1 {
       identifier(id, `targetActorIds[${i}]`, documentId),
     ),
     visibility: oneOf(p.visibility, "visibility", VISIBILITIES),
+    ...("dcVisible" in p ? { dcVisible: p.dcVisible as boolean } : {}),
   };
 }
 
@@ -215,11 +259,19 @@ export function supportsPf2eCheckV1Runtime(): boolean {
  * world: a synthetic event passes pf2e's `isRelevantEvent`.
  */
 export function skipDialogEvent(): unknown {
+  return clickSkipping("showCheckDialogs");
+}
+
+/** The damage twin of `skipDialogEvent`: pf2e's damage roll reads the
+ * user's `showDamageDialogs` instead. */
+export function skipDamageDialogEvent(): unknown {
+  return clickSkipping("showDamageDialogs");
+}
+
+function clickSkipping(setting: string): unknown {
   const settings = (foundryGame()?.user as { settings?: Dict } | undefined)
     ?.settings;
-  return new PointerEvent("click", {
-    shiftKey: settings?.showCheckDialogs === true,
-  });
+  return new PointerEvent("click", { shiftKey: settings?.[setting] === true });
 }
 
 function dictAt(v: unknown, key: string): unknown {
@@ -290,7 +342,12 @@ async function withoutGmTargets<T>(roll: () => Promise<T>): Promise<T> {
   }
 }
 
-const dcOf = (dc: number | null) => (dc === null ? null : { value: dc });
+/** The request's DC as pf2e takes it; a hidden one shows the Gamemaster
+ * alone the DC and the margin on the card. */
+const dcOf = (req: Pf2eCheckV1) =>
+  req.dc === null
+    ? null
+    : { value: req.dc, ...(req.dcVisible === false ? { visible: false } : {}) };
 
 /** The pf2e call this request names, ready to roll with a callback. */
 function rollerFor(
@@ -318,7 +375,7 @@ function rollerFor(
     return (callback) =>
       statistic.roll!({
         ...common,
-        dc: dcOf(req.dc),
+        dc: dcOf(req),
         messageMode: req.visibility,
         skipDialog: true,
         callback,
@@ -354,7 +411,7 @@ function rollerFor(
     return run((callback) =>
       (roll as RollFn)({
         ...common,
-        dc: dcOf(req.dc),
+        dc: dcOf(req),
         consumeAmmo: false,
         event: skipDialogEvent(),
         ...(target ? { target } : {}),
@@ -392,7 +449,7 @@ function rollerFor(
       traits: [
         ...new Set([...(Array.isArray(ownTraits) ? ownTraits : []), tradition]),
       ].filter((t) => typeof t === "string"),
-      dc: dcOf(req.dc) ?? {
+      dc: dcOf(req) ?? {
         slug:
           dictAt(dictAt(dictAt(system, "defense"), "passive"), "statistic") ??
           "ac",
@@ -447,7 +504,7 @@ export function rollResult(
   messageId: string,
   source: "dc" | "target" | null,
   messageMode: Pf2eCheckResultV1["messageMode"],
-): Pf2eCheckResultV1 {
+): Pf2eCheckStampV1 {
   const d20 = roll.dice?.find((d) => d.faces === 20);
   const results = d20?.results ?? [];
   const kept = results.find((r) => r.active !== false && !r.discarded)?.result;
@@ -482,7 +539,7 @@ export function checkResult(
   roll: CheckRoll,
   context: Dict,
   messageId: string,
-): Pf2eCheckResultV1 {
+): Pf2eCheckStampV1 {
   // Both degrees or neither: against the app's own DC, or, when it sent
   // none, against the target pf2e resolved (`context.target`, whose DC pf2e
   // read itself). Never against a DC of unknown origin.
@@ -533,7 +590,7 @@ async function check(req: Pf2eCheckV1): Promise<Pf2eCheckResultV1> {
     },
   });
   if (!posted) throw refused("Foundry did not create the card");
-  return result;
+  return { ...result, dcValue: dcValueOf(context) };
 }
 
 export const pf2eCheckV1: Procedure = (payload) => {
@@ -546,7 +603,7 @@ export const pf2eCheckV1: Procedure = (payload) => {
   return runOnce<Pf2eCheckResultV1>(
     CHECK_LANE,
     req.eventId,
-    (r) => ({ ...r, alreadyRolled: true }),
+    replayed(CHECK_LANE, req.eventId),
     () => check(req),
   );
 };

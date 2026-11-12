@@ -19,6 +19,7 @@ import { actorImageV1 } from "./actorImage.js";
 import { pf2eCheckV1, supportsPf2eCheckV1Runtime } from "./pf2eCheck.js";
 import { pf2eCardV1, supportsPf2eCardV1Runtime } from "./pf2eCard.js";
 import { pf2eRerollV1, supportsPf2eRerollV1Runtime } from "./pf2eReroll.js";
+import { pf2eFollowupV1 } from "./pf2eFollowup.js";
 import {
   pf2eStatisticsV1,
   supportsPf2eStatisticsV1Runtime,
@@ -261,6 +262,19 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
     registry.markUnsupported(
       "pf2e.reroll.v1",
       `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT} with game.pf2e.Check.rerollFromMessage`,
+    );
+  }
+  // The damage, critical damage or consumable effect that follows a card the
+  // check or card lane stamped, rolled by pf2e (nothing is spent).
+  if (supportsPf2eCheckV1Runtime()) {
+    registry.register("pf2e.followup.v1", pf2eFollowupV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
+  } else if (systemId() === "pf2e") {
+    registry.markUnsupported(
+      "pf2e.followup.v1",
+      `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT} with game.pf2e.Check`,
     );
   }
   if (supportsPf2eCardV1Runtime()) {

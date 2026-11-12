@@ -131,11 +131,16 @@ Gamemaster can open setup from the console with
   card (`pf2e.check.v1`), and a spell cast or an item used in the app posts the card pf2e posts from
   the sheet (`pf2e.card.v1`). Dialogs never open, no ammunition is spent, and the cards spend no slot,
   focus point or item: the app writes those counters itself. An NPC's Strike stays on the app's engine.
-  A Strike or spell attack against a target answers the degree pf2e read from the target, never its
-  AC, and whether pf2e's « Show Check Outcomes » setting shows it to players.
+  A Strike or spell attack against a target answers the degree pf2e read from the target, and whether
+  pf2e's « Show Check Outcomes » setting shows it to players. The reply also tells the Gamemaster's
+  device the DC or AC pf2e judged the roll against (`dcValue`), which the module's stamp on the card
+  does not copy.
   A Hero Point reroll of such a check is rerolled by pf2e itself (`pf2e.reroll.v1`): pf2e replaces the
   card with its own reroll card, which keeps the original card's author and visibility; Foundry spends
   no Hero Point, the app does.
+  The damage or critical damage of such a Strike, the damage of a spell and a consumable's effect are
+  rolled by pf2e too (`pf2e.followup.v1`), on its own damage card with the original card's author and
+  visibility; nothing is spent. A check may hide its DC from players (`dcVisible: false`).
 - **Knight prepared statistics:** on the same Knight releases, the app reads a Knight character's or
   non-player Actor's aspects, characteristics and overdrives, health, hope, armour, energy, contacts,
   force field, defense, reaction and initiative as the Knight system prepared them

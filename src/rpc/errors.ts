@@ -51,6 +51,7 @@ export type RpcErrorCode =
   | "roll_refused"
   | "source_not_found"
   | "reroll_refused"
+  | "followup_refused"
   // Actor images.
   | "invalid_request"
   | "upload_unknown"

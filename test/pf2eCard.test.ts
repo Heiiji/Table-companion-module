@@ -239,6 +239,32 @@ describe("pf2e.card.v1", () => {
     });
     expect(created).toHaveLength(1);
     expect(created[0].data.content).toBe("<div>Healing Potion</div>");
+    expect(created[0].data.flags[MODULE_ID]).not.toHaveProperty("effect");
+    nothingSpent();
+  });
+
+  it("keeps a consumable's effect on its card's stamp", async () => {
+    Object.assign(actor.potion, {
+      name: "Healing Potion (Moderate)",
+      uuid: `Actor.${PC}.Item.${POTION}`,
+      _stats: { compendiumSource: "Compendium.pf2e.equipment-srd.Item.x" },
+      system: {
+        damage: { formula: "3d8+10", type: "vitality", kind: "healing" },
+      },
+    });
+    const reply = await call(item());
+    expect(reply).toEqual({
+      messageId: expect.any(String),
+      alreadyPosted: false,
+    });
+    expect(created[0].data.flags[MODULE_ID].effect).toEqual({
+      name: "Healing Potion (Moderate)",
+      formula: "3d8+10",
+      type: "vitality",
+      kind: "healing",
+      sourceId: "Compendium.pf2e.equipment-srd.Item.x",
+      uuid: `Actor.${PC}.Item.${POTION}`,
+    });
     nothingSpent();
   });
 

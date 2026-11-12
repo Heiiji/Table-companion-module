@@ -23,10 +23,27 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   create a second Actor for it) until it takes the Actor back with `reclaim: true` on
   `actor.resources.v1`. Another character of the same table, and the other systems' lanes, still
   answer `binding_conflict`.
+
+## [0.29.0] - 2026-11-12
+
+### Added
 - A Hero Point reroll of a Pathfinder 2e check Foundry rolled (`pf2e.reroll.v1`, signed-only, on the
   check lane's releases with pf2e's `Check.rerollFromMessage`) is now rerolled by Foundry: its card is
   replaced by the system's own reroll card, with the same author and visibility, and Foundry spends no
   Hero Point (the app spends it).
+- The damage or critical damage of a Pathfinder 2e Strike, the damage of a spell and a consumable's
+  effect that follow a card Foundry rolled or posted for the app (`pf2e.followup.v1`, signed-only, on
+  the check lane's releases) are now rolled by pf2e itself, with its own damage card, which keeps the
+  original card's author and visibility. Dialogs never open and nothing is spent: no ammunition, slot
+  or item (a consumable's use card is built without taking one from its quantity). An item card of a
+  consumable keeps its effect in the card's stamp, so the effect can still be rolled once the item is
+  gone.
+- A Pathfinder 2e check (`pf2e.check.v1`) takes an optional `dcVisible`: `false` hides the app's DC
+  from players on Foundry's card (the Gamemaster still reads the DC and the margin).
+- The replies of a Pathfinder 2e check (`pf2e.check.v1`) and of its Hero Point reroll
+  (`pf2e.reroll.v1`) now tell the Gamemaster's device the DC or AC pf2e judged the roll against
+  (`dcValue`, null when there is none), read from the card pf2e keeps; the module's own stamp on the
+  card does not copy it.
 
 ## [0.28.0] - 2026-11-12
 

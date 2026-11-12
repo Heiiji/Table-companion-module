@@ -184,6 +184,7 @@ describe("ProcedureRegistry", () => {
         "pf2e.actor.complete.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.6.1 or a later 8.x on Foundry 14`,
         "pf2e.check.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.5.1 or a later 8.x on Foundry 14 with game.pf2e.Check`,
         "pf2e.reroll.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.5.1 or a later 8.x on Foundry 14 with game.pf2e.Check.rerollFromMessage`,
+        "pf2e.followup.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.5.1 or a later 8.x on Foundry 14 with game.pf2e.Check`,
       });
     },
   );
@@ -198,7 +199,11 @@ describe("ProcedureRegistry", () => {
       });
       const registry = new ProcedureRegistry();
       registerBuiltinProcedures(registry);
-      for (const lane of ["pf2e.check.v1", "pf2e.card.v1"]) {
+      for (const lane of [
+        "pf2e.check.v1",
+        "pf2e.followup.v1",
+        "pf2e.card.v1",
+      ]) {
         expect(registry.capabilities(), lane).toContain(lane);
         expect(registry.mutations(), lane).toContain(lane);
         expect(registry.isSignedOnly(lane), lane).toBe(true);
@@ -264,6 +269,7 @@ describe("ProcedureRegistry", () => {
         "combat.sync.v1": "combat mirroring is not available on pf2e",
         "pf2e.check.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.5.1 or a later 8.x on Foundry 14 with game.pf2e.Check`,
         "pf2e.reroll.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.5.1 or a later 8.x on Foundry 14 with game.pf2e.Check.rerollFromMessage`,
+        "pf2e.followup.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.5.1 or a later 8.x on Foundry 14 with game.pf2e.Check`,
       });
     }
     for (const [version, generation] of [
@@ -498,6 +504,7 @@ describe("ProcedureRegistry", () => {
       "pf2e.actor.upsert.v1",
       "pf2e.card.v1",
       "pf2e.check.v1",
+      "pf2e.followup.v1",
       "pf2e.resources.v1",
     ]);
 

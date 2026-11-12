@@ -30,6 +30,8 @@ interface NewRoll {
   face: number;
   total: number;
   outcome: string | null;
+  /** The new card's DC, when it differs from the source's. */
+  dc?: Dict | null;
 }
 
 let world: Dict;
@@ -156,6 +158,7 @@ async function rerollFromMessage(message: Dict, options: Dict) {
           context: {
             ...structuredClone(context),
             isReroll: true,
+            ...(newRoll.dc !== undefined ? { dc: newRoll.dc } : {}),
             options: [...context.options, "check:reroll"],
             outcome: newRoll.outcome,
             // pf2e keeps the source roll's value here.
@@ -291,16 +294,18 @@ describe("pf2e.reroll.v1", () => {
       degreeSource: "dc",
       resultsShown: true,
       messageMode: "public",
+      dcValue: 18,
     });
     const card = replacement();
     expect(world.messages.contents).toEqual([card]);
     expect(card.id).toBe(reply.messageId);
+    const stamped = { ...reply, dcValue: undefined };
     expect(card.flags[MODULE_ID]).toEqual({
       eventId: EVENT,
       origin: "player",
       lane: "pf2e.check",
       rerollOf: SOURCE_EVENT,
-      result: reply,
+      result: stamped,
     });
     expect(hooks.size).toBe(0);
   });
@@ -434,7 +439,22 @@ describe("pf2e.reroll.v1", () => {
     const first = await call();
     const again = await call();
     expect(again).toEqual({ ...first, alreadyRolled: true });
+    expect(replacement().flags[MODULE_ID].result).not.toHaveProperty("dcValue");
+    expect(Object.keys(again).at(-1)).toBe("dcValue");
     expect(world.pf2e.Check.rerollFromMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers the DC of the new card, or null without a whole one", async () => {
+    newRoll = { face: 16, total: 25, outcome: "success", dc: { value: 21 } };
+    expect((await call()).dcValue).toBe(21);
+    stubWorld();
+    newRoll = { face: 16, total: 25, outcome: null, dc: { value: 21.5 } };
+    expect((await call()).dcValue).toBeNull();
+    stubWorld({}, [sourceCard({ degreeSource: null, dc: null })]);
+    newRoll = { face: 16, total: 25, outcome: null };
+    const reply = await call();
+    expect(reply.dcValue).toBeNull();
+    expect(Object.keys(reply).at(-1)).toBe("dcValue");
   });
 
   it("joins a reroll still in flight", async () => {

@@ -23,11 +23,14 @@ import {
 import { oneAtATime } from "./knightRollLane.js";
 import {
   CHECK_LANE,
+  dcValueOf,
+  replayed,
   rollResult,
   secretMode,
   supportsPf2eCheckV1Runtime,
   type CheckRoll,
   type Pf2eCheckResultV1,
+  type Pf2eCheckStampV1,
 } from "./pf2eCheck.js";
 
 /**
@@ -66,7 +69,7 @@ export interface Pf2eRerollV1 {
 
 /** A chat message as this lane reads it: Foundry keeps the author's id, the
  * whisper and blind in the source. */
-interface Message extends CardMessage {
+export interface Message extends CardMessage {
   _source?: { author?: string; whisper?: string[]; blind?: boolean };
   whisper?: string[];
   blind?: boolean;
@@ -147,7 +150,7 @@ function rerollResult(
   messageId: string,
   degreeSource: "dc" | "target" | null,
   messageMode: Pf2eCheckResultV1["messageMode"],
-): Pf2eCheckResultV1 {
+): Pf2eCheckStampV1 {
   const context = contextOf(doc);
   const result = rollResult(
     rollOf(doc.rolls?.[0]),
@@ -169,7 +172,7 @@ function rerollResult(
 }
 
 /** The visibility a card was posted with, as the check reply names it. */
-function modeOf(m: Message): Pf2eCheckResultV1["messageMode"] {
+export function modeOf(m: Message): Pf2eCheckResultV1["messageMode"] {
   const whisper = m._source?.whisper ?? m.whisper ?? [];
   return (m._source?.blind ?? m.blind)
     ? "blind"
@@ -208,7 +211,8 @@ async function reroll(req: Pf2eRerollV1): Promise<Pf2eCheckResultV1> {
       "unsupported_runtime",
       `${PROCEDURE}: Foundry Hooks are unavailable`,
     );
-  let result: Pf2eCheckResultV1 | undefined;
+  let result: Pf2eCheckStampV1 | undefined;
+  let dcValue: number | null = null;
   let failure: unknown;
   let hookId: number | undefined;
   const disarm = () => {
@@ -229,6 +233,7 @@ async function reroll(req: Pf2eRerollV1): Promise<Pf2eCheckResultV1> {
       try {
         const messageId = newDocumentId();
         result = rerollResult(doc, messageId, degreeSource, messageMode);
+        dcValue = dcValueOf(contextOf(doc));
         // The card keeps the id its stamped result names.
         options.keepId = true;
         doc.updateSource?.({
@@ -258,7 +263,7 @@ async function reroll(req: Pf2eRerollV1): Promise<Pf2eCheckResultV1> {
     disarm();
   }
   const card = stampedCard(req.eventId, CHECK_LANE);
-  if (result && card) return result;
+  if (result && card) return { ...result, dcValue };
   if (!failure && messages().includes(source))
     throw refused("pf2e did not reroll the card");
   throw new RpcError(
@@ -277,7 +282,7 @@ export const pf2eRerollV1: Procedure = (payload) => {
   return runOnce<Pf2eCheckResultV1>(
     CHECK_LANE,
     req.eventId,
-    (r) => ({ ...r, alreadyRolled: true }),
+    replayed(CHECK_LANE, req.eventId),
     // One reroll at a time: the hook knows pf2e's card by its actor only.
     () => oneAtATime(() => reroll(req)),
   );
