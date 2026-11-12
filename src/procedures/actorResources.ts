@@ -281,11 +281,12 @@ function reclaimOnly(
   req: KnightActorResourcesV1,
 ): [KnightActorResourcesV1, boolean] {
   if (!req.reclaim) return [req, false];
-  const { resources, name, base, previousName: _p, ...identity } = req;
+  const { resources, name, previousName, base, ...identity } = req;
   return [
     { ...identity, resources: {} },
     Object.keys(resources).length > 0 ||
       name !== undefined ||
+      previousName !== undefined ||
       base !== undefined,
   ];
 }
