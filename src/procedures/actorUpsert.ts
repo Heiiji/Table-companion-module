@@ -43,6 +43,9 @@ import {
 import { applyMinorMotivations } from "./actorUpsert.motivations.js";
 import { applyEquipment } from "./actorUpsert.equipment.js";
 
+/** The values of Knight's `system.origin` select (the being's nature). */
+const KNIGHT_ORIGINS: readonly string[] = ["humain", "anatheme", "autre"];
+
 // The request/result shapes and the validator are part of this file's public
 // surface; they live in siblings so each concern reads on its own.
 export type {
@@ -194,6 +197,19 @@ export const actorUpsertV1: Procedure = async (payload) => {
         kept.add(path);
       }
     }
+  // Earlier builds wrote the app's free-text origin into `system.origin`, the
+  // being's nature in Knight (`humain`, `anatheme` or `autre`). An Actor that
+  // still holds the value the lane recorded gets the system's initial
+  // `humain` back; any of the system's own values is left alone. The record
+  // no longer names the path afterwards, so this runs once.
+  const origin = fields["system.origin"];
+  if (
+    outcome === "updated" &&
+    typeof origin === "string" &&
+    !KNIGHT_ORIGINS.includes(origin) &&
+    valueAt(target, "system.origin") === origin
+  )
+    patch["system.origin"] = "humain";
   await actor.update(patch);
   assertOwnershipApplied(actor, req.foundryUserId, "actor.upsert.v1");
   const motivationWarnings =

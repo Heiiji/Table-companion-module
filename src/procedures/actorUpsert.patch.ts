@@ -57,10 +57,11 @@ export function authoredPatch(
   Object.assign(patch, {
     // The three biography fields are Knight HTML editors: the app's plain
     // text is escaped into paragraphs; the other fields are plain strings.
+    // The app's free-text origin is not written: Knight's `system.origin` is
+    // the being's nature, which the system's own rules branch on.
     "system.description": paragraphsHtml(p.description),
     "system.descriptionLimitee": paragraphsHtml(p.limitedDescription),
     "system.histoire": paragraphsHtml(p.history),
-    "system.origin": p.origin,
     "system.age": p.age,
     "system.archetype": p.archetype,
     "system.metaarmure": p.metaArmour,
@@ -95,7 +96,6 @@ export const AUTHORED_PATHS: readonly string[] = [
     "description",
     "descriptionLimitee",
     "histoire",
-    "origin",
     "age",
     "archetype",
     "metaarmure",

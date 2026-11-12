@@ -954,6 +954,81 @@ describe("actor.upsert.v1 keeps what the Gamemaster changed in Foundry", () => {
   });
 });
 
+// Knight's `system.origin` is the being's nature (`humain`, `anatheme`,
+// `autre`), which the system's own code branches on: the app's free-text
+// origin is not written there.
+describe("actor.upsert.v1 leaves the Knight origin to the system", () => {
+  const ORIGIN = "system.origin";
+  function world(): FakeActor[] {
+    const actors: FakeActor[] = [];
+    stubFoundry(
+      actors,
+      vi.fn(async () => {
+        const actor = fakeActor();
+        actor.system = structuredClone(KNIGHT_SCHEMA_FIXTURES[1].actor.system);
+        actor.system.origin = "humain";
+        actors.push(actor);
+        return actor;
+      }),
+    );
+    return actors;
+  }
+  const upsert = async (req: unknown) =>
+    (await actorUpsertV1(req as never, {} as never)) as ActorUpsertResultV1;
+  const flagOf = (actor: FakeActor) =>
+    (actor.flags[MODULE_ID] as Record<string, any>).actorUpsertV1;
+  /** An Actor an earlier build provisioned: it wrote « Europe » and recorded it. */
+  async function provisionedWithEurope(): Promise<FakeActor> {
+    const actors = world();
+    await upsert(approved({ equipment: undefined }));
+    const actor = actors[0];
+    actor.system.origin = "Europe";
+    flagOf(actor).written.fields[ORIGIN] = "Europe";
+    return actor;
+  }
+  const next = () =>
+    upsert(approved({ approvedRevision: 2, equipment: undefined }));
+
+  it("accepts a profile origin and creates the character with the system's own origin", async () => {
+    const actors = world();
+    const req = approved({ equipment: undefined });
+    expect(req.profile!.origin).toBe("Europe");
+    expect((await upsert(req)).outcome).toBe("created");
+    const keys = actors[0].updates.flatMap((u) => Object.keys(u));
+    expect(keys).not.toContain(ORIGIN);
+    expect(actors[0].system.origin).toBe("humain");
+    expect(flagOf(actors[0]).written.fields).not.toHaveProperty(ORIGIN);
+  });
+
+  it("gives an Actor the lane provisioned with a free-text origin `humain` back, once", async () => {
+    const actor = await provisionedWithEurope();
+    const result = await next();
+    expect(result.outcome).toBe("updated");
+    expect(actor.system.origin).toBe("humain");
+    expect(flagOf(actor).written.fields).not.toHaveProperty(ORIGIN);
+    expect(result.warnings.some((w) => w.startsWith("foundry_kept"))).toBe(
+      false,
+    );
+  });
+
+  it("leaves alone an origin the Gamemaster set after the lane wrote one", async () => {
+    const actor = await provisionedWithEurope();
+    actor.system.origin = "anatheme";
+    await next();
+    expect(actor.system.origin).toBe("anatheme");
+    const keys = actor.updates.flatMap((u) => Object.keys(u));
+    expect(keys.filter((k) => k === ORIGIN)).toHaveLength(0);
+  });
+
+  it("leaves alone a system origin the record only observed", async () => {
+    const actor = await provisionedWithEurope();
+    actor.system.origin = "anatheme";
+    flagOf(actor).written.fields[ORIGIN] = "anatheme";
+    await next();
+    expect(actor.system.origin).toBe("anatheme");
+  });
+});
+
 describe("actor.upsert.v1 on Foundry 14", () => {
   const COMPANION = "companion0000001";
 
@@ -982,7 +1057,6 @@ describe("actor.upsert.v1 on Foundry 14", () => {
     expect(result.outcome).toBe("created");
     const actor = actors[0];
     expect(actor.name).toBe("Lancelot");
-    expect(actor.system.origin).toBe("Europe");
     expect((actor.system.aspects as any).machine.base).toBe(4);
     expect(actor.ownership).toEqual({
       default: 0,

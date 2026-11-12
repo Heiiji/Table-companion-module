@@ -4,6 +4,14 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- A Knight character written from the app no longer gets the app's free-text origin in its
+  `system.origin`, which the Knight system reads as the being's nature (`humain`, `anatheme`,
+  `autre`); a character an earlier version had written this way gets `humain` back at its next
+  approved revision, unless its origin was changed in Foundry since.
+
 ## [0.26.0] - 2026-11-11
 
 ### Added
