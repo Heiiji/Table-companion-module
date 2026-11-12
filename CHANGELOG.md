@@ -21,6 +21,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   create a second Actor for it) until it takes the Actor back with `reclaim: true` on
   `actor.resources.v1`. Another character of the same table, and the other systems' lanes, still
   answer `binding_conflict`.
+- A Hero Point reroll of a Pathfinder 2e check Foundry rolled (`pf2e.reroll.v1`, signed-only, on the
+  check lane's releases with pf2e's `Check.rerollFromMessage`) is now rerolled by Foundry: its card is
+  replaced by the system's own reroll card, with the same author and visibility, and Foundry spends no
+  Hero Point (the app spends it).
 
 ## [0.28.0] - 2026-11-12
 

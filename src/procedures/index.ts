@@ -18,6 +18,7 @@ import { pf2eResourcesV1 } from "./pf2eResources.js";
 import { actorImageV1 } from "./actorImage.js";
 import { pf2eCheckV1, supportsPf2eCheckV1Runtime } from "./pf2eCheck.js";
 import { pf2eCardV1, supportsPf2eCardV1Runtime } from "./pf2eCard.js";
+import { pf2eRerollV1, supportsPf2eRerollV1Runtime } from "./pf2eReroll.js";
 import {
   pf2eStatisticsV1,
   supportsPf2eStatisticsV1Runtime,
@@ -247,6 +248,19 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
     registry.markUnsupported(
       "pf2e.check.v1",
       `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT} with game.pf2e.Check`,
+    );
+  }
+  // A Hero Point reroll of a check card Foundry rolled, rerolled by pf2e's
+  // own `Check.rerollFromMessage` (the app spends the Hero Point).
+  if (supportsPf2eRerollV1Runtime()) {
+    registry.register("pf2e.reroll.v1", pf2eRerollV1, {
+      kind: "mutation",
+      signedOnly: true,
+    });
+  } else if (systemId() === "pf2e") {
+    registry.markUnsupported(
+      "pf2e.reroll.v1",
+      `pf2e ${systemVersion() || "unknown"} on Foundry ${foundryGeneration() || "unknown"}; requires ${PF2E_RESOURCES_REQUIREMENT} with game.pf2e.Check.rerollFromMessage`,
     );
   }
   if (supportsPf2eCardV1Runtime()) {

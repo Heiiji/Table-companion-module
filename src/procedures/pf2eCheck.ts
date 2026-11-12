@@ -142,7 +142,7 @@ interface Pf2eActor extends ActorLike {
   getStatistic?(slug: string): { roll?: RollFn } | null;
 }
 
-interface CheckRoll {
+export interface CheckRoll {
   total?: number;
   dice?: {
     faces?: number;
@@ -413,7 +413,7 @@ function degreeOf(v: unknown): Degree | null {
 
 /** pf2e made the check secret itself (a `secret` roll option): its GM / blind
  * mode then wins over the request's visibility. */
-function secretMode(context: Dict): "gm" | "blind" | null {
+export function secretMode(context: Dict): "gm" | "blind" | null {
   const options = context.options;
   const mode = context.messageMode;
   return Array.isArray(options) &&
@@ -439,12 +439,14 @@ function refused(why: string): RpcError {
   return new RpcError("roll_refused", `${PROCEDURE}: ${why}`);
 }
 
-/** The reply, read from pf2e's roll and the unposted card's context. */
-export function checkResult(
-  req: Pf2eCheckV1,
+/** The reply, read from pf2e's roll and its card's context: `source` is
+ * where pf2e took the DC from (null: no degree is answered). */
+export function rollResult(
   roll: CheckRoll,
   context: Dict,
   messageId: string,
+  source: "dc" | "target" | null,
+  messageMode: Pf2eCheckResultV1["messageMode"],
 ): Pf2eCheckResultV1 {
   const d20 = roll.dice?.find((d) => d.faces === 20);
   const results = d20?.results ?? [];
@@ -457,11 +459,7 @@ export function checkResult(
   )
     throw refused("the roll has no single kept d20");
   const total = roll.total!;
-  // Both degrees or neither: against the app's own DC, or, when it sent
-  // none, against the target pf2e resolved (`context.target`, whose DC pf2e
-  // read itself). Never against a DC of unknown origin.
-  const target = typeof context.target === "object" && context.target !== null;
-  const degree = req.dc !== null || target ? degreeOf(context.outcome) : null;
+  const degree = source === null ? null : degreeOf(context.outcome);
   return {
     messageId,
     alreadyRolled: false,
@@ -472,10 +470,30 @@ export function checkResult(
     degree,
     unadjustedDegree:
       degree === null ? null : (degreeOf(context.unadjustedOutcome) ?? degree),
-    degreeSource: degree === null ? null : req.dc !== null ? "dc" : "target",
+    degreeSource: degree === null ? null : source,
     resultsShown: resultsShown(),
-    messageMode: secretMode(context) ?? req.visibility,
+    messageMode,
   };
+}
+
+/** The reply, read from pf2e's roll and the unposted card's context. */
+export function checkResult(
+  req: Pf2eCheckV1,
+  roll: CheckRoll,
+  context: Dict,
+  messageId: string,
+): Pf2eCheckResultV1 {
+  // Both degrees or neither: against the app's own DC, or, when it sent
+  // none, against the target pf2e resolved (`context.target`, whose DC pf2e
+  // read itself). Never against a DC of unknown origin.
+  const target = typeof context.target === "object" && context.target !== null;
+  return rollResult(
+    roll,
+    context,
+    messageId,
+    req.dc !== null ? "dc" : target ? "target" : null,
+    secretMode(context) ?? req.visibility,
+  );
 }
 
 async function check(req: Pf2eCheckV1): Promise<Pf2eCheckResultV1> {
