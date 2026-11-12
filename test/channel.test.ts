@@ -13,6 +13,7 @@ import {
   CAP_ACTOR_ITEMS_ARMOUR,
   CAP_KNIGHT_ATTACK_ITEM_ID,
   CAP_KNIGHT_NPC_RESOURCES,
+  CAP_KNIGHT_SHEET_GLORY,
   CAP_KNIGHT_SHEET_WRITES,
   CAP_WRITE_BASE,
   CAP_DND5E_RULES_MODERN,
@@ -1177,15 +1178,14 @@ describe("Channel response signing", () => {
       channel.setResponseSigner(signer);
       return emitted("hello").at(-1)!.capabilities as string[];
     };
-    expect(capsWith(["actor.resources.v1", "knight.statistics.v1"])).toContain(
-      CAP_KNIGHT_SHEET_WRITES,
-    );
-    expect(capsWith(["actor.resources.v1"])).not.toContain(
-      CAP_KNIGHT_SHEET_WRITES,
-    );
-    expect(capsWith(["knight.statistics.v1"])).not.toContain(
-      CAP_KNIGHT_SHEET_WRITES,
-    );
+    const both = capsWith(["actor.resources.v1", "knight.statistics.v1"]);
+    expect(both).toContain(CAP_KNIGHT_SHEET_WRITES);
+    // The unspent Glory rides the sheet group: advertised exactly with it.
+    expect(both).toContain(CAP_KNIGHT_SHEET_GLORY);
+    for (const one of [["actor.resources.v1"], ["knight.statistics.v1"]]) {
+      expect(capsWith(one)).not.toContain(CAP_KNIGHT_SHEET_WRITES);
+      expect(capsWith(one)).not.toContain(CAP_KNIGHT_SHEET_GLORY);
+    }
   });
 
   it("advertises the 2024-rules token with the Fifth Edition lane on a modern world only", async () => {

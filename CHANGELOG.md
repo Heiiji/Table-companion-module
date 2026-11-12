@@ -4,6 +4,16 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- The Knight `sheet` group of `actor.resources.v1` takes the unspent Glory (`gloryCurrent`,
+  advertised as `knightSheetGloryV1`). It is written as one « other expense » line named
+  « Table Companion » in the character's Glory table, whose cost moves with each change (a refund
+  lowers it); the Glory total and the Items' prices are left alone. A line renamed in Foundry is
+  kept, a deleted one is created again at the next change, and a change Foundry does not show is
+  put back and reported as `stat_clamped:gloryCurrent`.
+
 ## [0.28.0] - 2026-11-12
 
 ### Added

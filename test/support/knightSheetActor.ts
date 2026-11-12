@@ -15,6 +15,13 @@ import { applyUpdate, type FakeActor } from "./actorUpsertHarness.js";
  *   purchase line's `bonus` as `bonus.experience` on its characteristic, each
  *   wound as `malus.blessures` on its aspect.
  * - `progression.experience.actuel` is `total − Σ cout` of the purchase lines.
+ * - Glory: `progression.gloire.depense.liste` lists the « other expense »
+ *   lines of `depense.autre` (numeric order, the id, the cost) and, when
+ *   `itemsSpent` is set, one entry standing for the Items Knight prices (at
+ *   order `itemsOrder`, 1 by default); `depense.total` is the sum of
+ *   `parseInt` of their costs (a cost Knight's own « + » stores as the string
+ *   `'0'` included), `actuel = total − depense.total`. `ignoredLines` makes
+ *   Knight skip those line ids (a Foundry that does not prepare the write).
  * - The prepared numbers are defined over the stored `value` (which stays 0),
  *   as Knight's `Object.defineProperty`.
  * - `refuse` makes Foundry drop the update: nothing changes, the promise
@@ -25,6 +32,10 @@ export interface KnightSheetState {
   /** Wounds per aspect (Knight derives them from wound Items). */
   wounds: Record<string, number>;
   refuse: boolean;
+  /** Glory spent on Items (armour modules, weapons, cyberware). */
+  itemsSpent?: number;
+  itemsOrder?: number;
+  ignoredLines?: string[];
   /** Runs after each preparation (to fake an odd prepared value). */
   after?: (system: Record<string, any>) => void;
 }
@@ -85,6 +96,29 @@ export function prepareKnight(state: KnightSheetState): Record<string, any> {
   const spent = lines.reduce((acc, line) => acc + Number(line.cout), 0);
   define(xp.depense, "total", spent);
   define(xp, "actuel", xp.total - spent);
+  const glory = system.progression.gloire;
+  const liste: Array<Record<string, unknown>> = [];
+  if (state.itemsSpent !== undefined)
+    liste.push({ order: state.itemsOrder ?? 1, value: state.itemsSpent });
+  for (const [id, line] of Object.entries(
+    (glory.depense.autre ?? {}) as Record<string, Record<string, unknown>>,
+  ))
+    if (!state.ignoredLines?.includes(id))
+      liste.push({
+        order: Number(line.order),
+        name: line.nom,
+        id,
+        gratuit: line.gratuit,
+        value: line.cout ?? 0,
+        isAutre: true,
+      });
+  define(glory.depense, "liste", liste);
+  define(
+    glory.depense,
+    "total",
+    liste.reduce((acc, e) => acc + parseInt(String(e.value)), 0),
+  );
+  define(glory, "actuel", glory.total - glory.depense.total);
   state.after?.(system);
   return system;
 }
@@ -121,7 +155,7 @@ export function knightSheetSource(
     ),
     progression: {
       experience: { total: 0, depense: { liste: {} } },
-      gloire: { total: 0, depense: { total: 0 } },
+      gloire: { total: 0, depense: { autre: {} } },
     },
     age: "",
     surnom: "",

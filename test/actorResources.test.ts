@@ -1284,6 +1284,7 @@ describe("actor.resources.v1 sheet validation", () => {
       characteristics: { force: 4, sangFroid: 3 },
       experienceCurrent: 99_999,
       gloryTotal: 0,
+      gloryCurrent: -99_999,
       age: "é".repeat(100),
       nickname: "",
       majorMotivation: "m".repeat(2000),
@@ -1330,6 +1331,22 @@ describe("actor.resources.v1 sheet validation", () => {
       "sheet.experienceCurrent outside 0-99999",
     ],
     [{ sheet: { gloryTotal: 1.5 } }, "sheet.gloryTotal outside 0-99999"],
+    [
+      { sheet: { gloryCurrent: 100_000 } },
+      "sheet.gloryCurrent outside -99999-99999",
+    ],
+    [
+      { sheet: { gloryCurrent: -100_000 } },
+      "sheet.gloryCurrent outside -99999-99999",
+    ],
+    [
+      { sheet: { gloryCurrent: "3" } },
+      "sheet.gloryCurrent outside -99999-99999",
+    ],
+    [
+      { base: { sheet: { aspects: { chair: 4 }, gloryCurrent: 1 } } },
+      "base.sheet must name every field of sheet",
+    ],
     [
       { sheet: { age: "a".repeat(101) } },
       "sheet.age must be text of at most 100 characters without NUL",
@@ -1807,5 +1824,253 @@ describe("actor.resources.v1 sheet", () => {
         apply(sheetReq({ aspects: { chair: 8 } }, { aspects: { chair: 7 } })),
       ),
     ).toBe("procedure_failed");
+  });
+
+  describe("unspent Glory", () => {
+    const AUTRE = "progression.gloire.depense.autre";
+    const line = (order: string, nom: string, cout: number | string) => ({
+      order,
+      nom,
+      cout,
+      gratuit: false,
+    });
+
+    /** A PC with `total` Glory, the « other expense » lines `autre` and
+     * `itemsSpent` Glory spent on Items. */
+    function gloryPc(
+      total: number,
+      autre: Record<string, unknown> = {},
+      itemsSpent?: number,
+    ) {
+      const pc = sheetPc({}, {}, (s) => {
+        s.progression.gloire = { total, depense: { autre } };
+      });
+      pc.state.itemsSpent = itemsSpent;
+      reprepare(pc.actor, pc.state);
+      return pc;
+    }
+    const glory = (
+      n: number,
+      e: number,
+      overrides: Record<string, unknown> = {},
+    ) => sheetReq({ gloryCurrent: n }, { gloryCurrent: e }, overrides);
+    const flag = (actor: FakeActor) =>
+      (actor.flags[MODULE_ID] as Record<string, any>).actorResourcesV1;
+    const actuel = (actor: FakeActor) =>
+      prepared(actor, "progression.gloire.actuel");
+
+    it("spends on a new « Table Companion » line after the highest key, the total untouched", async () => {
+      const { actor, state } = gloryPc(200, {
+        "1": line("1", "Potion", 0),
+        "4": line("3", "Gift", "0"),
+      });
+      expect(actuel(actor)).toBe(200);
+      const req = glory(190, 200);
+      const result = await apply(req);
+      expect(result.warnings).toEqual([]);
+      expect(actor.updates).toHaveLength(1);
+      expect(stored(state, `${AUTRE}.5`)).toEqual(
+        line("4", "Table Companion", 10),
+      );
+      expect(stored(state, "progression.gloire.total")).toBe(200);
+      expect(actuel(actor)).toBe(190);
+      expect(flag(actor).gloryLineId).toBe("5");
+      expect(written(actor)).toMatchObject({ "sheet.gloryCurrent": 190 });
+      expect(flag(actor).contentDigest).toBe(
+        await canonicalDigest({ resources: {}, sheet: { gloryCurrent: 190 } }),
+      );
+      // A replay of the same request answers the stored result.
+      expect(await apply(req)).toEqual(result);
+      expect(actor.updates).toHaveLength(1);
+    });
+
+    it("reuses its line for the next spend, a refund, and a refund below zero", async () => {
+      const { actor, state } = gloryPc(200);
+      await apply(glory(190, 200));
+      expect(stored(state, `${AUTRE}.1`)).toEqual(
+        line("1", "Table Companion", 10),
+      );
+      await apply(glory(175, 190, { sequence: 8 }));
+      expect(Object.keys(stored(state, AUTRE) as object)).toEqual(["1"]);
+      expect(stored(state, `${AUTRE}.1.cout`)).toBe(25);
+      await apply(glory(185, 175, { sequence: 9 }));
+      expect(stored(state, `${AUTRE}.1.cout`)).toBe(15);
+      await apply(glory(210, 185, { sequence: 10 }));
+      expect(stored(state, `${AUTRE}.1.cout`)).toBe(-10);
+      expect(actuel(actor)).toBe(210);
+      expect(stored(state, "progression.gloire.total")).toBe(200);
+    });
+
+    it("takes the requested total into the difference when both ride together", async () => {
+      const { actor, state } = gloryPc(200);
+      await apply(
+        sheetReq(
+          { gloryTotal: 250, gloryCurrent: 230 },
+          { gloryTotal: 200, gloryCurrent: 200 },
+        ),
+      );
+      expect(stored(state, "progression.gloire.total")).toBe(250);
+      expect(stored(state, `${AUTRE}.1.cout`)).toBe(20);
+      expect(actuel(actor)).toBe(230);
+    });
+
+    it("never counts the Glory spent on Items twice", async () => {
+      const { actor, state } = gloryPc(340, {}, 140);
+      expect(actuel(actor)).toBe(200);
+      await apply(glory(180, 200));
+      // The Items' entry is Knight's order 1: the lane's line comes next.
+      expect(stored(state, `${AUTRE}.1`)).toEqual(
+        line("2", "Table Companion", 20),
+      );
+      expect(actuel(actor)).toBe(180);
+    });
+
+    it("creates a new line when the Gamemaster deleted its own, and the flag follows", async () => {
+      const { actor, state } = gloryPc(200, { "4": line("1", "Gift", 0) });
+      await apply(glory(190, 200));
+      expect(flag(actor).gloryLineId).toBe("5");
+      // In Foundry: the lane's line deleted, another added by Knight's « + ».
+      delete state.source.progression.gloire.depense.autre["5"];
+      state.source.progression.gloire.depense.autre["6"] = line("2", "", "0");
+      reprepare(actor, state);
+      expect(actuel(actor)).toBe(200);
+      await apply(glory(180, 200, { sequence: 8 }));
+      expect(stored(state, `${AUTRE}.7`)).toEqual(
+        line("3", "Table Companion", 20),
+      );
+      expect(stored(state, `${AUTRE}.6`)).toEqual(line("2", "", "0"));
+      expect(flag(actor).gloryLineId).toBe("7");
+      expect(actuel(actor)).toBe(180);
+    });
+
+    it("finds a renamed line by its id and keeps the Gamemaster's name", async () => {
+      const { actor, state } = gloryPc(200);
+      await apply(glory(190, 200));
+      state.source.progression.gloire.depense.autre["1"].nom = "Renamed";
+      reprepare(actor, state);
+      await apply(glory(185, 190, { sequence: 8 }));
+      expect(stored(state, `${AUTRE}.1`)).toEqual(line("1", "Renamed", 15));
+      expect(Object.keys(stored(state, AUTRE) as object)).toEqual(["1"]);
+    });
+
+    it("adds to a cost Knight stored as a string", async () => {
+      const { actor, state } = gloryPc(100, { "2": line("1", "Ours", "5") });
+      (actor.flags[MODULE_ID] as Record<string, unknown>).actorResourcesV1 = {
+        schemaVersion: 1,
+        resultDocId: ACTOR_ID,
+        outcome: "updated",
+        appliedRevision: 1,
+        appliedDigest: "0".repeat(64),
+        warnings: [],
+        gloryLineId: "2",
+      };
+      expect(actuel(actor)).toBe(95);
+      await apply(glory(90, 95));
+      expect(stored(state, `${AUTRE}.2.cout`)).toBe(10);
+      expect(Object.keys(stored(state, AUTRE) as object)).toEqual(["2"]);
+    });
+
+    it("ignores keys that are not numbers when choosing a new one", async () => {
+      const { state } = gloryPc(100, {
+        abc: line("1", "Odd", 0),
+        "2": line("2", "Gift", 0),
+      });
+      await apply(glory(90, 100));
+      expect(stored(state, `${AUTRE}.3`)).toEqual(
+        line("3", "Table Companion", 10),
+      );
+    });
+
+    it("refuses base_conflict when Foundry moved it first, and writes none of the row", async () => {
+      const { actor, state } = gloryPc(200);
+      expect(
+        await rpcCode(
+          apply(
+            sheetReq(
+              { gloryCurrent: 190, nickname: "Ace" },
+              { gloryCurrent: 210, nickname: "" },
+              { resources: { health: 12 } },
+            ),
+          ),
+        ),
+      ).toBe("base_conflict");
+      expect(actor.updates).toHaveLength(0);
+      expect(stored(state, AUTRE)).toEqual({});
+      expect(stored(state, "sante.value")).toBe(1);
+    });
+
+    it("accepts a base read before its own last write, and counts from the current value", async () => {
+      const { actor, state } = gloryPc(200);
+      await apply(glory(190, 200));
+      // Built on the read before sequence 7 landed (200); Foundry holds 190.
+      await apply(glory(180, 200, { sequence: 8 }));
+      expect(stored(state, `${AUTRE}.1.cout`)).toBe(20);
+      expect(actuel(actor)).toBe(180);
+    });
+
+    it("skips a prepared unspent Glory that is not a number", async () => {
+      const { actor, state } = gloryPc(200);
+      state.after = (s) =>
+        Object.defineProperty(s.progression.gloire, "actuel", {
+          value: Number.NaN,
+        });
+      reprepare(actor, state);
+      const result = await apply(glory(190, 200));
+      expect(result.warnings).toEqual(["stat_unavailable:gloryCurrent"]);
+      expect(stored(state, AUTRE)).toEqual({});
+      expect(written(actor)).not.toHaveProperty(["sheet.gloryCurrent"]);
+    });
+
+    it("deletes the line it created when Foundry does not prepare the target", async () => {
+      const { actor, state } = gloryPc(200);
+      state.ignoredLines = ["1"];
+      const req = glory(190, 200);
+      const result = await apply(req);
+      expect(result.warnings).toEqual(["stat_clamped:gloryCurrent"]);
+      expect(actor.updates).toHaveLength(2);
+      expect(stored(state, AUTRE)).toEqual({});
+      expect(flag(actor).warnings).toEqual(["stat_clamped:gloryCurrent"]);
+      expect(flag(actor)).not.toHaveProperty("gloryLineId");
+      expect(written(actor)).not.toHaveProperty(["sheet.gloryCurrent"]);
+      expect(await apply(req)).toEqual(result);
+    });
+
+    it("puts its own line's cost back, as Knight stored it, when Foundry does not prepare the target", async () => {
+      const { actor, state } = gloryPc(100, { "2": line("1", "Ours", "5") });
+      (actor.flags[MODULE_ID] as Record<string, unknown>).actorResourcesV1 = {
+        schemaVersion: 1,
+        resultDocId: ACTOR_ID,
+        outcome: "updated",
+        appliedRevision: 1,
+        appliedDigest: "0".repeat(64),
+        warnings: [],
+        gloryLineId: "2",
+      };
+      state.ignoredLines = ["2"];
+      reprepare(actor, state);
+      expect(actuel(actor)).toBe(100);
+      const result = await apply(glory(90, 100));
+      expect(result.warnings).toEqual(["stat_clamped:gloryCurrent"]);
+      expect(stored(state, `${AUTRE}.2`)).toEqual(line("1", "Ours", "5"));
+      expect(flag(actor).gloryLineId).toBe("2");
+    });
+
+    it("brings an overspent PC back to zero", async () => {
+      const { actor, state } = gloryPc(10, { "1": line("1", "Debt", 28) });
+      expect(actuel(actor)).toBe(-18);
+      await apply(glory(0, -18));
+      expect(stored(state, `${AUTRE}.2`)).toEqual(
+        line("2", "Table Companion", -18),
+      );
+      expect(actuel(actor)).toBe(0);
+    });
+
+    it("writes nothing for a difference of zero", async () => {
+      const { actor, state } = gloryPc(200);
+      await apply(glory(200, 200, { resources: { health: 12 } }));
+      expect(stored(state, AUTRE)).toEqual({});
+      expect(written(actor)).toMatchObject({ "sheet.gloryCurrent": 200 });
+      expect(flag(actor)).not.toHaveProperty("gloryLineId");
+    });
   });
 });

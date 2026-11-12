@@ -4,6 +4,7 @@ import {
   CAP_ACTOR_RESOURCES_WEAR,
   CAP_KNIGHT_ATTACK_ITEM_ID,
   CAP_KNIGHT_NPC_RESOURCES,
+  CAP_KNIGHT_SHEET_GLORY,
   CAP_KNIGHT_SHEET_WRITES,
   CAP_WRITE_BASE,
   WRITE_BASE_PROCEDURES,
@@ -258,7 +259,7 @@ export class Channel {
       caps.includes("actor.resources.v1") &&
       caps.includes("knight.statistics.v1")
     )
-      caps.push(CAP_KNIGHT_SHEET_WRITES);
+      caps.push(CAP_KNIGHT_SHEET_WRITES, CAP_KNIGHT_SHEET_GLORY);
     // The armour kind rides the items lane the same way.
     if (caps.includes("actor.items.v1")) caps.push(CAP_ACTOR_ITEMS_ARMOUR);
     // The attack's itemId rides the attack lane.

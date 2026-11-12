@@ -1,3 +1,4 @@
+import { deletionEntry } from "../foundry/runtime.js";
 import { CHARACTERISTIC_KEYS } from "./actorUpsert.types.js";
 import {
   ASPECT_KEYS,
@@ -16,6 +17,13 @@ import {
  * prepared Actor, so wounds, experience purchases, capacities and advantages
  * count as Foundry counts them). Unspent experience is written by difference
  * on the experience total; Glory total and the texts are written as is.
+ *
+ * Unspent Glory is what Knight prepares as `total − spent`, the spent part
+ * summing the Items' prices and the « other expense » lines of
+ * `progression.gloire.depense.autre`. The lane owns ONE such line, whose id
+ * the result flag records (`gloryLineId`): a change of unspent Glory moves that
+ * line's cost, never the total. A line the Gamemaster deleted is created again
+ * at the next difference; one renamed is still found by its id.
  */
 
 type AspectKey = (typeof ASPECT_KEYS)[number];
@@ -44,18 +52,19 @@ export interface KnightSheetV1 {
   characteristics?: Record<string, number>;
   experienceCurrent?: number;
   gloryTotal?: number;
+  gloryCurrent?: number;
   age?: string;
   nickname?: string;
   majorMotivation?: string;
 }
 
-function bounded(value: unknown, path: string, max: number): number {
+function bounded(value: unknown, path: string, max: number, min = 0): number {
   if (
     !Number.isSafeInteger(value) ||
-    (value as number) < 0 ||
+    (value as number) < min ||
     (value as number) > max
   )
-    invalid(`${path} outside 0-${max}`);
+    invalid(`${path} outside ${min}-${max}`);
   return value as number;
 }
 
@@ -79,6 +88,7 @@ export function parseKnightSheet(value: unknown, path: string): KnightSheetV1 {
     "characteristics",
     "experienceCurrent",
     "gloryTotal",
+    "gloryCurrent",
     ...Object.keys(TEXTS),
   ]);
   const sheet: KnightSheetV1 = {};
@@ -93,6 +103,14 @@ export function parseKnightSheet(value: unknown, path: string): KnightSheetV1 {
   for (const key of ["experienceCurrent", "gloryTotal"] as const)
     if (r[key] !== undefined)
       sheet[key] = bounded(r[key], `${path}.${key}`, MAX_PROGRESSION);
+  // A Knight can be overspent: unspent Glory may be negative.
+  if (r.gloryCurrent !== undefined)
+    sheet.gloryCurrent = bounded(
+      r.gloryCurrent,
+      `${path}.gloryCurrent`,
+      MAX_PROGRESSION,
+      -MAX_PROGRESSION,
+    );
   for (const [key, [, max]] of Object.entries(TEXTS)) {
     const v = r[key];
     if (v === undefined) continue;
@@ -116,6 +134,15 @@ function statNode(group: string, key: string): string {
 
 const safe = (v: unknown): v is number => Number.isSafeInteger(v);
 
+/** The prepared (`defineProperty`'d) unspent counts. */
+const PREPARED_COUNTS = {
+  experienceCurrent: "progression.experience.actuel",
+  gloryCurrent: "progression.gloire.actuel",
+} as const;
+const AUTRE = "progression.gloire.depense.autre";
+/** The name of the « other expense » line the lane creates. */
+const GLORY_LINE_NAME = "Table Companion";
+
 /** What Foundry holds now for a `sheet.*` field, as the app's base names it:
  * the PREPARED value of a stat and of unspent experience (undefined when it
  * is not a whole number: the field is skipped, so not compared), the stored
@@ -126,8 +153,8 @@ export function currentSheetValue(system: unknown, field: string): unknown {
     const v = valueAt(system, `${statNode(group, key)}.value`);
     return safe(v) ? v : undefined;
   }
-  if (group === "experienceCurrent") {
-    const v = valueAt(system, "progression.experience.actuel");
+  if (group === "experienceCurrent" || group === "gloryCurrent") {
+    const v = valueAt(system, PREPARED_COUNTS[group]);
     return safe(v) ? v : undefined;
   }
   if (group === "gloryTotal")
@@ -144,15 +171,16 @@ const sum = (o: unknown): number =>
     0,
   );
 
-/** A planned stat or experience write, checked once the update landed: the
- * field (`aspects.chair`), the prepared path to read, the target, and the
- * stored path with the value it held before (to undo it). */
+/** A planned stat, experience or Glory write, checked once the update
+ * landed: the field (`aspects.chair`), the prepared path to read, the target,
+ * the `system.*` update that undoes it, and what the undo puts back in the
+ * result flag besides. */
 export interface SheetWrite {
   field: string;
   prepared: string;
   target: number;
-  stored: string;
-  before: number;
+  undo: Dict;
+  flag?: Dict;
 }
 
 /**
@@ -162,16 +190,20 @@ export interface SheetWrite {
  * written or already in place; nothing for a skipped one). Warnings known
  * before the update: `stat_overridden:` (Knight's override wins),
  * `stat_unavailable:` (no whole prepared number), `stat_clamped:` (no base
- * within Knight's 0-9 changes anything).
+ * within Knight's 0-9 changes anything). `gloryLineId` is the lane's Glory
+ * line as the flag records it; the plan returns the id to record when it
+ * writes that line.
  */
 export function planKnightSheet(
   system: unknown,
   sheet: KnightSheetV1,
   patch: Dict,
   warnings: string[],
-): { checks: SheetWrite[]; written: Dict } {
+  gloryLineId?: string,
+): { checks: SheetWrite[]; written: Dict; gloryLineId?: string } {
   const checks: SheetWrite[] = [];
   const written: Dict = {};
+  let lineId: string | undefined;
   const stat = (group: string, key: string, target: number) => {
     const field = `${group}.${key}`;
     const at = statNode(group, key);
@@ -215,8 +247,7 @@ export function planKnightSheet(
       field,
       prepared: `${at}.value`,
       target,
-      stored: `${at}.base`,
-      before: node.base,
+      undo: { [`system.${at}.base`]: node.base },
     });
   };
   for (const [key, n] of Object.entries(sheet.aspects ?? {}))
@@ -241,8 +272,35 @@ export function planKnightSheet(
           field: "experienceCurrent",
           prepared: "progression.experience.actuel",
           target: xp,
-          stored: "progression.experience.total",
-          before: total,
+          undo: { "system.progression.experience.total": total },
+        });
+      }
+    }
+  }
+
+  const glory = sheet.gloryCurrent;
+  if (glory !== undefined) {
+    const now = valueAt(system, PREPARED_COUNTS.gloryCurrent);
+    const total = valueAt(system, "progression.gloire.total");
+    if (!safe(now) || !safe(total))
+      warnings.push("stat_unavailable:gloryCurrent");
+    else {
+      // The spend that leaves `glory` unspent under the total this update
+      // leaves, beyond what is spent now.
+      const delta = (sheet.gloryTotal ?? total) - glory - (total - now);
+      written["sheet.gloryCurrent"] = glory;
+      if (delta !== 0) {
+        const write = gloryLine(system, delta, gloryLineId, patch);
+        lineId = write.id;
+        checks.push({
+          field: "gloryCurrent",
+          prepared: PREPARED_COUNTS.gloryCurrent,
+          target: glory,
+          undo: write.undo,
+          flag:
+            gloryLineId === undefined
+              ? Object.fromEntries([deletionEntry("gloryLineId")])
+              : { gloryLineId },
         });
       }
     }
@@ -260,5 +318,53 @@ export function planKnightSheet(
     if (valueAt(system, path) !== v) patch[`system.${path}`] = v;
     written[`sheet.${key}`] = v;
   }
-  return { checks, written };
+  return {
+    checks,
+    written,
+    ...(lineId === undefined ? {} : { gloryLineId: lineId }),
+  };
+}
+
+/** Move the lane's Glory line's cost by `delta` into `patch`: the line the
+ * flag records when it is still there, else a new one after the highest
+ * numeric key (Knight's own « + » takes the last key plus one, so a numeric
+ * key keeps that working), at Knight's next order. Returns its id and the
+ * update that undoes the write (the previous cost, or the line deleted). */
+function gloryLine(
+  system: unknown,
+  delta: number,
+  recorded: string | undefined,
+  patch: Dict,
+): { id: string; undo: Dict } {
+  const autre = (valueAt(system, AUTRE) ?? {}) as Dict;
+  const line =
+    recorded !== undefined && Object.hasOwn(autre, recorded)
+      ? (autre[recorded] as Dict | undefined)
+      : undefined;
+  if (recorded !== undefined && typeof line === "object" && line !== null) {
+    const at = `system.${AUTRE}.${recorded}.cout`;
+    patch[at] = (Number(line.cout) || 0) + delta;
+    return { id: recorded, undo: { [at]: line.cout } };
+  }
+  const keys = Object.keys(autre)
+    .filter((key) => /^\d+$/.test(key))
+    .map(Number);
+  const id = String(Math.max(0, ...keys) + 1);
+  // Knight's next order: the highest order of the prepared spend list plus
+  // one, or the number of entries when none carries one (as its sheet does).
+  const liste = Object.values(
+    (valueAt(system, "progression.gloire.depense.liste") ?? {}) as Dict,
+  ).filter((e) => !(e as Dict | null)?.isEmpty);
+  const orders = liste
+    .map((e) => Number((e as Dict | null)?.order))
+    .filter(Number.isFinite);
+  const order = (orders.length > 0 ? Math.max(...orders) : liste.length) + 1;
+  patch[`system.${AUTRE}.${id}`] = {
+    order: String(order),
+    nom: GLORY_LINE_NAME,
+    cout: delta,
+    gratuit: false,
+  };
+  const [key, value] = deletionEntry(id);
+  return { id, undo: { [`system.${AUTRE}.${key}`]: value } };
 }

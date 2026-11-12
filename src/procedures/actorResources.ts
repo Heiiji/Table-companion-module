@@ -347,8 +347,16 @@ export const actorResourcesV1: Procedure = async (payload) => {
   }
   if (req.name !== undefined && actor.name !== req.name) patch.name = req.name;
   const sheet = req.sheet
-    ? planKnightSheet(actor.system, req.sheet, patch, warnings)
-    : { checks: [], written: {} };
+    ? planKnightSheet(
+        actor.system,
+        req.sheet,
+        patch,
+        warnings,
+        typeof stored?.flag.gloryLineId === "string"
+          ? stored.flag.gloryLineId
+          : undefined,
+      )
+    : { checks: [], written: {}, gloryLineId: undefined };
   const result: ActorResourcesResultV1 = {
     schemaVersion: 1,
     resultDocId: id,
@@ -388,6 +396,9 @@ export const actorResourcesV1: Procedure = async (payload) => {
       ...result,
       warnings: [...warnings],
       contentDigest,
+      ...(sheet.gloryLineId === undefined
+        ? {}
+        : { gloryLineId: sheet.gloryLineId }),
       // What Foundry holds once this update lands, for the next base compare.
       written: writtenFields(req, (field) => {
         if (field.startsWith("sheet.")) return sheet.written[field];
@@ -413,8 +424,10 @@ export const actorResourcesV1: Procedure = async (payload) => {
     kept = kept.filter((w) => !off.includes(w));
     const undo: Dict = {};
     const forget: Dict = {};
+    let flagBack: Dict = {};
     for (const w of off) {
-      undo[`system.${w.stored}`] = w.before;
+      Object.assign(undo, w.undo);
+      flagBack = { ...flagBack, ...w.flag };
       warnings.push(`stat_clamped:${w.field}`);
       // Foundry merges the stored flag: the field must be deleted from it.
       const at = `sheet.${w.field}`;
@@ -423,7 +436,7 @@ export const actorResourcesV1: Procedure = async (payload) => {
     }
     await actor.update({
       ...undo,
-      [flagKey]: { warnings: [...warnings], written: forget },
+      [flagKey]: { ...flagBack, warnings: [...warnings], written: forget },
     });
     assertLanded(actor, req.sequence, warnings);
   }

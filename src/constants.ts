@@ -122,6 +122,13 @@ export const CAP_KNIGHT_NPC_RESOURCES = "knightNpcResourcesV1";
  * NOT a procedure name — it has no handler. */
 export const CAP_KNIGHT_SHEET_WRITES = "knightSheetWritesV1";
 
+/** Capability token advertised exactly with `CAP_KNIGHT_SHEET_WRITES`: this
+ * build accepts `sheet.gloryCurrent` (the unspent Glory, written as one
+ * « other expense » line the lane owns) on `actor.resources.v1`. Apps send it
+ * only when the world advertises it, since an older build refuses the key.
+ * NOT a procedure name — it has no handler. */
+export const CAP_KNIGHT_SHEET_GLORY = "knightSheetGloryV1";
+
 /** Capability token advertised alongside `knight.attack.v1`: this build
  * accepts the optional `itemId` on that procedure (a weapon created in Foundry,
  * found by its Item id when no Item carries the `entryId` flag). Apps send it
