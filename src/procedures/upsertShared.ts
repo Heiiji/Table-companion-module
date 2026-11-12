@@ -1,7 +1,7 @@
 import { MODULE_ID } from "../constants.js";
 import {
   actorImplementation,
-  deletionEntry,
+  forcedReplacement,
   foundryGame,
   foundryGeneration,
   gameActors,
@@ -802,23 +802,20 @@ export async function createActorDocument(data: Dict): Promise<ActorLike> {
 
 /**
  * An `ownership` update that REPLACES the Actor's whole ownership map with
- * `default` plus, when given, one OWNER grant. Foundry merges object updates
- * recursively, so sending only the desired map would leave stale grants behind;
- * every other explicit key therefore gets a deletion entry (`deletionEntry`).
+ * `ownership`. Foundry 14 refuses any deletion inside the ownership field (and
+ * then drops the whole update without throwing), so there the update is a
+ * `ForcedReplacement`. Before 14 Foundry merges object updates recursively, so
+ * every other explicit key gets a `-=key` deletion entry.
  */
 export function ownershipReplacement(
   actor: ActorLike,
-  defaultLevel: number,
-  owner?: string,
-): Dict {
-  const update: Dict = { default: defaultLevel };
-  for (const key of Object.keys(actor.ownership ?? {})) {
-    if (key !== "default" && key !== owner) {
-      const [k, v] = deletionEntry(key);
-      update[k] = v;
-    }
-  }
-  if (owner) update[owner] = OWNERSHIP_OWNER;
+  ownership: Dict,
+): unknown {
+  const replacement = forcedReplacement(ownership);
+  if (replacement !== undefined) return replacement;
+  const update: Dict = { ...ownership };
+  for (const key of Object.keys(actor.ownership ?? {}))
+    if (!(key in ownership)) update[`-=${key}`] = null;
   return update;
 }
 
@@ -844,28 +841,41 @@ export function normalizedOwnership(
 }
 
 // Actor.create receives the plain normalized map; Actor.update receives the
-// merge-safe replacement, which ends with exactly the default, one OWNER when
-// supplied, and the Companion user at its existing level but at least OBSERVER
-// — whatever other grants an adopted or bound Actor carried. The Companion
+// replacement, which ends with exactly the default, one OWNER when supplied,
+// and the Companion user at its existing level but at least OBSERVER —
+// whatever other grants an adopted or bound Actor carried. The Companion
 // grant is never deleted or lowered, so setup's « Share » survives a revision.
 export function normalizedOwnershipUpdate(
   actor: ActorLike,
   foundryUserId: string | undefined,
   defaultLevel = OWNERSHIP_NONE,
-): Dict {
-  const update = ownershipReplacement(actor, defaultLevel, foundryUserId);
+): unknown {
+  const ownership = normalizedOwnership(foundryUserId, defaultLevel);
   const companion = companionUserId(foundryUserId);
   if (companion) {
-    // Drop the companion's deletion entry (under Foundry 14's operator the
-    // key is the user id itself, which the grant below overwrites anyway).
-    delete update[deletionEntry(companion)[0]];
     const current = Number(actor.ownership?.[companion]);
-    update[companion] = Math.max(
+    ownership[companion] = Math.max(
       OWNERSHIP_OBSERVER,
       Number.isFinite(current) ? current : OWNERSHIP_NONE,
     );
   }
-  return update;
+  return ownershipReplacement(actor, ownership);
+}
+
+/** Foundry resolves a refused update without throwing and writes nothing, so a
+ * lane checks its ownership replacement landed: any explicit grant beyond the
+ * default, the player and the Companion user means the update was dropped. */
+export function assertOwnershipApplied(
+  actor: ActorLike,
+  foundryUserId: string | undefined,
+  lane: string,
+): void {
+  const kept = ["default", foundryUserId, companionUserId(foundryUserId)];
+  if (Object.keys(actor.ownership ?? {}).some((key) => !kept.includes(key)))
+    throw new RpcError(
+      "procedure_failed",
+      `${lane}: Foundry did not apply the update`,
+    );
 }
 
 export async function canonicalDigest(value: unknown): Promise<string> {

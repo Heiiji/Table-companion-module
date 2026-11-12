@@ -17,6 +17,7 @@ import {
   canonicalDigest,
   contentsOf,
   createActorDocument,
+  assertOwnershipApplied,
   docId,
   FLAG_KEYS,
   flagValue,
@@ -338,6 +339,7 @@ export const pf2eActorUpsertV1: Procedure = async (payload) => {
     ownership: normalizedOwnershipUpdate(actor, req.foundryUserId),
     [`flags.${MODULE_ID}.${FLAG_KEYS.binding}`]: binding,
   });
+  assertOwnershipApplied(actor, req.foundryUserId, "pf2e.actor.upsert.v1");
 
   let equipmentCompleteness: EquipmentCompleteness = "not_requested";
   const warnings = req.foundryUserId ? [] : ["assign_foundry_user"];

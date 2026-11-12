@@ -4,6 +4,20 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- On Foundry 14, the Knight character, Knight NPC and Pathfinder 2e character upserts (`actor.upsert.v1`,
+  `npc.upsert.v1`, `pf2e.actor.upsert.v1`) no longer lose their whole update to Foundry refusing the
+  ownership change: the ownership map is now replaced with Foundry 14's `ForcedReplacement`, and a lane
+  answers `procedure_failed` instead of success when Foundry still did not apply its update.
+- A Knight Warrior armour whose « type » is active (in or out of conflict) is now guarded against an
+  unconfirmed replacement (`armour_guarded`).
+- A Knight character created by `actor.upsert.v1` now has a linked prototype token, so damage dealt to
+  its token on a scene lands on the character itself.
+- Knight attacks (`knight.attack.v1`) now roll a ranged weapon with the « barrage » effect as a normal
+  attack, the barrage option off as in the sheet's roll dialog, instead of refusing it.
+
 ## [0.25.0] - 2026-11-11
 
 ### Added

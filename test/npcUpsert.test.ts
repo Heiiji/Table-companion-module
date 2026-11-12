@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 import {
   npcUpsertV1,
   validateKnightNpcUpsertV1,
@@ -8,6 +8,11 @@ import {
 } from "../src/procedures/npcUpsert.js";
 import { MODULE_ID, SETTING_AGENT_USER } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
+import {
+  applyOwnership,
+  ownershipRefused,
+  stubOperators,
+} from "./support/actorUpsertHarness.js";
 
 const ACTOR_ID = "actor00000000pnj";
 /** The paired Companion user, which the backend reads the world as. */
@@ -111,17 +116,11 @@ function fakeActor(id = ACTOR_ID, name = "Existing", type = "pnj"): FakeActor {
     updates: [],
     update: async (changes) => {
       actor.updates.push(changes);
+      if (ownershipRefused(changes)) return;
       for (const [key, value] of Object.entries(changes)) {
         if (key === "name") actor.name = String(value);
-        else if (key === "ownership") {
-          for (const [ownershipKey, level] of Object.entries(
-            value as Record<string, unknown>,
-          )) {
-            if (ownershipKey.startsWith("-="))
-              delete actor.ownership[ownershipKey.slice(2)];
-            else actor.ownership[ownershipKey] = level;
-          }
-        } else setPath(actor as unknown as Record<string, unknown>, key, value);
+        else if (key === "ownership") applyOwnership(actor, value);
+        else setPath(actor as unknown as Record<string, unknown>, key, value);
       }
     },
   };
@@ -294,6 +293,59 @@ describe("npc.upsert.v1", () => {
         characterId: "npc-1",
       },
     );
+  });
+
+  describe("on Foundry 14", () => {
+    // Foundry adds the creating Gamemaster as OWNER, so the authored update
+    // must replace a map holding a grant the lane removes.
+    function gmCreating(actors: FakeActor[]) {
+      stubOperators();
+      const create = stubFoundry(actors, undefined, 14) as Mock<
+        (data: Record<string, unknown>) => Promise<FakeActor>
+      >;
+      const made = create.getMockImplementation()!;
+      create.mockImplementation(async (data: Record<string, unknown>) => {
+        const actor = await made(data);
+        actor.ownership.gm = 3;
+        return actor;
+      });
+      return create;
+    }
+
+    it("creates with the authored values written and exactly the lane's ownership", async () => {
+      const actors: FakeActor[] = [];
+      gmCreating(actors);
+      const result = (await npcUpsertV1(
+        request() as unknown as Record<string, unknown>,
+        {} as never,
+      )) as NpcUpsertResultV1;
+      expect(result.outcome).toBe("created");
+      expect(actors[0].ownership).toEqual({ default: 0, [COMPANION]: 2 });
+      expect(actors[0].system).toMatchObject({
+        aspects: { chair: { value: 5 }, bete: { value: 7 } },
+        sante: { base: 30, value: 24 },
+      });
+    });
+
+    it("answers procedure_failed when Foundry drops the authored update", async () => {
+      const actors: FakeActor[] = [];
+      const create = gmCreating(actors);
+      const made = create.getMockImplementation()!;
+      create.mockImplementation(async (data: Record<string, unknown>) => {
+        const actor = await made(data);
+        actor.update = async (changes) => {
+          actor.updates.push(changes);
+        };
+        return actor;
+      });
+      await expectRpcError(
+        npcUpsertV1(
+          request() as unknown as Record<string, unknown>,
+          {} as never,
+        ),
+        "procedure_failed",
+      );
+    });
   });
 
   it("maps visible to ownership LIMITED and disposition NEUTRAL", async () => {

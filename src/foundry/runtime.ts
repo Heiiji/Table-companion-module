@@ -323,8 +323,14 @@ interface FoundryGlobals {
   Hooks?: HooksLike;
   ui?: { notifications?: NotificationsLike };
   foundry?: {
-    /** Foundry 14+: update operators (`ForcedDeletion` replaces `-=key`). */
-    data?: { operators?: { ForcedDeletion?: new () => unknown } };
+    /** Foundry 14+: update operators (`ForcedDeletion` replaces `-=key`,
+     * `ForcedReplacement` replaces `==key`). */
+    data?: {
+      operators?: {
+        ForcedDeletion?: new () => unknown;
+        ForcedReplacement?: new (value: unknown) => unknown;
+      };
+    };
     applications?: {
       /** Foundry 13+: `apps.FilePicker`, whose `implementation` is the
        * configured (`CONFIG.ux.FilePicker`) subclass. */
@@ -354,6 +360,16 @@ export function deletionEntry(key: string): [string, unknown] {
   return typeof ForcedDeletion !== "undefined"
     ? [key, new ForcedDeletion()]
     : [`-=${key}`, null];
+}
+
+/** Foundry 14's `ForcedReplacement` of a field with `value`, or undefined on
+ * a runtime without the operator. */
+export function forcedReplacement(value: unknown): unknown {
+  const ForcedReplacement =
+    globals().foundry?.data?.operators?.ForcedReplacement;
+  return typeof ForcedReplacement === "undefined"
+    ? undefined
+    : new ForcedReplacement(value);
 }
 
 /** `game`, or undefined outside Foundry. */

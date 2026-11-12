@@ -140,7 +140,16 @@ class FakeRollKnight {
     };
   }
   prepareWpnDistance(item: Dict) {
-    return { ...this.prepareWpnContact(item), type: "distance" };
+    const weapon: Dict = { ...this.prepareWpnContact(item), type: "distance" };
+    // Like Knight 3.58.38: ranged preparation defaults a barrage option ON.
+    const raw = [
+      ...(weapon.effets?.raw ?? []),
+      ...(weapon.structurelles?.raw ?? []),
+      ...(weapon.ornementales?.raw ?? []),
+    ];
+    if (!weapon.options && raw.some((e: string) => e.startsWith("barrage ")))
+      weapon.options = [{ value: "barrage", active: true }];
+    return weapon;
   }
   async doRoll(updates: Dict) {
     rollCalls.push({
@@ -500,7 +509,17 @@ describe("knight.attack.v1 roll", () => {
     expect(card.whisper).toEqual([GM, COMPANION]);
   });
 
-  it("refuses a barrage weapon before rolling", async () => {
+  it("rolls a ranged barrage weapon as an attack, with the option off", async () => {
+    world.actors.get(PC).items.contents[0].system.type = "distance";
+    scenario.weaponRaw = ["barrage 2"];
+    await knightAttackV1(payload(), {} as never);
+    expect(rollCalls).toHaveLength(1);
+    expect((rollCalls[0]!.data.weapon as Dict).options).toEqual([
+      { value: "barrage", active: false },
+    ]);
+  });
+
+  it("refuses a barrage weapon with no barrage option to turn off", async () => {
     scenario.weaponRaw = ["barrage 2"];
     expect(
       await rejection(knightAttackV1(payload(), {} as never)),

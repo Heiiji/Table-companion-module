@@ -217,6 +217,7 @@ export function armourGuarded(item: ItemDoc): boolean {
   const liste = at(sy, "evolutions.liste");
   const archivage = at(sy, "archivage");
   const selected = at(sy, "capacites.selected");
+  const warriorTypes = at(sy, "capacites.selected.type.type");
   return (
     (isDict(liste) &&
       Object.values(liste).some((e) => at(e, "applied") === true)) ||
@@ -228,7 +229,12 @@ export function armourGuarded(item: ItemDoc): boolean {
           : typeof v === "object" && v !== null && Object.keys(v).length > 0,
       )) ||
     (isDict(selected) &&
-      Object.values(selected).some((c) => anyTrue(at(c, "active"))))
+      Object.values(selected).some((c) => anyTrue(at(c, "active")))) ||
+    // The Warrior's « type » is active on the chosen type itself.
+    (isDict(warriorTypes) &&
+      Object.values(warriorTypes).some(
+        (t) => at(t, "conflit") === true || at(t, "horsconflit") === true,
+      ))
   );
 }
 

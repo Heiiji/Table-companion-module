@@ -164,6 +164,54 @@ export function wearingArmour(actor: FakeActor): FakeActor {
   return actor;
 }
 
+/** Foundry 14's update operators, as the fakes recognise them. */
+export class ForcedDeletion {}
+export class ForcedReplacement {
+  constructor(readonly value: Record<string, unknown>) {}
+}
+
+/** A Foundry 14 runtime: `foundry.data.operators` is present. */
+export function stubOperators(): void {
+  vi.stubGlobal("foundry", {
+    data: { operators: { ForcedDeletion, ForcedReplacement } },
+  });
+}
+
+function hasOperators(): boolean {
+  const g = globalThis as { foundry?: { data?: { operators?: unknown } } };
+  return g.foundry?.data?.operators !== undefined;
+}
+
+/** Foundry 14 refuses an update whose `ownership` holds a deletion (a
+ * ForcedDeletion or a `-=` key, nested or dotted): it logs the validation
+ * error, writes NOTHING of the update and resolves undefined. */
+export function ownershipRefused(changes: Record<string, unknown>): boolean {
+  if (!hasOperators()) return false;
+  return Object.entries(changes).some(([key, value]) => {
+    if (key.startsWith("ownership."))
+      return value instanceof ForcedDeletion || key.startsWith("ownership.-=");
+    if (key !== "ownership" || value instanceof ForcedReplacement) return false;
+    return Object.entries(value as Record<string, unknown>).some(
+      ([k, v]) => k.startsWith("-=") || v instanceof ForcedDeletion,
+    );
+  });
+}
+
+/** Applies an accepted `ownership` update value: a ForcedReplacement replaces
+ * the map, a plain object merges with `-=key` deleting (before Foundry 14). */
+export function applyOwnership(
+  target: { ownership: Record<string, unknown> },
+  value: unknown,
+): void {
+  if (value instanceof ForcedReplacement) {
+    target.ownership = { ...value.value };
+    return;
+  }
+  for (const [key, level] of Object.entries(value as Record<string, unknown>))
+    if (key.startsWith("-=")) delete target.ownership[key.slice(2)];
+    else target.ownership[key] = level;
+}
+
 export function fakeActor(id = ACTOR_ID, name = "Existing"): FakeActor {
   const actor: FakeActor = {
     id,
@@ -186,19 +234,13 @@ export function fakeActor(id = ACTOR_ID, name = "Existing"): FakeActor {
     update: async (changes) => {
       actor.events.push("update");
       actor.updates.push(changes);
+      if (ownershipRefused(changes)) return;
       for (const [key, value] of Object.entries(changes)) {
         if (key === "name") actor.name = String(value);
         else if (key.startsWith("flags."))
           setPath(actor as unknown as Record<string, unknown>, key, value);
-        else if (key === "ownership") {
-          for (const [ownershipKey, level] of Object.entries(
-            value as Record<string, unknown>,
-          )) {
-            if (ownershipKey.startsWith("-="))
-              delete actor.ownership[ownershipKey.slice(2)];
-            else actor.ownership[ownershipKey] = level;
-          }
-        } else if (key.startsWith("ownership."))
+        else if (key === "ownership") applyOwnership(actor, value);
+        else if (key.startsWith("ownership."))
           setPath(actor as unknown as Record<string, unknown>, key, value);
         else if (key.startsWith("system."))
           setPath(actor as unknown as Record<string, unknown>, key, value);

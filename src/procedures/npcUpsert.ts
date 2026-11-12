@@ -12,6 +12,7 @@ import {
   docId,
   alreadyApplied,
   assertBase,
+  assertOwnershipApplied,
   assertKnightUpsertAuthority,
   bindingFor,
   bindingId,
@@ -240,7 +241,7 @@ function tokenDisposition(visibility: Visibility): number {
 // visibility default, which keeps a Masqué NPC unreadable to players however
 // the app-side roster changes. The paired Companion user alone keeps at least
 // OBSERVER: the backend reads the world as that user.
-function npcOwnershipUpdate(actor: ActorLike, visibility: Visibility): Dict {
+function npcOwnershipUpdate(actor: ActorLike, visibility: Visibility): unknown {
   return normalizedOwnershipUpdate(
     actor,
     undefined,
@@ -415,6 +416,7 @@ export const npcUpsertV1: Procedure = async (payload) => {
   await actor.update(
     authoredNpcPatch(actor, req, binding, warnings, outcome === "created"),
   );
+  assertOwnershipApplied(actor, undefined, "npc.upsert.v1");
   const result: NpcUpsertResultV1 = {
     schemaVersion: 1,
     resultDocId: id,

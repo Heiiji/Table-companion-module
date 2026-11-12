@@ -1483,6 +1483,61 @@ describe("actor.items.v1 armour add", () => {
     }
   });
 
+  // The Warrior's « type » keeps its active state on the chosen type itself:
+  // capacites.selected.type.type.<type>.<conflit|horsconflit>.
+  it("guards a Warrior with an active type, in or out of conflict", async () => {
+    for (const variant of ["conflit", "horsconflit"]) {
+      armourWorld();
+      ownArmour(
+        "oldArmour0000001",
+        {},
+        {
+          capacites: {
+            selected: {
+              type: {
+                type: {
+                  soldier: { aspect: "chair", selectionne: true },
+                  hunter: { aspect: "bete", [variant]: true },
+                },
+              },
+            },
+          },
+        },
+      );
+      await refused(
+        addArmour(undefined, { expectedName: "Warrior" }),
+        "armour_guarded",
+      );
+      expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+    }
+  });
+
+  it("does not guard a Warrior type that is chosen but inactive", async () => {
+    armourWorld();
+    ownArmour(
+      "oldArmour0000001",
+      {},
+      {
+        capacites: {
+          selected: {
+            type: {
+              type: {
+                soldier: {
+                  aspect: "chair",
+                  selectionne: true,
+                  conflit: false,
+                  horsconflit: false,
+                },
+              },
+            },
+          },
+        },
+      },
+    );
+    await run(addArmour(undefined, { expectedName: "Warrior" }));
+    expect(armours()).toHaveLength(1);
+  });
+
   it("does not guard a fresh compendium copy", async () => {
     armourWorld([
       [...PALADIN, "Paladin"],

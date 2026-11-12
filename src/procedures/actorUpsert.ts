@@ -12,6 +12,7 @@ import {
   bindingOf,
   canonicalDigest,
   createActorDocument,
+  assertOwnershipApplied,
   foundryId,
   invalid,
   normalizedOwnership,
@@ -80,6 +81,9 @@ function createActor(
     type: ACTOR_TYPE,
     flags: { [MODULE_ID]: { [FLAG_KEYS.binding]: binding } },
     ownership: normalizedOwnership(req.foundryUserId),
+    // Linked: damage dealt to the character's token on a scene lands on this
+    // Actor, the one the backend reads. Set at creation only, then the GM's.
+    prototypeToken: { actorLink: true },
   });
 }
 
@@ -185,6 +189,7 @@ export const actorUpsertV1: Procedure = async (payload) => {
       }
     }
   await actor.update(patch);
+  assertOwnershipApplied(actor, req.foundryUserId, "actor.upsert.v1");
   const motivationWarnings =
     req.state === "approved"
       ? await applyMinorMotivations(actor, req.profile!.minorMotivations)

@@ -12,6 +12,7 @@ import {
 } from "../src/procedures/actorUpsert.patch.js";
 import {
   ACTOR_ID,
+  ForcedReplacement,
   KNIGHT_SCHEMA_FIXTURES,
   USER_ID,
   approved,
@@ -19,6 +20,7 @@ import {
   fakeActor,
   hasFixturePath,
   pairCompanion,
+  stubOperators,
   stubFoundry,
   wearingArmour,
   type FakeActor,
@@ -698,21 +700,22 @@ describe("actor.upsert.v1", () => {
   });
 });
 
-describe("ownership deletion entries", () => {
+describe("ownership replacement", () => {
   const actor = { ownership: { default: 2, stale: 3 }, update: vi.fn() };
 
-  it("uses Foundry 14's ForcedDeletion operator when the runtime has it", () => {
-    class ForcedDeletion {}
-    vi.stubGlobal("foundry", { data: { operators: { ForcedDeletion } } });
-    const update = ownershipReplacement(actor, 0, USER_ID);
-    expect(update.stale).toBeInstanceOf(ForcedDeletion);
-    expect(update).not.toHaveProperty("-=stale");
-    expect(update[USER_ID]).toBe(3);
+  it("uses Foundry 14's ForcedReplacement operator when the runtime has it", () => {
+    stubOperators();
+    const update = ownershipReplacement(actor, { default: 0, [USER_ID]: 3 });
+    expect(update).toBeInstanceOf(ForcedReplacement);
+    expect((update as ForcedReplacement).value).toEqual({
+      default: 0,
+      [USER_ID]: 3,
+    });
   });
 
   it("falls back to the -=key syntax without it", () => {
     vi.stubGlobal("foundry", { data: {} });
-    expect(ownershipReplacement(actor, 0)).toEqual({
+    expect(ownershipReplacement(actor, { default: 0 })).toEqual({
       default: 0,
       "-=stale": null,
     });
@@ -948,5 +951,66 @@ describe("actor.upsert.v1 keeps what the Gamemaster changed in Foundry", () => {
       false,
     );
     expect((actors[0].system.aspects as any).chair.base).toBe(3);
+  });
+});
+
+describe("actor.upsert.v1 on Foundry 14", () => {
+  const COMPANION = "companion0000001";
+
+  // Foundry adds the creating Gamemaster as OWNER, so the authored update
+  // must replace a map holding a grant the lane removes.
+  function gmCreating(actors: FakeActor[]) {
+    const create = vi.fn(async (data: Record<string, unknown>) => {
+      const actor = fakeActor();
+      actor.ownership = { ...(data.ownership as object), gm: 3 };
+      actors.push(actor);
+      return actor;
+    });
+    stubFoundry(actors, create, 14);
+    stubOperators();
+    pairCompanion(COMPANION);
+    return create;
+  }
+
+  it("creates with the authored values written and exactly the lane's ownership", async () => {
+    const actors: FakeActor[] = [];
+    gmCreating(actors);
+    const result = (await actorUpsertV1(
+      approved({ equipment: undefined }),
+      {} as never,
+    )) as ActorUpsertResultV1;
+    expect(result.outcome).toBe("created");
+    const actor = actors[0];
+    expect(actor.name).toBe("Lancelot");
+    expect(actor.system.origin).toBe("Europe");
+    expect((actor.system.aspects as any).machine.base).toBe(4);
+    expect(actor.ownership).toEqual({
+      default: 0,
+      [USER_ID]: 3,
+      [COMPANION]: 2,
+    });
+  });
+
+  it("answers procedure_failed when Foundry drops the authored update", async () => {
+    const actors: FakeActor[] = [];
+    const create = gmCreating(actors);
+    const made = create.getMockImplementation()!;
+    create.mockImplementation(async (data: Record<string, unknown>) => {
+      const actor = await made(data);
+      actor.update = async (changes) => {
+        actor.updates.push(changes);
+      };
+      return actor;
+    });
+    await expect(
+      actorUpsertV1(approved({ equipment: undefined }), {} as never),
+    ).rejects.toMatchObject({ code: "procedure_failed" });
+  });
+
+  it("creates the character with a linked prototype token", async () => {
+    const actors: FakeActor[] = [];
+    const create = gmCreating(actors);
+    await actorUpsertV1(approved({ equipment: undefined }), {} as never);
+    expect(create.mock.calls[0][0].prototypeToken).toEqual({ actorLink: true });
   });
 });

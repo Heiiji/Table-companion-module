@@ -441,8 +441,12 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
   const weapon = isRanged
     ? builder.prepareWpnDistance(item, {})
     : builder.prepareWpnContact(item, {});
-  // A barrage weapon posts a card with no attack roll: nothing for the app to
-  // resolve, so it stays on the app's own engine.
+  // The request is an attack, never a barrage: turn the option off, as the
+  // sheet's roll dialog defaults it (ranged preparation defaults it on). A
+  // barrage left active (no option to turn off) posts a card with no attack
+  // roll: nothing for the app to resolve, so it stays on the app's engine.
+  for (const option of weapon.options ?? [])
+    if (option.value === "barrage") option.active = false;
   if (effectActive(weapon, "barrage"))
     throw new RpcError(
       "weapon_unsupported",

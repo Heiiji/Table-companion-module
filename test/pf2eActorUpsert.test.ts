@@ -7,6 +7,7 @@ import {
 } from "../src/procedures/pf2eActorUpsert.js";
 import {
   fakeActor,
+  stubOperators,
   USER_ID,
   type FakeActor,
 } from "./support/actorUpsertHarness.js";
@@ -342,6 +343,48 @@ describe("pf2e.actor.upsert.v1 creation", () => {
       appliedDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
       equipmentCompleteness: "complete",
       warnings: [],
+    });
+  });
+
+  describe("on Foundry 14", () => {
+    // Foundry adds the creating Gamemaster as OWNER on top of pf2e's LIMITED.
+    function gmCreating(): World {
+      const world = stubWorld();
+      stubOperators();
+      const made = world.create.getMockImplementation()!;
+      world.create.mockImplementation(async (data, options) => {
+        const actor = await made(data, options);
+        actor.ownership.gm = 3;
+        return actor;
+      });
+      return world;
+    }
+
+    it("creates with exactly the lane's ownership", async () => {
+      const world = gmCreating();
+      const result = await run(draft());
+      expect(result.outcome).toBe("created");
+      // pf2e's LIMITED default and the creator's grant are both replaced.
+      expect(world.actors[0].ownership).toEqual({
+        default: 0,
+        [USER_ID]: 3,
+        [COMPANION_ID]: 2,
+      });
+    });
+
+    it("answers procedure_failed when Foundry drops the authored update", async () => {
+      const world = gmCreating();
+      const made = world.create.getMockImplementation()!;
+      world.create.mockImplementation(async (data, options) => {
+        const actor = await made(data, options);
+        actor.update = async (changes) => {
+          actor.updates.push(changes);
+        };
+        return actor;
+      });
+      await expect(run(draft())).rejects.toMatchObject({
+        code: "procedure_failed",
+      });
     });
   });
 
