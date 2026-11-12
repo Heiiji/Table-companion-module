@@ -8,7 +8,17 @@ import {
 } from "../src/procedures/actorResources.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
-import { canonicalDigest } from "../src/procedures/upsertShared.js";
+import {
+  canonicalDigest,
+  recordedFields,
+  valueAt,
+} from "../src/procedures/upsertShared.js";
+import {
+  knightSheetSource,
+  reprepare,
+  withKnightSheet,
+  type KnightSheetState,
+} from "./support/knightSheetActor.js";
 import {
   ACTOR_ID,
   KNIGHT_SCHEMA_FIXTURES,
@@ -1213,5 +1223,572 @@ describe("actor.resources.v1 after the world is linked again", () => {
     stubFoundry([elsewhere]);
     expect(await rpcCode(apply(request()))).toBe("binding_conflict");
     expect(elsewhere.updates).toHaveLength(0);
+  });
+});
+
+describe("actor.resources.v1 landed check", () => {
+  it("answers procedure_failed when Foundry drops a meters-only update", async () => {
+    const actor = boundActor();
+    // Foundry 14 drops a refused update whole and resolves undefined.
+    actor.update = async (changes) => {
+      actor.updates.push(changes);
+    };
+    stubFoundry([actor]);
+    const error = await apply(request()).catch((e: unknown) => e);
+    expect(error).toMatchObject({
+      code: "procedure_failed",
+      message: "actor.resources.v1: Foundry did not apply the update",
+    });
+    expect(actor.updates).toHaveLength(1);
+    expect(actor.flags[MODULE_ID]).not.toHaveProperty("actorResourcesV1");
+  });
+
+  it("is applied when the update resolves undefined but the values are there", async () => {
+    const actor = boundActor();
+    stubFoundry([actor]);
+    // The harness update resolves undefined, as Foundry's no-difference one.
+    const result = await apply(request());
+    expect(result.outcome).toBe("updated");
+    expect(actor.system).toMatchObject({ sante: { value: 12 } });
+  });
+});
+
+describe("actor.resources.v1 sheet validation", () => {
+  const sheetOnly = (overrides: Record<string, unknown>) => ({
+    ...withoutResources(),
+    sheet: { aspects: { chair: 5 } },
+    base: { sheet: { aspects: { chair: 4 } } },
+    ...overrides,
+  });
+
+  it("accepts every field with its base, alone or beside the meters", () => {
+    const sheet = {
+      aspects: { chair: 0, masque: 20 },
+      characteristics: { force: 4, sangFroid: 3 },
+      experienceCurrent: 99_999,
+      gloryTotal: 0,
+      age: "é".repeat(100),
+      nickname: "",
+      majorMotivation: "m".repeat(2000),
+    };
+    const alone = sheetOnly({ sheet, base: { sheet } });
+    expect(validateKnightActorResourcesV1(alone)).toEqual({
+      ...alone,
+      resources: {},
+    });
+    const both = request({
+      sheet,
+      base: { resources: { health: 1 }, sheet },
+    } as never);
+    expect(validateKnightActorResourcesV1(both)).toEqual(both);
+  });
+
+  it.each([
+    [
+      {
+        actorType: "pnj",
+        resources: { health: 1 },
+        sheet: { gloryTotal: 1 },
+        base: { sheet: { gloryTotal: 1 } },
+      },
+      "sheet is not written on a pnj",
+    ],
+    [
+      { wear: "armure", previousWear: "guardian" },
+      "sheet never rides with wear",
+    ],
+    [{ sheet: {} }, "sheet needs at least one field"],
+    [{ sheet: { aspects: {} } }, "sheet.aspects needs at least one key"],
+    [
+      { sheet: { characteristics: {} } },
+      "sheet.characteristics needs at least one key",
+    ],
+    [{ sheet: { aspects: { chair: 21 } } }, "sheet.aspects.chair outside 0-20"],
+    [
+      { sheet: { characteristics: { force: -1 } } },
+      "sheet.characteristics.force outside 0-20",
+    ],
+    [
+      { sheet: { experienceCurrent: 100_000 } },
+      "sheet.experienceCurrent outside 0-99999",
+    ],
+    [{ sheet: { gloryTotal: 1.5 } }, "sheet.gloryTotal outside 0-99999"],
+    [
+      { sheet: { age: "a".repeat(101) } },
+      "sheet.age must be text of at most 100 characters without NUL",
+    ],
+    [
+      { sheet: { nickname: "A\0B" } },
+      "sheet.nickname must be text of at most 200 characters without NUL",
+    ],
+    [
+      { sheet: { majorMotivation: "m".repeat(2001) } },
+      "sheet.majorMotivation must be text of at most 2000 characters without NUL",
+    ],
+    [{ sheet: { age: 31 } }, "sheet.age must be text of at most 100"],
+    [{ sheet: { origin: "x" } }, "sheet.origin is not allowed"],
+    [
+      { sheet: { aspects: { esprit: 1 } } },
+      "sheet.aspects.esprit is not allowed",
+    ],
+    [
+      { sheet: { characteristics: { sang_froid: 1 } } },
+      "sheet.characteristics.sang_froid is not allowed",
+    ],
+    [{ base: undefined }, "base.sheet must name every field of sheet"],
+    [
+      { sheet: { aspects: { chair: 5 }, gloryTotal: 3 } },
+      "base.sheet must name every field of sheet",
+    ],
+    [
+      { base: { sheet: { aspects: { chair: 4 }, gloryTotal: 1 } } },
+      "base.sheet must name every field of sheet",
+    ],
+    [
+      { base: { sheet: { aspects: { chair: 4, dame: 2 } } } },
+      "base.sheet must name every field of sheet",
+    ],
+    [
+      { sheet: undefined, resources: { health: 1 } },
+      "base.sheet must name every field of sheet",
+    ],
+    [
+      { base: { sheet: { aspects: { chair: 4, x: 1 } } } },
+      "base.sheet.aspects.x is not allowed",
+    ],
+    [
+      { base: { sheet: { aspects: { chair: 21 } } } },
+      "base.sheet.aspects.chair outside 0-20",
+    ],
+    [
+      { base: { sheet: { aspects: { chair: 4 } }, hp: 1 } },
+      "base.hp is not allowed",
+    ],
+    [
+      { sheet: undefined, base: undefined },
+      "resources needs at least one value, a name, a wear or a sheet field",
+    ],
+  ])("refuses %j: %s", async (overrides, message) => {
+    const req = sheetOnly(overrides);
+    expect(() => validateKnightActorResourcesV1(req)).toThrow(message);
+    const actor = boundActor();
+    stubFoundry([actor]);
+    expect(await rpcCode(apply(req))).toBe("invalid_args");
+    expect(actor.updates).toHaveLength(0);
+  });
+});
+
+describe("actor.resources.v1 sheet", () => {
+  /** A bound Knight PC prepared as Foundry 14 / Knight 3.58.38 does. */
+  function sheetPc(
+    bases: Record<string, number> = {},
+    wounds: Record<string, number> = {},
+    edit?: (source: Record<string, any>) => void,
+  ): { actor: FakeActor; state: KnightSheetState } {
+    const actor = boundActor();
+    const source = knightSheetSource(bases);
+    edit?.(source);
+    const state = withKnightSheet(actor, source, wounds);
+    stubFoundry([actor]);
+    return { actor, state };
+  }
+
+  const sheetReq = (
+    sheet: Record<string, unknown>,
+    base: Record<string, unknown>,
+    overrides: Record<string, unknown> = {},
+  ) => ({ ...withoutResources(), sheet, base: { sheet: base }, ...overrides });
+
+  const stored = (state: KnightSheetState, path: string) =>
+    valueAt(state.source, path);
+  const prepared = (actor: FakeActor, path: string) =>
+    valueAt(actor.system, path);
+  const written = (actor: FakeActor) =>
+    recordedFields(
+      (actor.flags[MODULE_ID] as Record<string, any>).actorResourcesV1.written,
+    );
+  const flagWarnings = (actor: FakeActor) =>
+    (actor.flags[MODULE_ID] as Record<string, any>).actorResourcesV1.warnings;
+
+  it("inverts Knight's formula on a wounded PC: no conflict, the base takes the wound", async () => {
+    const { actor, state } = sheetPc({ chair: 4 }, { chair: 1 });
+    expect(prepared(actor, "aspects.chair.value")).toBe(3);
+    const result = await apply(
+      sheetReq(
+        { aspects: { chair: 4 } },
+        { aspects: { chair: 3 } },
+        { resources: { health: 12 } },
+      ),
+    );
+    expect(result.warnings).toEqual([]);
+    expect(actor.updates).toHaveLength(1);
+    expect(actor.updates[0]).toMatchObject({
+      "system.sante.value": 12,
+      "system.aspects.chair.base": 5,
+    });
+    expect(stored(state, "aspects.chair.base")).toBe(5);
+    expect(prepared(actor, "aspects.chair.value")).toBe(4);
+    expect(written(actor)).toMatchObject({
+      "resources.health": 12,
+      "sheet.aspects.chair": 4,
+    });
+  });
+
+  it("counts an XP purchase line's bonus once", async () => {
+    const { actor, state } = sheetPc({ chair: 6, force: 3 }, {}, (s) => {
+      s.progression.experience = {
+        total: 8,
+        depense: {
+          liste: {
+            1: { addOrder: 1, caracteristique: "force", bonus: 1, cout: 8 },
+          },
+        },
+      };
+    });
+    expect(prepared(actor, "aspects.chair.caracteristiques.force.value")).toBe(
+      4,
+    );
+    await apply(
+      sheetReq(
+        { characteristics: { force: 5 } },
+        { characteristics: { force: 4 } },
+      ),
+    );
+    expect(stored(state, "aspects.chair.caracteristiques.force.base")).toBe(4);
+    expect(prepared(actor, "aspects.chair.caracteristiques.force.value")).toBe(
+      5,
+    );
+  });
+
+  it("computes the base from the current prepared value after its own write, never twice", async () => {
+    const { actor, state } = sheetPc({ chair: 4 });
+    await apply(sheetReq({ aspects: { chair: 5 } }, { aspects: { chair: 4 } }));
+    expect(stored(state, "aspects.chair.base")).toBe(5);
+    // Built before the app saw its own write: base 4, Foundry holds 5.
+    await apply(
+      sheetReq(
+        { aspects: { chair: 6 } },
+        { aspects: { chair: 4 } },
+        { sequence: 8 },
+      ),
+    );
+    expect(stored(state, "aspects.chair.base")).toBe(6);
+    expect(prepared(actor, "aspects.chair.value")).toBe(6);
+  });
+
+  it("refuses base_conflict when Foundry moved the stat first, and writes no meter", async () => {
+    const { actor, state } = sheetPc({ chair: 4 });
+    state.source.aspects.chair.base = 6;
+    reprepare(actor, state);
+    const error = await apply(
+      sheetReq(
+        { aspects: { chair: 5 } },
+        { aspects: { chair: 4 } },
+        { resources: { health: 12 } },
+      ),
+    ).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: "base_conflict" });
+    expect((error as Error).message).toContain("sheet.aspects.chair");
+    expect(actor.updates).toHaveLength(0);
+    expect(stored(state, "sante.value")).toBe(1);
+  });
+
+  it("replays a sequence without an update, and writes no base Foundry already prepares", async () => {
+    const { actor } = sheetPc({ chair: 4 });
+    const req = sheetReq({ aspects: { chair: 5 } }, { aspects: { chair: 4 } });
+    const first = await apply(req);
+    expect(await apply(req)).toEqual(first);
+    expect(actor.updates).toHaveLength(1);
+    await apply(
+      sheetReq(
+        { aspects: { chair: 5 } },
+        { aspects: { chair: 5 } },
+        { sequence: 8, resources: { health: 12 } },
+      ),
+    );
+    expect(actor.updates).toHaveLength(2);
+    expect(
+      Object.keys(actor.updates[1]).filter((k) => k.endsWith(".base")),
+    ).toEqual([]);
+  });
+
+  it("skips an overridden aspect with stat_overridden and writes the rest", async () => {
+    const { actor, state } = sheetPc({}, {}, (s) => {
+      s.aspects.dame.override = { lab: 6 };
+    });
+    expect(prepared(actor, "aspects.dame.value")).toBe(6);
+    const result = await apply(
+      sheetReq(
+        { aspects: { chair: 3, dame: 7 } },
+        { aspects: { chair: 2, dame: 6 } },
+      ),
+    );
+    expect(result.warnings).toEqual(["stat_overridden:aspects.dame"]);
+    expect(stored(state, "aspects.chair.base")).toBe(3);
+    expect(stored(state, "aspects.dame.base")).toBe(2);
+    expect(written(actor)).not.toHaveProperty(["sheet.aspects.dame"]);
+    expect(flagWarnings(actor)).toEqual(["stat_overridden:aspects.dame"]);
+  });
+
+  it("skips a prepared value that is not a number with stat_unavailable", async () => {
+    const { actor, state } = sheetPc();
+    state.after = (s) => {
+      Object.defineProperty(s.aspects.bete, "value", { value: "4" });
+      Object.defineProperty(s.aspects.chair.caracteristiques.force, "value", {
+        value: Number.NaN,
+      });
+    };
+    reprepare(actor, state);
+    const result = await apply(
+      sheetReq(
+        {
+          aspects: { chair: 3, bete: 3 },
+          characteristics: { force: 2 },
+        },
+        {
+          aspects: { chair: 2, bete: 4 },
+          characteristics: { force: 1 },
+        },
+      ),
+    );
+    expect(result.warnings).toEqual([
+      "stat_unavailable:aspects.bete",
+      "stat_unavailable:characteristics.force",
+    ]);
+    expect(stored(state, "aspects.chair.base")).toBe(3);
+    expect(stored(state, "aspects.bete.base")).toBe(2);
+    expect(stored(state, "aspects.chair.caracteristiques.force.base")).toBe(1);
+  });
+
+  it("undoes a capped characteristic: the base never moves down, nothing recorded, the warning replays", async () => {
+    // A wound lowers chair to 3; force (base 4, an XP bonus of 1) is capped
+    // to 3 by its aspect. The inverse of force 4 would be base 3.
+    const { actor, state } = sheetPc(
+      { chair: 4, force: 4 },
+      { chair: 1 },
+      (s) => {
+        s.progression.experience = {
+          total: 8,
+          depense: {
+            liste: {
+              1: { addOrder: 1, caracteristique: "force", bonus: 1, cout: 8 },
+            },
+          },
+        };
+      },
+    );
+    expect(prepared(actor, "aspects.chair.caracteristiques.force.value")).toBe(
+      3,
+    );
+    const req = sheetReq(
+      { characteristics: { force: 4 } },
+      { characteristics: { force: 3 } },
+    );
+    const result = await apply(req);
+    expect(result.warnings).toEqual(["stat_clamped:characteristics.force"]);
+    expect(stored(state, "aspects.chair.caracteristiques.force.base")).toBe(4);
+    expect(actor.updates).toHaveLength(2);
+    expect(written(actor)).not.toHaveProperty(["sheet.characteristics.force"]);
+    expect(flagWarnings(actor)).toEqual(["stat_clamped:characteristics.force"]);
+    expect(await apply(req)).toEqual(result);
+    expect(actor.updates).toHaveLength(2);
+  });
+
+  it("undoes an aspect held at its maximum, and one floored at base 0", async () => {
+    const { actor, state } = sheetPc({ chair: 7 }, {}, (s) => {
+      s.aspects.chair.max = 7;
+      s.aspects.bete.optimisation.bonus = { module: 3 };
+    });
+    expect(prepared(actor, "aspects.bete.value")).toBe(5);
+    const result = await apply(
+      sheetReq(
+        { aspects: { chair: 8, bete: 1 } },
+        { aspects: { chair: 7, bete: 5 } },
+      ),
+    );
+    expect(result.warnings).toEqual([
+      "stat_clamped:aspects.chair",
+      "stat_clamped:aspects.bete",
+    ]);
+    expect(stored(state, "aspects.chair.base")).toBe(7);
+    expect(stored(state, "aspects.bete.base")).toBe(2);
+    expect(prepared(actor, "aspects.chair.value")).toBe(7);
+    expect(prepared(actor, "aspects.bete.value")).toBe(5);
+  });
+
+  it("reports an aspect whose base is already at Knight's bound without writing it", async () => {
+    const { actor, state } = sheetPc({ chair: 9 });
+    const result = await apply(
+      sheetReq({ aspects: { chair: 10 } }, { aspects: { chair: 9 } }),
+    );
+    expect(result.warnings).toEqual(["stat_clamped:aspects.chair"]);
+    expect(actor.updates).toHaveLength(1);
+    expect(stored(state, "aspects.chair.base")).toBe(9);
+    expect(written(actor)).not.toHaveProperty(["sheet.aspects.chair"]);
+  });
+
+  it("undoes a characteristic its restored aspect caps again", async () => {
+    const { actor, state } = sheetPc({ chair: 4, force: 4 }, {}, (s) => {
+      s.aspects.chair.max = 5;
+    });
+    const result = await apply(
+      sheetReq(
+        { aspects: { chair: 6 }, characteristics: { force: 5 } },
+        { aspects: { chair: 4 }, characteristics: { force: 4 } },
+      ),
+    );
+    expect(result.warnings).toEqual([
+      "stat_clamped:aspects.chair",
+      "stat_clamped:characteristics.force",
+    ]);
+    expect(stored(state, "aspects.chair.base")).toBe(4);
+    expect(stored(state, "aspects.chair.caracteristiques.force.base")).toBe(4);
+    expect(actor.updates).toHaveLength(3);
+    const kept = written(actor);
+    expect(kept).not.toHaveProperty(["sheet.aspects.chair"]);
+    expect(kept).not.toHaveProperty(["sheet.characteristics.force"]);
+  });
+
+  describe("unspent XP", () => {
+    const withLine =
+      (cout: number, total: number) => (s: Record<string, any>) => {
+        s.progression.experience = {
+          total,
+          depense: {
+            liste: { 1: { addOrder: 1, caracteristique: "", bonus: 0, cout } },
+          },
+        };
+      };
+
+    it("writes by difference on the total, up and down", async () => {
+      const up = sheetPc({}, {}, withLine(8, 20));
+      expect(prepared(up.actor, "progression.experience.actuel")).toBe(12);
+      await apply(
+        sheetReq({ experienceCurrent: 15 }, { experienceCurrent: 12 }),
+      );
+      expect(stored(up.state, "progression.experience.total")).toBe(23);
+      expect(written(up.actor)).toMatchObject({
+        "sheet.experienceCurrent": 15,
+      });
+
+      const down = sheetPc({}, {}, withLine(8, 20));
+      await apply(
+        sheetReq({ experienceCurrent: 0 }, { experienceCurrent: 12 }),
+      );
+      expect(stored(down.state, "progression.experience.total")).toBe(8);
+      expect(prepared(down.actor, "progression.experience.actuel")).toBe(0);
+    });
+
+    it("refuses base_conflict when Foundry moved it first", async () => {
+      const { actor } = sheetPc({}, {}, withLine(8, 20));
+      expect(
+        await rpcCode(
+          apply(sheetReq({ experienceCurrent: 15 }, { experienceCurrent: 10 })),
+        ),
+      ).toBe("base_conflict");
+      expect(actor.updates).toHaveLength(0);
+    });
+
+    it("undoes a total that would go below zero", async () => {
+      // A refund line: unspent 8 on a total of 3.
+      const { actor, state } = sheetPc({}, {}, withLine(-5, 3));
+      expect(prepared(actor, "progression.experience.actuel")).toBe(8);
+      const result = await apply(
+        sheetReq({ experienceCurrent: 0 }, { experienceCurrent: 8 }),
+      );
+      expect(result.warnings).toEqual(["stat_clamped:experienceCurrent"]);
+      expect(stored(state, "progression.experience.total")).toBe(3);
+      expect(written(actor)).not.toHaveProperty(["sheet.experienceCurrent"]);
+    });
+  });
+
+  it("writes Glory total and the three texts as is, with the meters in one update", async () => {
+    const { actor, state } = sheetPc();
+    const sheet = {
+      gloryTotal: 37,
+      age: "31",
+      nickname: "Ace",
+      majorMotivation: "Find her",
+    };
+    await apply(
+      sheetReq(
+        sheet,
+        { gloryTotal: 0, age: "", nickname: "", majorMotivation: "" },
+        { resources: { health: 12 }, name: "Renamed" },
+      ),
+    );
+    expect(actor.updates).toHaveLength(1);
+    expect(actor.updates[0]).toMatchObject({
+      name: "Renamed",
+      "system.sante.value": 12,
+      "system.progression.gloire.total": 37,
+      "system.age": "31",
+      "system.surnom": "Ace",
+      "system.motivations.majeure": "Find her",
+    });
+    expect(state.source).toMatchObject({
+      age: "31",
+      surnom: "Ace",
+      motivations: { majeure: "Find her" },
+      progression: { gloire: { total: 37 } },
+    });
+    expect(written(actor)).toMatchObject({
+      "sheet.gloryTotal": 37,
+      "sheet.age": "31",
+      "sheet.nickname": "Ace",
+      "sheet.majorMotivation": "Find her",
+    });
+    const flag = (actor.flags[MODULE_ID] as Record<string, any>)
+      .actorResourcesV1;
+    expect(flag.contentDigest).toBe(
+      await canonicalDigest({
+        resources: { health: 12 },
+        name: "Renamed",
+        sheet,
+      }),
+    );
+  });
+
+  it("refuses base_conflict when Foundry changed a text first", async () => {
+    const { actor } = sheetPc({}, {}, (s) => {
+      s.surnom = "Ghost";
+    });
+    expect(
+      await rpcCode(apply(sheetReq({ nickname: "Ace" }, { nickname: "" }))),
+    ).toBe("base_conflict");
+    expect(actor.updates).toHaveLength(0);
+  });
+
+  it("answers procedure_failed when Foundry drops the update, and the next sequence applies", async () => {
+    const { actor, state } = sheetPc({ chair: 4 });
+    state.refuse = true;
+    const req = sheetReq(
+      { aspects: { chair: 5 } },
+      { aspects: { chair: 4 } },
+      { resources: { health: 12 } },
+    );
+    expect(await rpcCode(apply(req))).toBe("procedure_failed");
+    expect(stored(state, "aspects.chair.base")).toBe(4);
+    expect(actor.flags[MODULE_ID]).not.toHaveProperty("actorResourcesV1");
+    state.refuse = false;
+    await apply({ ...req, sequence: 8 });
+    expect(stored(state, "aspects.chair.base")).toBe(5);
+    expect(stored(state, "sante.value")).toBe(12);
+  });
+
+  it("answers procedure_failed when Foundry drops the undo", async () => {
+    const { actor, state } = sheetPc({ chair: 7 }, {}, (s) => {
+      s.aspects.chair.max = 7;
+    });
+    const update = actor.update;
+    actor.update = async (changes) => {
+      if (actor.updates.length > 0) state.refuse = true;
+      return update(changes);
+    };
+    expect(
+      await rpcCode(
+        apply(sheetReq({ aspects: { chair: 8 } }, { aspects: { chair: 7 } })),
+      ),
+    ).toBe("procedure_failed");
   });
 });

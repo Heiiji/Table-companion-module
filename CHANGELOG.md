@@ -4,6 +4,22 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- The live resources write of a Knight character (`actor.resources.v1`) takes an optional `sheet`
+  group, advertised as `knightSheetWritesV1` with the prepared statistics read: aspects and
+  characteristics in Foundry's prepared values (the stored base is solved from Knight's own
+  formula, so wounds and experience purchases count once), unspent experience (written on the
+  experience total), Glory total, age, nickname and major motivation, each guarded by `base.sheet`.
+  A value Foundry cannot prepare at its target is put back and reported as `stat_clamped`; an
+  overridden or unreadable one is skipped and reported.
+
+### Fixed
+- The live resources write now reads its update back: when Foundry refuses the update (which it
+  does without an error), the write answers `procedure_failed` and records nothing, instead of
+  reporting values that never landed.
+
 ## [0.27.0] - 2026-11-12
 
 ### Added

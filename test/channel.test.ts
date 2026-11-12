@@ -13,6 +13,7 @@ import {
   CAP_ACTOR_ITEMS_ARMOUR,
   CAP_KNIGHT_ATTACK_ITEM_ID,
   CAP_KNIGHT_NPC_RESOURCES,
+  CAP_KNIGHT_SHEET_WRITES,
   CAP_WRITE_BASE,
   CAP_DND5E_RULES_MODERN,
   CAP_PF2E_NPC_WRITES,
@@ -1126,6 +1127,8 @@ describe("Channel response signing", () => {
     expect(capabilities).not.toContain(CAP_ACTOR_RESOURCES_WEAR);
     // The attack's itemId token rides the attack lane.
     expect(capabilities).not.toContain(CAP_KNIGHT_ATTACK_ITEM_ID);
+    // The sheet token rides the resources and statistics lanes.
+    expect(capabilities).not.toContain(CAP_KNIGHT_SHEET_WRITES);
     expect(Object.keys(mixed.unsupported as object).sort()).toEqual(
       AUTHOR_LANES,
     );
@@ -1152,7 +1155,37 @@ describe("Channel response signing", () => {
     expect(admitted.capabilities as string[]).toContain(
       CAP_ACTOR_RESOURCES_WEAR,
     );
+    expect(admitted.capabilities as string[]).toContain(
+      CAP_KNIGHT_SHEET_WRITES,
+    );
     expect(admitted.unsupported).toBeUndefined();
+  });
+
+  it("advertises the Knight sheet token only with both the resources and the statistics lanes", async () => {
+    const { signer } = await ModuleResponseSigner.generate();
+    const capsWith = (procs: string[]) => {
+      stubGame({ pinned: agentPubB64, responder: true });
+      const registry = new ProcedureRegistry();
+      for (const proc of procs)
+        registry.register(proc, () => ({}), {
+          kind: "mutation",
+          signedOnly: true,
+        });
+      const channel = new Channel(registry, "0.0.0-test");
+      channel.start();
+      emitSpy.mockClear();
+      channel.setResponseSigner(signer);
+      return emitted("hello").at(-1)!.capabilities as string[];
+    };
+    expect(capsWith(["actor.resources.v1", "knight.statistics.v1"])).toContain(
+      CAP_KNIGHT_SHEET_WRITES,
+    );
+    expect(capsWith(["actor.resources.v1"])).not.toContain(
+      CAP_KNIGHT_SHEET_WRITES,
+    );
+    expect(capsWith(["knight.statistics.v1"])).not.toContain(
+      CAP_KNIGHT_SHEET_WRITES,
+    );
   });
 
   it("advertises the 2024-rules token with the Fifth Edition lane on a modern world only", async () => {

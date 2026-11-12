@@ -113,6 +113,15 @@ export const CAP_ACTOR_ITEMS_ARMOUR = "actorItemsArmourV1";
  * name — it has no handler. */
 export const CAP_KNIGHT_NPC_RESOURCES = "knightNpcResourcesV1";
 
+/** Capability token advertised when both `actor.resources.v1` and
+ * `knight.statistics.v1` are: this build accepts the optional `sheet` group
+ * (with `base.sheet`) on `actor.resources.v1` for a Knight player character —
+ * aspects and characteristics in Foundry's prepared values, unspent
+ * experience, Glory total, age, nickname and major motivation. Apps send it
+ * only when the world advertises it, since an older build refuses the key.
+ * NOT a procedure name — it has no handler. */
+export const CAP_KNIGHT_SHEET_WRITES = "knightSheetWritesV1";
+
 /** Capability token advertised alongside `knight.attack.v1`: this build
  * accepts the optional `itemId` on that procedure (a weapon created in Foundry,
  * found by its Item id when no Item carries the `entryId` flag). Apps send it

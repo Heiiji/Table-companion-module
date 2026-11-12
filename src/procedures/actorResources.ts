@@ -1,4 +1,6 @@
 import { MODULE_ID } from "../constants.js";
+import { deletionEntry } from "../foundry/runtime.js";
+import { canonicalize } from "../util/canonicalJson.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import {
@@ -12,6 +14,12 @@ import {
   type ResourceKey,
 } from "./actorUpsert.types.js";
 import {
+  currentSheetValue,
+  parseKnightSheet,
+  planKnightSheet,
+  type KnightSheetV1,
+} from "./knightSheet.js";
+import {
   LIVE_HEADER_KEYS,
   docId,
   alreadyApplied,
@@ -19,6 +27,7 @@ import {
   assertKnightUpsertAuthority,
   assertBase,
   canonicalDigest,
+  fieldsOf,
   hasPath,
   linkedActor,
   liveHeader,
@@ -65,6 +74,18 @@ import {
  * is worn whatever `wear` stores: nothing is written (`wear_forced`). A wear
  * request carries no values, since a current is clamped to the maximum of the
  * gear worn before the switch.
+ *
+ * A PC request may also carry `sheet` (aspects, characteristics, unspent
+ * experience, Glory total, age, nickname, major motivation; see
+ * `knightSheet.ts`), always with `base.sheet` naming exactly its fields. A
+ * stat or experience write that does not produce its target in Foundry (a cap,
+ * the aspect maximum, a floor) is undone in a follow-up update and reported
+ * `stat_clamped:<field>`: a write never leaves a stored base Foundry does not
+ * show.
+ *
+ * Foundry drops a refused update whole and resolves without throwing, so every
+ * update is read back: a value, the name or the result flag not in place
+ * answers `procedure_failed`, and nothing is recorded.
  */
 
 /**
@@ -89,7 +110,11 @@ export interface KnightActorResourcesV1 extends LiveHeaderV1<ActorType> {
   resources: Partial<Record<ResourceKey, number>>;
   name?: string;
   previousName?: string;
-  base?: { resources: Partial<Record<ResourceKey, number>> };
+  sheet?: KnightSheetV1;
+  base?: {
+    resources?: Partial<Record<ResourceKey, number>>;
+    sheet?: KnightSheetV1;
+  };
   wear?: Wear;
   previousWear?: Wear | "ascension";
 }
@@ -128,6 +153,7 @@ export function validateKnightActorResourcesV1(
     "resources",
     "name",
     "previousName",
+    "sheet",
     "base",
     "wear",
     "previousWear",
@@ -136,17 +162,39 @@ export function validateKnightActorResourcesV1(
     invalid("actorType must be knight, pnj, creature, bande or vehicule");
   const header = liveHeader(p, p.actorType as ActorType);
   const type = header.actorType;
+  if (p.sheet !== undefined && type !== "knight")
+    invalid(`sheet is not written on a ${type}`);
+  if (p.sheet !== undefined && p.wear !== undefined)
+    invalid("sheet never rides with wear");
   const resources = resourceValues(p.resources, "resources", type);
-  const base =
+  const sheet =
+    p.sheet === undefined ? undefined : parseKnightSheet(p.sheet, "sheet");
+  const b =
     p.base === undefined
       ? undefined
+      : record(p.base, "base", ["resources", "sheet"]);
+  const base =
+    b === undefined
+      ? undefined
       : {
-          resources: resourceValues(
-            record(p.base, "base", ["resources"]).resources,
-            "base.resources",
-            type,
-          ),
+          ...(b.resources === undefined && b.sheet !== undefined
+            ? {}
+            : {
+                resources: resourceValues(b.resources, "base.resources", type),
+              }),
+          ...(b.sheet === undefined
+            ? {}
+            : { sheet: parseKnightSheet(b.sheet, "base.sheet") }),
         };
+  const sheetFields = (s: KnightSheetV1 | undefined) =>
+    Object.keys(s === undefined ? {} : fieldsOf(s))
+      .sort()
+      .join();
+  if (
+    (sheet !== undefined || base?.sheet !== undefined) &&
+    sheetFields(sheet) !== sheetFields(base?.sheet)
+  )
+    invalid("base.sheet must name every field of sheet");
   // A non-player Actor keeps Foundry's name: an app NPC's rides npc.upsert.
   if (type !== "knight" && p.name !== undefined)
     invalid(`name is not written on a ${type}`);
@@ -175,15 +223,19 @@ export function validateKnightActorResourcesV1(
   if (
     Object.keys(resources).length === 0 &&
     name === undefined &&
-    p.wear === undefined
+    p.wear === undefined &&
+    sheet === undefined
   )
-    invalid("resources needs at least one value, a name or a wear");
+    invalid(
+      "resources needs at least one value, a name, a wear or a sheet field",
+    );
   return {
     ...header,
     sequence: liveSequence(p),
     resources,
     ...(name === undefined ? {} : { name }),
     ...(previousName === undefined ? {} : { previousName }),
+    ...(sheet === undefined ? {} : { sheet }),
     ...(base === undefined ? {} : { base }),
     ...(p.wear === undefined
       ? {}
@@ -273,6 +325,8 @@ export const actorResourcesV1: Procedure = async (payload) => {
     req,
     req.base,
     (field) => {
+      if (field.startsWith("sheet."))
+        return currentSheetValue(actor.system, field);
       const path = pathOf(field);
       return path === undefined ? undefined : valueAt(actor.system, path);
     },
@@ -292,6 +346,9 @@ export const actorResourcesV1: Procedure = async (payload) => {
     if (valueAt(actor.system, path) !== value) patch[`system.${path}`] = value;
   }
   if (req.name !== undefined && actor.name !== req.name) patch.name = req.name;
+  const sheet = req.sheet
+    ? planKnightSheet(actor.system, req.sheet, patch, warnings)
+    : { checks: [], written: {} };
   const result: ActorResourcesResultV1 = {
     schemaVersion: 1,
     resultDocId: id,
@@ -307,14 +364,16 @@ export const actorResourcesV1: Procedure = async (payload) => {
   // appliedRevision is what refuses an older sequence arriving later
   // (stale_revision). `contentDigest` lives in the flag only; the returned
   // result keeps the shape the backend decodes strictly.
-  // Without a name or a wear the digest stays the one older flags recorded.
+  // Without a name, a wear or a sheet the digest stays the one older flags
+  // recorded.
   const contentDigest = await canonicalDigest(
-    req.name === undefined && req.wear === undefined
+    req.name === undefined && req.wear === undefined && req.sheet === undefined
       ? req.resources
       : {
           resources: req.resources,
           ...(req.name === undefined ? {} : { name: req.name }),
           ...(req.wear === undefined ? {} : { wear: req.wear }),
+          ...(req.sheet === undefined ? {} : { sheet: req.sheet }),
         },
   );
   if (
@@ -322,13 +381,16 @@ export const actorResourcesV1: Procedure = async (payload) => {
     stored?.flag.contentDigest === contentDigest
   )
     return result;
+  const flagKey = `flags.${MODULE_ID}.${FLAG_KEYS.actorResources}`;
   await actor.update({
     ...patch,
-    [`flags.${MODULE_ID}.${FLAG_KEYS.actorResources}`]: {
+    [flagKey]: {
       ...result,
+      warnings: [...warnings],
       contentDigest,
       // What Foundry holds once this update lands, for the next base compare.
       written: writtenFields(req, (field) => {
+        if (field.startsWith("sheet.")) return sheet.written[field];
         const path = pathOf(field);
         if (path === undefined) return undefined;
         return `system.${path}` in patch
@@ -337,5 +399,63 @@ export const actorResourcesV1: Procedure = async (payload) => {
       }),
     },
   });
+  assertLanded(actor, patch, req.sequence, warnings);
+
+  // A stat or experience write Foundry does not prepare at its target is
+  // undone: never a stored base the sheet does not show. Undoing an aspect can
+  // cap a characteristic written beside it again, hence a second pass.
+  let kept = sheet.checks;
+  for (let pass = 0; pass < 2; pass++) {
+    const off = kept.filter(
+      (w) => valueAt(actor.system, w.prepared) !== w.target,
+    );
+    if (off.length === 0) break;
+    kept = kept.filter((w) => !off.includes(w));
+    const undo: Dict = {};
+    const forget: Dict = {};
+    for (const w of off) {
+      undo[`system.${w.stored}`] = w.before;
+      warnings.push(`stat_clamped:${w.field}`);
+      // Foundry merges the stored flag: the field must be deleted from it.
+      const at = `sheet.${w.field}`;
+      const [key, value] = deletionEntry(at.slice(at.lastIndexOf(".") + 1));
+      forget[`${at.slice(0, at.lastIndexOf("."))}.${key}`] = value;
+    }
+    await actor.update({
+      ...undo,
+      [flagKey]: { warnings: [...warnings], written: forget },
+    });
+    assertLanded(actor, undo, req.sequence, warnings);
+  }
   return result;
 };
+
+/** Foundry drops a refused update whole and resolves without throwing (as it
+ * does when nothing differs), so the return value proves nothing: every
+ * `system.*` value and the name the update carried, and the result flag's
+ * sequence and warnings, must read back. */
+function assertLanded(
+  actor: ActorLike,
+  patch: Dict,
+  sequence: number,
+  warnings: string[],
+): void {
+  const flag = valueAt(
+    actor.flags,
+    `${MODULE_ID}.${FLAG_KEYS.actorResources}`,
+  ) as Dict | undefined;
+  const missed = Object.entries(patch).some(([key, value]) =>
+    key.startsWith("system.")
+      ? valueAt(actor.system, key.slice("system.".length)) !== value
+      : key === "name" && actor.name !== value,
+  );
+  if (
+    missed ||
+    flag?.appliedRevision !== sequence ||
+    canonicalize(flag.warnings) !== canonicalize(warnings)
+  )
+    throw new RpcError(
+      "procedure_failed",
+      "actor.resources.v1: Foundry did not apply the update",
+    );
+}
