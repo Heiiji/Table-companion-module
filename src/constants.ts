@@ -113,6 +113,13 @@ export const CAP_ACTOR_ITEMS_ARMOUR = "actorItemsArmourV1";
  * name — it has no handler. */
 export const CAP_KNIGHT_NPC_RESOURCES = "knightNpcResourcesV1";
 
+/** Capability token advertised alongside `knight.attack.v1`: this build
+ * accepts the optional `itemId` on that procedure (a weapon created in Foundry,
+ * found by its Item id when no Item carries the `entryId` flag). Apps send it
+ * only when the world advertises it, since an older build refuses the key.
+ * NOT a procedure name — it has no handler. */
+export const CAP_KNIGHT_ATTACK_ITEM_ID = "knightAttackItemIdV1";
+
 /** Capability token advertised with any lane that takes the optional `base`
  * compare-and-set values (`actor.resources.v1`, `actor.upsert.v1`,
  * `npc.upsert.v1`, `dnd5e.resources.v1`, `pf2e.resources.v1`): apps send a

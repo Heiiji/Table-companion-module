@@ -11,6 +11,7 @@ import {
   CAP_ACTOR_RESOURCES_NAME,
   CAP_ACTOR_RESOURCES_WEAR,
   CAP_ACTOR_ITEMS_ARMOUR,
+  CAP_KNIGHT_ATTACK_ITEM_ID,
   CAP_KNIGHT_NPC_RESOURCES,
   CAP_WRITE_BASE,
   CAP_DND5E_RULES_MODERN,
@@ -1123,6 +1124,8 @@ describe("Channel response signing", () => {
     // The armour and wear tokens ride the items and resources lanes.
     expect(capabilities).not.toContain(CAP_ACTOR_ITEMS_ARMOUR);
     expect(capabilities).not.toContain(CAP_ACTOR_RESOURCES_WEAR);
+    // The attack's itemId token rides the attack lane.
+    expect(capabilities).not.toContain(CAP_KNIGHT_ATTACK_ITEM_ID);
     expect(Object.keys(mixed.unsupported as object).sort()).toEqual(
       AUTHOR_LANES,
     );
@@ -1143,6 +1146,9 @@ describe("Channel response signing", () => {
       CAP_KNIGHT_NPC_RESOURCES,
     );
     expect(admitted.capabilities as string[]).toContain(CAP_ACTOR_ITEMS_ARMOUR);
+    expect(admitted.capabilities as string[]).toContain(
+      CAP_KNIGHT_ATTACK_ITEM_ID,
+    );
     expect(admitted.capabilities as string[]).toContain(
       CAP_ACTOR_RESOURCES_WEAR,
     );

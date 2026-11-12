@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Knight attacks (`knight.attack.v1`) take an optional `itemId`, the weapon's Foundry Item id, so a
+  weapon created in Foundry can be rolled when no Item carries the app's `entryId`; advertised by the
+  capability token `knightAttackItemIdV1`.
+
 ### Fixed
 - On Foundry 14, the Knight character, Knight NPC and Pathfinder 2e character upserts (`actor.upsert.v1`,
   `npc.upsert.v1`, `pf2e.actor.upsert.v1`) no longer lose their whole update to Foundry refusing the

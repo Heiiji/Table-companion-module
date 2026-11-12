@@ -141,8 +141,9 @@ Gamemaster can open setup from the console with
   Knight system itself (`knight.attack.v1`): the native card with its targets, hit or miss, effects
   and damage / violence buttons, and the result sent back to the app. The app composes the dice pool;
   the dialog's own extras (module damage bonuses and the like) are not applied, and costs are spent by
-  the app. Targets must be tokens on the scene the Gamemaster is viewing; barrage weapons, which have
-  no attack roll, stay on the app's engine.
+  the app. Targets must be tokens on the scene the Gamemaster is viewing. A weapon with the « barrage »
+  effect is rolled as an attack (the barrage option off, as the sheet's roll dialog defaults it), and a
+  weapon created in Foundry is found by its Item id.
 - **Knight tests:** on the same Knight releases, a test started in the app without a weapon is rolled
   by the Knight system itself (`knight.test.v1`): the native card with its successes and, when a
   difficulty is set, its verdict, and the dice sent back to the app. Costs are spent by the app.

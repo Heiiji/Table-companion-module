@@ -8,6 +8,7 @@ import {
   actorCollection,
   assertKnightUpsertAuthority,
   contentsOf,
+  docId,
   documentId,
   flagValue,
   identifier,
@@ -54,7 +55,7 @@ export { facesOf, type RollLike } from "./knightRollLane.js";
  * so the native card appears with its targets, per-target verdict and effects
  * and the damage / violence buttons. The app composes the pool (dice, flat
  * successes, characteristics, style); the system supplies the weapon (the Item
- * bound by `entryId`), the targets' scores, the dice and the effects. No cost
+ * bound by `entryId`, else the one named by `itemId`), the targets' scores, the dice and the effects. No cost
  * is spent here: the app spends energy and hope itself.
  *
  * Idempotent by `eventId`: a card already stamped with it answers its stored
@@ -84,6 +85,9 @@ const PAYLOAD_KEYS = [
   "targetActorIds",
   "visibility",
 ] as const;
+/** Optional: the weapon's Foundry Item id, for a weapon born in Foundry (no
+ * `entryId` flag). Sent only to a build advertising `knightAttackItemIdV1`. */
+const OPTIONAL_KEYS = ["itemId"] as const;
 
 const ORIGINS = ["app", "player"] as const;
 const VISIBILITIES = ["public", "gm", "blind", "self"] as const;
@@ -95,6 +99,7 @@ export interface KnightAttackV1 {
   origin: (typeof ORIGINS)[number];
   actorId: string;
   entryId: string;
+  itemId?: string;
   label: string;
   dice: number;
   bonus: number[];
@@ -169,9 +174,9 @@ interface KnightTarget {
 
 // ------------------------------------------------------------- validation
 
-/** The strict payload: every key required, unknown keys refused. */
+/** The strict payload: every key but `itemId` required, unknown keys refused. */
 export function validateKnightAttackV1(payload: unknown): KnightAttackV1 {
-  const p = record(payload, "payload", PAYLOAD_KEYS);
+  const p = record(payload, "payload", [...PAYLOAD_KEYS, ...OPTIONAL_KEYS]);
   for (const key of PAYLOAD_KEYS)
     if (!(key in p)) invalid(`payload.${key} is required`);
   if (typeof p.surprise !== "boolean") invalid("surprise must be a boolean");
@@ -180,6 +185,9 @@ export function validateKnightAttackV1(payload: unknown): KnightAttackV1 {
     origin: oneOf(p.origin, "origin", ORIGINS),
     actorId: identifier(p.actorId, "actorId", documentId),
     entryId: identifier(p.entryId, "entryId", uuid),
+    ...("itemId" in p
+      ? { itemId: identifier(p.itemId, "itemId", documentId) }
+      : {}),
     label: text(p.label, "label", 120, true),
     dice: integer(p.dice, "dice", 1, 60),
     bonus: list(p.bonus, "bonus", 10).map((b, i) =>
@@ -424,9 +432,12 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
   const actor = actorCollection().get(req.actorId);
   if (!actor)
     throw new RpcError("actor_not_found", `${PROCEDURE}: no such Actor`);
-  const item = contentsOf(actor.items).find(
-    (i) => i.type === "arme" && flagValue(i, FLAG_KEYS.entryId) === req.entryId,
-  );
+  // The app's own weapon (flagged with its row id), else the Foundry-born
+  // weapon the app names by Item id; never by name.
+  const weapons = contentsOf(actor.items).filter((i) => i.type === "arme");
+  const item =
+    weapons.find((i) => flagValue(i, FLAG_KEYS.entryId) === req.entryId) ??
+    (req.itemId ? weapons.find((i) => docId(i) === req.itemId) : undefined);
   if (!item)
     throw new RpcError(
       "weapon_not_found",

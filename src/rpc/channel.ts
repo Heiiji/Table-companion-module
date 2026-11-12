@@ -2,6 +2,7 @@ import {
   CAP_ACTOR_ITEMS_ARMOUR,
   CAP_ACTOR_RESOURCES_NAME,
   CAP_ACTOR_RESOURCES_WEAR,
+  CAP_KNIGHT_ATTACK_ITEM_ID,
   CAP_KNIGHT_NPC_RESOURCES,
   CAP_WRITE_BASE,
   WRITE_BASE_PROCEDURES,
@@ -227,7 +228,8 @@ export class Channel {
    * write-base token with any lane that takes `base`, the
    * 2024-rules token with `dnd5e.resources.v1` on a world playing them, and
    * the Pathfinder 2e sheet-writes and npc-writes tokens with
-   * `pf2e.resources.v1`.
+   * `pf2e.resources.v1`, and the attack's item-id token with
+   * `knight.attack.v1`.
    *
    * Public because this — not the raw registry — is what the agent actually
    * sees, so it is the only honest answer to "what does this module offer?".
@@ -251,6 +253,8 @@ export class Channel {
       );
     // The armour kind rides the items lane the same way.
     if (caps.includes("actor.items.v1")) caps.push(CAP_ACTOR_ITEMS_ARMOUR);
+    // The attack's itemId rides the attack lane.
+    if (caps.includes("knight.attack.v1")) caps.push(CAP_KNIGHT_ATTACK_ITEM_ID);
     // The base values ride the lanes that take them.
     if (WRITE_BASE_PROCEDURES.some((proc) => caps.includes(proc)))
       caps.push(CAP_WRITE_BASE);

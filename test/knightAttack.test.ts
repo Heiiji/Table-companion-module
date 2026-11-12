@@ -333,6 +333,23 @@ describe("knight.attack.v1 payload", () => {
     expect(validateKnightAttackV1(payload())).toEqual(payload());
   });
 
+  it("accepts the optional itemId", () => {
+    const p = payload({ itemId: "bornInFoundry001" });
+    expect(validateKnightAttackV1(p)).toEqual(p);
+  });
+
+  it.each([
+    ["a 15-char itemId", "bornInFoundry00"],
+    ["an itemId with a dash", "bornInFoundry-01"],
+    ["an empty itemId", ""],
+    ["a null itemId", null],
+    ["a numeric itemId", 1234567890123456],
+  ])("a malformed itemId is invalid_args: %s", (_, itemId) => {
+    expect(() => validateKnightAttackV1(payload({ itemId }))).toThrow(
+      expect.objectContaining({ code: "invalid_args" }),
+    );
+  });
+
   it.each([
     ["an unknown key", { extra: 1 }],
     ["a missing key", { visibility: undefined }],
@@ -759,6 +776,73 @@ describe("knight.attack.v1 roll", () => {
     expect(await rejection(knightAttackV1(p(), {} as never))).toMatchObject({
       code,
     });
+    expect(rollCalls).toEqual([]);
+  });
+
+  const UNBOUND = "11111111-2222-4333-8444-555555555555";
+  const BORN = "bornInFoundry001";
+  /** A weapon created in Foundry: no Table Companion flag. */
+  const bornItem = (over: Dict = {}) => ({
+    id: BORN,
+    name: "Fusil d'assaut",
+    type: "arme",
+    system: { type: "contact" },
+    flags: {},
+    ...over,
+  });
+
+  it("rolls a Foundry-born weapon named by itemId", async () => {
+    world.actors.get(PC).items.contents.push(bornItem());
+    await knightAttackV1(
+      payload({ entryId: UNBOUND, itemId: BORN }),
+      {} as never,
+    );
+    expect(rollCalls).toHaveLength(1);
+    expect((rollCalls[0]!.data.weapon as Dict).label).toBe("Fusil d'assaut");
+  });
+
+  it("prefers the entryId flag over itemId", async () => {
+    world.actors.get(PC).items.contents.push(bornItem());
+    await knightAttackV1(payload({ itemId: BORN }), {} as never);
+    expect((rollCalls[0]!.data.weapon as Dict).label).toBe("Épée bâtarde");
+  });
+
+  it("an itemId of another type or actor is weapon_not_found", async () => {
+    const OTHER = "otherActor000001";
+    const other = { id: OTHER, items: { contents: [bornItem()] } };
+    const actors = world.actors;
+    world.actors = {
+      get: (id: string) => (id === OTHER ? other : actors.get(id)),
+    };
+    // On another actor only.
+    expect(
+      await rejection(
+        knightAttackV1(
+          payload({ entryId: UNBOUND, itemId: BORN }),
+          {} as never,
+        ),
+      ),
+    ).toMatchObject({
+      code: "weapon_not_found",
+      message: "knight.attack.v1: no weapon bound to that entry",
+    });
+    // On this actor, but an armour.
+    world.actors
+      .get(PC)
+      .items.contents.push(bornItem({ type: "armure", name: "Épée bâtarde" }));
+    expect(
+      await rejection(
+        knightAttackV1(
+          payload({ entryId: UNBOUND, itemId: BORN }),
+          {} as never,
+        ),
+      ),
+    ).toMatchObject({ code: "weapon_not_found" });
+    // Never by name: an unflagged weapon named like the label, no itemId.
+    world.actors.get(PC).items.contents[0].flags = {};
+    expect(
+      await rejection(knightAttackV1(payload(), {} as never)),
+    ).toMatchObject({ code: "weapon_not_found" });
     expect(rollCalls).toEqual([]);
   });
 
