@@ -12,5 +12,6 @@
   "unadjustedDegree": "success",
   "degreeSource": "target",
   "resultsShown": true,
-  "messageMode": "public"
+  "messageMode": "public",
+  "dcValue": 17
 }

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  dcValueOf,
   pf2eCheckV1,
   validatePf2eCheckV1,
 } from "../src/procedures/pf2eCheck.js";
@@ -33,7 +34,7 @@ const GM = "gmUser0000000001";
 const PLAYER = "player0000000001";
 const COMPANION = "companion0000001";
 /** The target's AC as pf2e would record it: never in the reply. */
-const TARGET_AC = 37;
+const TARGET_AC = 17;
 /** pf2e's world setting `metagame_showResults` (« Show Check Outcomes »). */
 let showResults: unknown;
 
@@ -413,6 +414,7 @@ describe("pf2e.check.v1", () => {
       degreeSource: "dc",
       resultsShown: true,
       messageMode: "public",
+      dcValue: 20,
     });
     expect(created).toHaveLength(1);
     const { data, options } = created[0];
@@ -425,12 +427,15 @@ describe("pf2e.check.v1", () => {
     expect(data.blind).toBe(false);
     // pf2e's own flags are kept; the module's stamp carries the result.
     expect(data.flags.pf2e.context.outcome).toBe("success");
+    // The stamp keeps the result without the DC, which pf2e's context holds.
+    const { dcValue: _dc, ...stamped } = result;
     expect(data.flags[MODULE_ID]).toEqual({
       eventId: EVENT,
       origin: "player",
       lane: "pf2e.check",
-      result,
+      result: stamped,
     });
+    expect(data.flags[MODULE_ID].result).not.toHaveProperty("dcValue");
   });
 
   it("reads the shared result fixture's shape from a fortune strike against a target", async () => {
@@ -467,12 +472,15 @@ describe("pf2e.check.v1", () => {
       degreeSource: "target",
       resultsShown: true,
     });
-    // pf2e's own context keeps the AC inside Foundry; the module's stamp and
-    // its reply never carry it.
+    // The reply tells the Gamemaster's device the AC pf2e judged against,
+    // read from pf2e's own context; the module's stamp never copies it.
     const { data } = created[0];
     expect(data.flags.pf2e.context.dc.value).toBe(TARGET_AC);
-    expect(data.flags[MODULE_ID].result).toEqual(result);
-    expect(JSON.stringify(result)).not.toContain(String(TARGET_AC));
+    expect(result.dcValue).toBe(TARGET_AC);
+    expect(Object.keys(result).at(-1)).toBe("dcValue");
+    const { dcValue: _dc, ...stamped } = result;
+    expect(data.flags[MODULE_ID].result).toEqual(stamped);
+    expect(JSON.stringify(data.flags[MODULE_ID])).not.toContain("dcValue");
     expect(Object.keys(result)).not.toContain("dc");
   });
 
@@ -495,6 +503,7 @@ describe("pf2e.check.v1", () => {
       unadjustedDegree: null,
       degreeSource: null,
       resultsShown: true,
+      dcValue: null,
     });
     // A target pf2e resolved but no outcome: still no degree.
     stubWorld();
@@ -707,8 +716,30 @@ describe("pf2e.check.v1", () => {
     const first = await call(payload());
     const again = await call(payload());
     expect(again).toEqual({ ...first, alreadyRolled: true });
+    // The stamp has no DC; the replay reads it from pf2e's context again.
+    expect(created[0].data.flags[MODULE_ID].result).not.toHaveProperty(
+      "dcValue",
+    );
+    expect(again.dcValue).toBe(20);
+    expect(Object.keys(again).at(-1)).toBe("dcValue");
     expect(pc.statistics.perception.roll).toHaveBeenCalledTimes(1);
     expect(created).toHaveLength(1);
+  });
+
+  it.each([
+    [{ dc: { value: 20 } }, 20],
+    [{ dc: { slug: "ac", value: 0 } }, 0],
+    [{ dc: { value: 200 } }, 200],
+    [{ dc: { value: 20.5 } }, null],
+    [{ dc: { value: -1 } }, null],
+    [{ dc: { value: 201 } }, null],
+    [{ dc: { value: "20" } }, null],
+    [{ dc: { slug: "ac" } }, null],
+    [{ dc: null }, null],
+    [{}, null],
+    [null, null],
+  ])("reads the DC of context %j as %j", (context, value) => {
+    expect(dcValueOf(context)).toBe(value);
   });
 
   it("joins a retry that arrives while the first call is still rolling", async () => {

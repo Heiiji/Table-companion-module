@@ -20,6 +20,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   gone.
 - A Pathfinder 2e check (`pf2e.check.v1`) takes an optional `dcVisible`: `false` hides the app's DC
   from players on Foundry's card (the Gamemaster still reads the DC and the margin).
+- The replies of a Pathfinder 2e check (`pf2e.check.v1`) and of its Hero Point reroll
+  (`pf2e.reroll.v1`) now tell the Gamemaster's device the DC or AC pf2e judged the roll against
+  (`dcValue`, null when there is none), read from the card pf2e keeps; the module's own stamp on the
+  card does not copy it.
 
 ## [0.28.0] - 2026-11-12
 

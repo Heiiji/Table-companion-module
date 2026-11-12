@@ -30,6 +30,7 @@ import {
   playerOf,
   postUnposted,
   runOnce,
+  stampedCard,
   visibilityOf,
   type TokenObj,
 } from "./chatCards.js";
@@ -122,12 +123,44 @@ export interface Pf2eCheckResultV1 {
   unadjustedDegree: Degree | null;
   /** Where pf2e took the DC of `degree` from: the request's `dc`, or the
    * target (its AC for an attack) when the request sent none. Null exactly
-   * when `degree` is. The DC or AC value itself never leaves Foundry. */
+   * when `degree` is. The value itself is `dcValue`. */
   degreeSource: "dc" | "target" | null;
   /** pf2e's world setting `metagame_showResults` (« Show Check Outcomes »):
    * whether pf2e shows players this card's degree of success. */
   resultsShown: boolean;
   messageMode: "public" | "gm" | "blind";
+  /** The DC or AC pf2e judged the roll against, read from the card's own
+   * context at reply time (never kept in this module's stamp); null when
+   * there is none or it is unreadable. Answered to the Gamemaster's device. */
+  dcValue: number | null;
+}
+
+/** The result as stamped on the card: the reply without `dcValue`. */
+export type Pf2eCheckStampV1 = Omit<Pf2eCheckResultV1, "dcValue">;
+
+/** The DC or AC in a card's `flags.pf2e.context`, a whole number in 0 … 200. */
+export function dcValueOf(context: unknown): number | null {
+  const v = dictAt(dictAt(context, "dc"), "value");
+  return Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 200
+    ? (v as number)
+    : null;
+}
+
+/** A card's `flags.pf2e.context`. */
+export function cardContext(card: { flags?: Dict } | undefined): Dict {
+  return (dictAt(card?.flags?.pf2e, "context") ?? {}) as Dict;
+}
+
+/** A stamped result answered again, with the DC its card carries. */
+export function replayed(
+  lane: string,
+  eventId: string,
+): (r: Pf2eCheckStampV1 | Pf2eCheckResultV1) => Pf2eCheckResultV1 {
+  return (r) => ({
+    ...r,
+    alreadyRolled: true,
+    dcValue: dcValueOf(cardContext(stampedCard(eventId, lane))),
+  });
 }
 
 // ------------------------------------------------------- structural views
@@ -471,7 +504,7 @@ export function rollResult(
   messageId: string,
   source: "dc" | "target" | null,
   messageMode: Pf2eCheckResultV1["messageMode"],
-): Pf2eCheckResultV1 {
+): Pf2eCheckStampV1 {
   const d20 = roll.dice?.find((d) => d.faces === 20);
   const results = d20?.results ?? [];
   const kept = results.find((r) => r.active !== false && !r.discarded)?.result;
@@ -506,7 +539,7 @@ export function checkResult(
   roll: CheckRoll,
   context: Dict,
   messageId: string,
-): Pf2eCheckResultV1 {
+): Pf2eCheckStampV1 {
   // Both degrees or neither: against the app's own DC, or, when it sent
   // none, against the target pf2e resolved (`context.target`, whose DC pf2e
   // read itself). Never against a DC of unknown origin.
@@ -557,7 +590,7 @@ async function check(req: Pf2eCheckV1): Promise<Pf2eCheckResultV1> {
     },
   });
   if (!posted) throw refused("Foundry did not create the card");
-  return result;
+  return { ...result, dcValue: dcValueOf(context) };
 }
 
 export const pf2eCheckV1: Procedure = (payload) => {
@@ -570,7 +603,7 @@ export const pf2eCheckV1: Procedure = (payload) => {
   return runOnce<Pf2eCheckResultV1>(
     CHECK_LANE,
     req.eventId,
-    (r) => ({ ...r, alreadyRolled: true }),
+    replayed(CHECK_LANE, req.eventId),
     () => check(req),
   );
 };
