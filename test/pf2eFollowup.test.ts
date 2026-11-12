@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   effectFormula,
@@ -12,6 +13,15 @@ import { ProcedureRegistry } from "../src/rpc/registry.js";
 import { registerBuiltinProcedures } from "../src/procedures/index.js";
 
 type Dict = Record<string, any>;
+
+// The reply shape the backend and the apps read (a critical Strike); shared
+// byte for byte with them.
+const FIXTURE = JSON.parse(
+  readFileSync(
+    new URL("./fixtures/pf2e-followup-v1-result.json", import.meta.url),
+    "utf8",
+  ),
+);
 
 // SYNTHETIC, shape-only: pf2e 8.7.0's damage rolls as seen on a live Foundry
 // 14 world. `message._strike.damage` / `.critical({checkContext, event})` and
@@ -368,6 +378,22 @@ describe("pf2e.followup.v1 from a Strike", () => {
     });
     expect(card.flags.pf2e.context.type).toBe("damage-roll");
     expect(hooks.size).toBe(0);
+  });
+
+  it("reads the shared reply fixture's shape from a critical Strike", async () => {
+    damageRoll = {
+      formula: "2 * (2d8 + 7) tranchant + 1d10 perforant",
+      total: 37,
+      dice: [
+        { faces: 8, results: [{ result: 3, active: true }, { result: 5 }] },
+        { faces: 10, results: [{ result: 7 }] },
+      ],
+      kinds: new Set(["damage"]),
+    };
+    const reply = await call(payload({ kind: "critical" }));
+    expect(followupCard().id).toBe(reply.messageId);
+    expect(Object.keys(reply)).toEqual(Object.keys(FIXTURE));
+    expect({ ...reply, messageId: FIXTURE.messageId }).toEqual(FIXTURE);
   });
 
   it("rolls the critical damage on kind critical", async () => {

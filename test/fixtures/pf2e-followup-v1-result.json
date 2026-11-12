@@ -1,0 +1,24 @@
+{
+  "messageId": "Rk8sT2mW4xY6bH1d",
+  "alreadyRolled": false,
+  "formula": "2 * (2d8 + 7) tranchant + 1d10 perforant",
+  "total": 37,
+  "dice": [
+    {
+      "faces": 8,
+      "results": [
+        3,
+        5
+      ]
+    },
+    {
+      "faces": 10,
+      "results": [
+        7
+      ]
+    }
+  ],
+  "kind": "damage",
+  "critical": true,
+  "messageMode": "public"
+}
