@@ -269,7 +269,7 @@ export const pf2eActorUpsertV1: Procedure = async (payload) => {
   const digest = await canonicalDigest(req);
   const binding = bindingFor(req);
   const collection = actorCollection();
-  let actor = uniqueBoundActor(collection, binding);
+  let actor = uniqueBoundActor(collection, binding, req.expectedActorId);
   let outcome: Outcome = "updated";
   if (req.expectedActorId) {
     if (!actor)

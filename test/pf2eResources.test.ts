@@ -469,6 +469,26 @@ describe("pf2e.resources.v1 actor resolution", () => {
     expect(actor.updates[0]["system.attributes.hp.value"]).toBe(5);
   });
 
+  it("writes the named Actor when a duplicate carries the same binding", async () => {
+    const original = fakeCharacter();
+    const copy = fakeCharacter();
+    copy.id = "pf2eActorCopy001";
+    stubWorld([original, copy]);
+    await pf2eResourcesV1(
+      request({ hp: 5, expectedActorId: "pf2eActorCopy001" }),
+      {} as never,
+    );
+    expect(copy.updates[0]["system.attributes.hp.value"]).toBe(5);
+    expect(original.updates).toHaveLength(0);
+    await rejects(
+      pf2eResourcesV1(
+        request({ hp: 5, expectedActorId: "pf2eActorOther01" }),
+        {} as never,
+      ),
+      "binding_collision",
+    );
+  });
+
   it("refuses a missing Actor, another binding, or a non-character", async () => {
     stubWorld([]);
     await rejects(

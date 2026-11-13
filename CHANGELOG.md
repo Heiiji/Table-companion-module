@@ -4,6 +4,17 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- A copy of a linked Actor made with Foundry's « Duplicate » no longer blocks every write for its
+  character with `binding_collision`. A request that names its Actor (`expectedActorId`) is served
+  on that Actor when it is one of those carrying the link; a request that names none is served on
+  the original when Foundry recorded the copy's source (`_stats.duplicateSource`), and is still
+  refused otherwise. A new Actor created carrying a link another Actor already holds loses this
+  module's flags before it is saved (one warning in the browser console); the original is never
+  touched, and the module's own Actor creation is unaffected.
+
 ## [0.31.0] - 2026-11-13
 
 ### Changed

@@ -657,7 +657,11 @@ describe("actor.resources.v1", () => {
     stubFoundry([npc], create);
     expect(await rpcCode(apply(request()))).toBe("binding_conflict");
 
-    stubFoundry([boundActor(), boundActor("actor00000000003")], create);
+    // Two Actors carry the binding and the request names neither of them.
+    stubFoundry(
+      [boundActor("actor00000000004"), boundActor("actor00000000003")],
+      create,
+    );
     expect(await rpcCode(apply(request()))).toBe("binding_collision");
 
     expect(create).not.toHaveBeenCalled();

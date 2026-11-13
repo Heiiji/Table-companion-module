@@ -327,7 +327,10 @@ describe("pf2e.actor.upsert.v1 creation", () => {
       },
       ownership: { default: 0, [USER_ID]: 3, [COMPANION_ID]: 2 },
     });
-    expect(world.create.mock.calls[0][1]).toEqual({ renderSheet: false });
+    expect(world.create.mock.calls[0][1]).toEqual({
+      renderSheet: false,
+      tableCompanionProvisioning: true,
+    });
     // pf2e's LIMITED default is replaced; player OWNER, Companion OBSERVER.
     const actor = world.actors[0];
     expect(actor.ownership).toEqual({
@@ -585,6 +588,23 @@ describe("pf2e.actor.upsert.v1 resolution", () => {
     await expect(run(draft())).rejects.toMatchObject({
       code: "binding_collision",
     });
+  });
+
+  it("serves the named Actor, or the recorded original, when a duplicate carries the binding", async () => {
+    const a = character("actorA0000000001");
+    const b = character("actorB0000000001");
+    bind(a);
+    bind(b);
+    stubWorld([a, b]);
+    const named = await run(draft({ expectedActorId: "actorB0000000001" }));
+    expect(named.resultDocId).toBe("actorB0000000001");
+    await expect(
+      run(draft({ expectedActorId: "actorC0000000001" })),
+    ).rejects.toMatchObject({ code: "binding_collision" });
+
+    Object.assign(b, { _stats: { duplicateSource: "Actor.actorA0000000001" } });
+    const original = await run(draft({ approvedRevision: 2 }));
+    expect(original.resultDocId).toBe("actorA0000000001");
   });
 });
 

@@ -51,6 +51,9 @@ export interface ActorLike {
   flags?: Dict;
   ownership?: Dict;
   system?: unknown;
+  /** Foundry's document stats: `duplicateSource` is the uuid of the Document
+   * this one was duplicated from (« Duplicate » records it), or null. */
+  _stats?: { duplicateSource?: string | null };
   items?: { contents?: ActorItemLike[] } | Iterable<ActorItemLike>;
   getFlag?(namespace: string, key: string): unknown;
   /** Foundry's own permission test (ownership, `default`, GM role). */

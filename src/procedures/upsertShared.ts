@@ -17,6 +17,7 @@ import {
 import { RpcError } from "../rpc/errors.js";
 import { pairedAgentUserId } from "../setup/identity.js";
 import { canonicalize } from "../util/canonicalJson.js";
+import { log } from "../util/log.js";
 
 /**
  * Shared plumbing for the durable actor-provisioning procedures
@@ -618,11 +619,16 @@ export function bindingFor(req: {
 
 /** The one Actor bound to this character, or undefined when none is. The one
  * carrying the binding's world id too wins: an older Actor bound under a
- * previous link of the world is ignored. Two candidates at the same rank mean
- * an ambiguous world, so the upsert refuses rather than guess. */
+ * previous link of the world is ignored. Two candidates at the same rank
+ * (typically a copy made by Foundry's « Duplicate », which keeps the flags)
+ * are resolved without guessing: to the Actor the request names, when it is
+ * one of them; without one, to the only candidate that is not a recorded
+ * duplicate of another (Foundry stores the source's uuid in
+ * `_stats.duplicateSource`). Otherwise the upsert refuses. */
 export function uniqueBoundActor(
   collection: ActorsLike,
   binding: BindingV1,
+  expectedActorId?: string,
 ): ActorLike | undefined {
   const same = contentsOf(collection).filter((actor) =>
     sameCharacter(bindingOf(actor), binding),
@@ -631,12 +637,60 @@ export function uniqueBoundActor(
     (actor) => bindingOf(actor)?.worldId === binding.worldId,
   );
   if (exact.length === 1) return exact[0];
-  if (exact.length > 1 || same.length > 1)
-    throw new RpcError(
-      "binding_collision",
-      "multiple Actors carry this Table Companion binding",
-    );
-  return same[0];
+  const candidates = exact.length > 1 ? exact : same;
+  if (candidates.length <= 1) return candidates[0];
+  const served =
+    expectedActorId === undefined
+      ? onlyOriginal(candidates)
+      : candidates.find((actor) => docId(actor) === expectedActorId);
+  if (served) return served;
+  throw new RpcError(
+    "binding_collision",
+    "multiple Actors carry this Table Companion binding",
+  );
+}
+
+/** The one candidate no other candidate is a recorded copy of: an Actor whose
+ * `_stats.duplicateSource` names another candidate is a copy. Undefined when
+ * that leaves more than one (a source not recorded, as before Foundry kept
+ * it, after a compendium round trip, or for a clone made without it). */
+function onlyOriginal(candidates: ActorLike[]): ActorLike | undefined {
+  const uuids = new Set(candidates.map((actor) => `Actor.${docId(actor)}`));
+  const originals = candidates.filter(
+    (actor) => !uuids.has(String(actor._stats?.duplicateSource)),
+  );
+  return originals.length === 1 ? originals[0] : undefined;
+}
+
+/** The creation option the module's own Actor creation carries, so the
+ * `preCreateActor` hook never strips a binding the module stamps on purpose. */
+export const PROVISIONING_OPTION = "tableCompanionProvisioning";
+
+/**
+ * `preCreateActor` hook (it runs on the client that creates the Actor): a new
+ * Actor that arrives carrying this module's binding while another Actor of the
+ * world already carries the same table and character — a copy made by
+ * Foundry's « Duplicate », or a re-import — loses this module's flags before
+ * it is saved, so it becomes an ordinary unbound Actor and the original keeps
+ * its link. The module's own creation (`PROVISIONING_OPTION`) is left alone.
+ */
+export function stripDuplicatedBinding(
+  doc: ActorLike & { updateSource?(changes: Dict): unknown },
+  _data: unknown,
+  options: Dict | undefined,
+): void {
+  if (options?.[PROVISIONING_OPTION]) return;
+  const binding = bindingOf(doc);
+  if (!binding) return;
+  const held = contentsOf(gameActors()).some(
+    (actor) => actor !== doc && sameCharacter(bindingOf(actor), binding),
+  );
+  if (!held || typeof doc.updateSource !== "function") return;
+  const [key, value] = deletionEntry(MODULE_ID);
+  doc.updateSource({ flags: { [key]: value } });
+  log.warn(
+    `removed the Table Companion link from the new Actor "${doc.name ?? ""}": another Actor already carries it (table ${binding.tableId}, character ${binding.characterId})`,
+  );
 }
 
 /** The digests a stored result of `actor` may carry for `req` at the same
@@ -762,7 +816,11 @@ export function linkedActor(
   options?: TakeoverOptions,
 ): ActorLike {
   const collection = actorCollection();
-  let actor = uniqueBoundActor(collection, bindingFor(req));
+  let actor = uniqueBoundActor(
+    collection,
+    bindingFor(req),
+    req.expectedActorId,
+  );
   if (!actor) {
     // A character imported from Foundry carries no binding: the app names the
     // Actor it was imported from. Only an unbound Actor qualifies, so a binding
@@ -964,7 +1022,10 @@ export async function createActorDocument(data: Dict): Promise<ActorLike> {
       "unsupported_runtime",
       "Actor.implementation.create is unavailable",
     );
-  const created = await factory.create(data, { renderSheet: false });
+  const created = await factory.create(data, {
+    renderSheet: false,
+    [PROVISIONING_OPTION]: true,
+  });
   const actor = Array.isArray(created) ? created[0] : created;
   if (
     typeof actor !== "object" ||

@@ -111,7 +111,7 @@ export const actorUpsertV1: Procedure = async (payload) => {
   const digest = await canonicalDigest(req);
   const binding = bindingFor(req);
   const collection = actorCollection();
-  let actor = uniqueBoundActor(collection, binding);
+  let actor = uniqueBoundActor(collection, binding, req.expectedActorId);
   let outcome: Outcome = "updated";
   if (req.expectedActorId && !actor) {
     // The Actor the app names may be held by another table now: a take-over

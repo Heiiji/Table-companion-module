@@ -587,6 +587,18 @@ describe("npc.upsert.v1", () => {
       "binding_collision",
     );
 
+    // A copy whose source Foundry recorded (« Duplicate »): the original is
+    // served, the copy untouched.
+    Object.assign(second, {
+      _stats: { duplicateSource: "Actor.actor00000000aaa" },
+    });
+    const served = (await npcUpsertV1(
+      req as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+    expect(served.resultDocId).toBe("actor00000000aaa");
+    expect(second.updates).toHaveLength(0);
+
     const wrongType = fakeActor("actor00000000ccc", "Bound PC", "knight");
     binding(wrongType, req);
     stubFoundry([wrongType]);
