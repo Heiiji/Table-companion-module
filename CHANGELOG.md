@@ -11,9 +11,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   character with `binding_collision`. A request that names its Actor (`expectedActorId`) is served
   on that Actor when it is one of those carrying the link; a request that names none is served on
   the original when Foundry recorded the copy's source (`_stats.duplicateSource`), and is still
-  refused otherwise. A new Actor created carrying a link another Actor already holds loses this
-  module's flags before it is saved (one warning in the browser console); the original is never
-  touched, and the module's own Actor creation is unaffected.
+  refused otherwise.
+- A new Actor created carrying a link another Actor already holds — a « Duplicate », or an import
+  of a linked Actor — loses this module's flags before it is saved (one warning in the browser
+  console). The original is never touched, and the module's own Actor creation is unaffected.
 - A copy made before this version, which still carries its original's link, no longer refuses
   every write for the new character it is used for (`binding_conflict`). When a live write
   (`actor.resources.v1`, `actor.items.v1`, `dnd5e.resources.v1`, `pf2e.resources.v1`) names that
