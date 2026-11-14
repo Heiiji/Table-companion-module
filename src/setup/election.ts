@@ -5,8 +5,9 @@ import { isServiceUserId } from "./identity.js";
  * Many clients may have the module loaded, but exactly one should answer the
  * agent (reply to `hello`, run `roll.execute`, ...) to avoid duplicate work.
  * Foundry designates a primary GM as `game.users.activeGM`; we defer to it, and
- * fall back to the lowest-id connected GM if Foundry reports none. Every client
- * still *listens* for status display — election only gates who *responds*.
+ * fall back to the lowest-id connected human GM if Foundry reports none or
+ * selects the service user. Every client still *listens* for status display —
+ * election only gates who *responds*.
  */
 export function isResponder(): boolean {
   const me = game.user;
@@ -17,10 +18,10 @@ export function isResponder(): boolean {
   if (isServiceUserId(me.id)) return false;
 
   const active = game.users?.activeGM;
-  if (active) return active.id === me.id;
+  if (active && !isServiceUserId(active.id)) return active.id === me.id;
 
   const gms = (game.users?.contents ?? [])
-    .filter((u) => u.isGM && u.active)
+    .filter((u) => u.isGM && u.active && !isServiceUserId(u.id))
     .sort((a, b) => (a.id ?? "").localeCompare(b.id ?? ""));
   return gms.length > 0 && gms[0].id === me.id;
 }

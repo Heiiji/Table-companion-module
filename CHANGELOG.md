@@ -256,6 +256,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   damage formulas, as pf2e prepared them, so the app rolls with Foundry's own numbers. It never
   writes, rolls or posts to chat.
 
+### Fixed
+- An accidentally elevated Companion service user no longer blocks human Gamemasters from
+  answering requests, even when Foundry selects it as the active GM.
+
 ### Changed
 - Release builds now enforce the same formatting, coverage and runtime-dependency audit gates as
   CI before publishing the module.
