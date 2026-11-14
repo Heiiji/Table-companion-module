@@ -1671,3 +1671,248 @@ describe("actor.items.v1 armour force", () => {
     expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
   });
 });
+
+// ------------------------------------------- one armour Item per Actor
+
+const WARRIOR_SELECTION = [{ catalogId: "knight.armour.warrior", quantity: 1 }];
+const WARRIOR_ADD = () =>
+  addArmour("knight.armour.warrior", {}, { ...ARMOUR, name: "Warrior" });
+const WARRIOR_SOURCE = `Compendium.${WARRIOR[0]}.Item.${WARRIOR[1]}`;
+
+/** The armour the items lane leaves on the Actor. */
+const laneFlags = (catalogId = "knight.armour.warrior", entryId = ENTRY) => ({
+  [MODULE_ID]: { entryId, armourCatalogId: catalogId },
+});
+
+const equip = (selections = WARRIOR_SELECTION) =>
+  applyEquipment(actor as never, selections);
+
+/** The equipment step's own armour, made by the step on a bare Actor. */
+async function stepArmour(): Promise<Item> {
+  await equip();
+  const [made] = armours();
+  actor.createEmbeddedDocuments.mockClear();
+  return made;
+}
+
+const equipmentFlags = {
+  equipmentCatalogId: "knight.armour.warrior",
+  equipmentCatalogVariantV1: {
+    schemaVersion: 1,
+    catalogIds: ["knight.armour.warrior"],
+    quantity: 1,
+    instanceIndex: 0,
+  },
+  equipmentCatalogSourceV1: expect.objectContaining({
+    pack: WARRIOR[0],
+    documentId: WARRIOR[1],
+  }),
+};
+
+describe("actor.upsert.v1 equipment: the armour slot", () => {
+  it("adopts the items lane's armour: one Item, both flag sets", async () => {
+    armourWorld([[...WARRIOR, "Warrior"]]);
+    await run(WARRIOR_ADD());
+    const [lane] = armours();
+    actor.createEmbeddedDocuments.mockClear();
+    const result = await equip();
+    expect(result).toEqual({
+      equipmentCompleteness: "complete",
+      warnings: [`equipment_armour_adopted:${lane.id}`],
+    });
+    expect(armours()).toEqual([lane]);
+    expect(flags(lane)).toEqual({
+      entryId: ENTRY,
+      armourCatalogId: "knight.armour.warrior",
+      ...equipmentFlags,
+    });
+    expect(actor.createEmbeddedDocuments).not.toHaveBeenCalled();
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+    // The next approval finds its own Item: nothing written, nothing said.
+    actor.updateEmbeddedDocuments.mockClear();
+    expect(await equip()).toEqual({
+      equipmentCompleteness: "complete",
+      warnings: [],
+    });
+    expect(actor.updateEmbeddedDocuments).not.toHaveBeenCalled();
+    expect(armours()).toEqual([lane]);
+  });
+
+  it("adopts a hand-made armour copied from the same compendium document", async () => {
+    armourWorld([[...WARRIOR, "Warrior"]]);
+    const own = ownArmour("handArmour000001", {
+      _stats: { compendiumSource: WARRIOR_SOURCE },
+    });
+    const result = await equip();
+    expect(result.warnings).toEqual([
+      "equipment_armour_adopted:handArmour000001",
+    ]);
+    expect(armours()).toEqual([own]);
+    expect(flags(own)).toEqual(equipmentFlags);
+    expect(actor.createEmbeddedDocuments).not.toHaveBeenCalled();
+  });
+
+  it("replaces another armour in place and says which", async () => {
+    for (const over of [
+      { flags: laneFlags("knight.armour.paladin") },
+      { name: "Warrior" }, // hand-made, no source: not provably the same armour
+      {
+        _stats: {
+          compendiumSource: `Compendium.${PALADIN[0]}.Item.${PALADIN[1]}`,
+        },
+      },
+    ]) {
+      armourWorld([[...WARRIOR, "Warrior"]]);
+      ownArmour("oldArmour0000001", over);
+      const result = await equip();
+      expect(result).toEqual({
+        equipmentCompleteness: "complete",
+        warnings: ["equipment_armour_replaced:oldArmour0000001"],
+      });
+      expect(actor.deleteEmbeddedDocuments).toHaveBeenCalledExactlyOnceWith(
+        "Item",
+        ["oldArmour0000001"],
+      );
+      expect(armours()).toHaveLength(1);
+      expect(flags(armours()[0])).toEqual(equipmentFlags);
+    }
+  });
+
+  it("never deletes a guarded armour it does not manage, and adds none", async () => {
+    armourWorld([[...WARRIOR, "Warrior"]]);
+    const old = ownArmour(
+      "oldArmour0000001",
+      { flags: laneFlags("knight.armour.paladin") },
+      ARMOUR_FIXTURE.evolved,
+    );
+    const result = await equip();
+    expect(result).toEqual({
+      equipmentCompleteness: "partial",
+      warnings: ["equipment_armour_guarded:oldArmour0000001"],
+    });
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+    expect(actor.createEmbeddedDocuments).not.toHaveBeenCalled();
+    expect(armours()).toEqual([old]);
+  });
+
+  it("creates the armour on an Actor that has none", async () => {
+    armourWorld([[...WARRIOR, "Warrior"]]);
+    const result = await equip();
+    expect(result).toEqual({ equipmentCompleteness: "complete", warnings: [] });
+    expect(armours()).toHaveLength(1);
+    expect(flags(armours()[0])).toEqual(equipmentFlags);
+  });
+});
+
+describe("actor.items.v1 armour: the equipment step's armour", () => {
+  it("adopts it, stamping the entry id and keeping the equipment flags", async () => {
+    armourWorld([[...WARRIOR, "Warrior"]]);
+    const made = await stepArmour();
+    const result = await run(WARRIOR_ADD());
+    expect(result.itemId).toBe(made.id);
+    expect(armours()).toEqual([made]);
+    expect(flags(made)).toEqual({
+      ...equipmentFlags,
+      entryId: ENTRY,
+      armourCatalogId: "knight.armour.warrior",
+    });
+    expect(actor.createEmbeddedDocuments).not.toHaveBeenCalled();
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+    // Re-sent: the flagged armour, nothing written.
+    actor.updateEmbeddedDocuments.mockClear();
+    expect((await run(WARRIOR_ADD())).itemId).toBe(made.id);
+    expect(actor.updateEmbeddedDocuments).not.toHaveBeenCalled();
+  });
+});
+
+describe("Knight armour twins", () => {
+  /** The defect's state: the step's armour, then the items lane's copy. */
+  async function twins(): Promise<[Item, Item]> {
+    armourWorld([[...WARRIOR, "Warrior"]]);
+    const made = await stepArmour();
+    const lane = ownArmour("laneArmour000001", {
+      flags: laneFlags(),
+      _stats: { compendiumSource: WARRIOR_SOURCE },
+    });
+    return [made, lane];
+  }
+
+  it("the equipment step keeps the entry id's armour, merges the flags, deletes the twin", async () => {
+    const [made, lane] = await twins();
+    const result = await equip();
+    expect(result).toEqual({
+      equipmentCompleteness: "complete",
+      warnings: [`armour_twins_merged:${lane.id}:${made.id}`],
+    });
+    expect(actor.deleteEmbeddedDocuments).toHaveBeenCalledExactlyOnceWith(
+      "Item",
+      [made.id],
+    );
+    expect(armours()).toEqual([lane]);
+    expect(flags(lane)).toEqual({
+      entryId: ENTRY,
+      armourCatalogId: "knight.armour.warrior",
+      ...equipmentFlags,
+    });
+    expect(actor.createEmbeddedDocuments).not.toHaveBeenCalled();
+  });
+
+  it("the items lane heals the same state at its next add", async () => {
+    const [made, lane] = await twins();
+    const result = await run(WARRIOR_ADD());
+    expect(result.itemId).toBe(lane.id);
+    expect(result.warnings).toEqual([
+      `armour_twins_merged:${lane.id}:${made.id}`,
+    ]);
+    expect(armours()).toEqual([lane]);
+    expect(flags(lane)).toMatchObject(equipmentFlags);
+    expect(actor.createEmbeddedDocuments).not.toHaveBeenCalled();
+  });
+
+  it("without an entry id, keeps the oldest", async () => {
+    armourWorld([[...WARRIOR, "Warrior"]]);
+    const made = await stepArmour();
+    const copy = ownArmour("copyArmour000001", {
+      flags: structuredClone(made.flags),
+    });
+    const result = await equip();
+    expect(result.warnings).toEqual([
+      `armour_twins_merged:${made.id}:${copy.id}`,
+    ]);
+    expect(armours()).toEqual([made]);
+  });
+
+  it("deletes nothing when they are not module-made twins of one armour", async () => {
+    const cases: Array<(lane: Item) => void> = [
+      (lane) => (lane.flags = {}), // hand-made
+      (lane) => (lane.flags = laneFlags("knight.armour.paladin")), // another armour
+      (lane) => ((lane.system as Record<string, any>).energie.base = 99), // data differs
+      (lane) => Object.assign(lane.system as object, ARMOUR_FIXTURE.evolved),
+    ];
+    for (const change of cases) {
+      const [made, lane] = await twins();
+      change(lane);
+      const result = await equip();
+      expect(result).toEqual({
+        equipmentCompleteness: "partial",
+        warnings: [`equipment_armour_conflict:${made.id}+${lane.id}`],
+      });
+      expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+      expect(actor.createEmbeddedDocuments).not.toHaveBeenCalled();
+      expect(armours()).toEqual([made, lane]);
+      await refused(WARRIOR_ADD(), "item_conflict");
+      expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+      expect(armours()).toHaveLength(2);
+    }
+  });
+
+  it("deletes nothing when the twins carry two different entry ids", async () => {
+    const [made, lane] = await twins();
+    (made.flags as Record<string, any>)[MODULE_ID].entryId = "another-entry";
+    const result = await equip();
+    expect(result.warnings).toEqual([
+      `equipment_armour_conflict:${made.id}+${lane.id}`,
+    ]);
+    expect(actor.deleteEmbeddedDocuments).not.toHaveBeenCalled();
+  });
+});

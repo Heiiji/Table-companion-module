@@ -5,7 +5,11 @@ import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import { pairedAgentUser } from "../setup/identity.js";
 import { paragraphsHtml } from "../util/html.js";
-import { compendiumAvailabilityWarning } from "./actorUpsert.equipment.js";
+import {
+  compendiumAvailabilityWarning,
+  foldArmourTwins,
+  isArmourOf,
+} from "./actorUpsert.equipment.js";
 import { readable } from "./compendium.js";
 import {
   assertKnightUpsertAuthority,
@@ -23,12 +27,12 @@ import {
 } from "./upsertShared.js";
 import {
   type ItemDoc,
-  at,
   isDict,
   sameName,
   readFields,
   holds,
   sameValue,
+  armourGuarded,
 } from "./actorItems.read.js";
 import {
   type ItemKind,
@@ -59,10 +63,12 @@ import { fieldPatch } from "./actorItems.patch.js";
  * Item is applied, of a renamed one is `item_conflict`. Only the Item named by
  * id or `entryId` is ever touched. Created Items carry the `entryId` flag and
  * never the equipment-catalog flags, so `actor.upsert.v1` never reconciles
- * them away.
+ * them away (its equipment step adopts the armour by type instead).
  *
  * The armour (kind `armour`, `add` only) is the actor's FIRST `armure` Item,
- * the one the Knight system reads. An add replaces it: compare-and-set on its
+ * the one the Knight system reads. The same armour already there (made by
+ * actor.upsert's equipment step, or copied by hand from the same compendium
+ * document) is adopted: its flags gain the entry id. Another one is replaced: compare-and-set on its
  * name (`expectedName`), refused with `armour_guarded` when it holds what a
  * delete would lose for good (applied evolutions, their archives, an active
  * capacity) unless `force` is set, then deleted and the new armour created.
@@ -202,45 +208,6 @@ async function addItem(
   return docId(item);
 }
 
-const anyTrue = (node: unknown): boolean =>
-  node === true || (isDict(node) && Object.values(node).some(anyTrue));
-
-const anyApplied = (node: unknown): boolean =>
-  isDict(node) &&
-  Object.entries(node).some(
-    ([key, value]) =>
-      (key === "applied" && value === true) || anyApplied(value),
-  );
-
-/** Whether deleting this `armure` Item loses data held nowhere else: an
- * applied evolution (regular or special), a pre-evolution archive, or a
- * capacity left active. */
-export function armourGuarded(item: ItemDoc): boolean {
-  const sy = item.system;
-  const liste = at(sy, "evolutions.liste");
-  const archivage = at(sy, "archivage");
-  const selected = at(sy, "capacites.selected");
-  const warriorTypes = at(sy, "capacites.selected.type.type");
-  return (
-    (isDict(liste) &&
-      Object.values(liste).some((e) => at(e, "applied") === true)) ||
-    anyApplied(at(sy, "evolutions.special")) ||
-    (isDict(archivage) &&
-      Object.values(archivage).some((v) =>
-        typeof v === "string"
-          ? v !== ""
-          : typeof v === "object" && v !== null && Object.keys(v).length > 0,
-      )) ||
-    (isDict(selected) &&
-      Object.values(selected).some((c) => anyTrue(at(c, "active")))) ||
-    // The Warrior's « type » is active on the chosen type itself.
-    (isDict(warriorTypes) &&
-      Object.values(warriorTypes).some(
-        (t) => at(t, "conflit") === true || at(t, "horsconflit") === true,
-      ))
-  );
-}
-
 /** The `armure` source built from the app's fields: no capacities, no
  * evolutions. */
 function builtArmour(f: ItemFieldsV1): Dict {
@@ -274,9 +241,9 @@ async function addArmour(
   warnings: string[],
 ): Promise<string> {
   const catalogId = (add.source as { catalogId: string }).catalogId;
-  const armours = actorItems(actor).filter(
-    (item) => item.type === FOUNDRY_TYPE.armour,
-  );
+  // Module-made twins of one armour (an older module's two lanes) are folded
+  // into one first, so a stuck lane heals at its next add.
+  const armours = (await foldArmourTwins(actor, warnings)) as ItemDoc[];
   const [current] = armours;
   if (
     armours.length === 1 &&
@@ -287,8 +254,32 @@ async function addArmour(
   if (armours.length > 1)
     throw new RpcError(
       "item_conflict",
-      "the Actor carries several armours: the Knight system reads only the first",
+      `the Actor carries several armours (${armours.map(docId).join(", ")}): the Knight system reads only the first`,
     );
+  // The same armour made by actor.upsert's equipment step, or copied by hand
+  // from the same compendium document, is adopted, never replaced: the entry
+  // id and catalog id are stamped, every other flag kept.
+  if (
+    current &&
+    isArmourOf(current, catalogId) &&
+    [undefined, add.entryId].includes(
+      flagValue(current, FLAG_KEYS.entryId) as string | undefined,
+    )
+  ) {
+    if (typeof actor.updateEmbeddedDocuments !== "function")
+      throw new RpcError(
+        "unsupported_runtime",
+        "Actor.updateEmbeddedDocuments is unavailable",
+      );
+    await actor.updateEmbeddedDocuments("Item", [
+      {
+        _id: docId(current),
+        [entryFlagPath]: add.entryId,
+        [`flags.${MODULE_ID}.${FLAG_KEYS.armourCatalogId}`]: catalogId,
+      },
+    ]);
+    return docId(current);
+  }
   if (current) {
     if (
       add.expectedName === undefined ||

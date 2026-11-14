@@ -4,6 +4,23 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- A Knight Actor no longer ends with two armour Items when a companion app adds the armour
+  (`actor.items.v1`) before the character's approval runs `actor.upsert.v1`. The approval's
+  equipment step now treats any `armure` Item of the Actor as the armour slot: the same armour
+  (by either lane's flag, or for an Item made by hand, the compendium document Foundry recorded
+  it was copied from) is adopted, keeping every flag it has; another armour is replaced in place
+  (`equipment_armour_replaced:<id>`), unless it holds applied evolutions, archives or an active
+  capacity (`equipment_armour_guarded:<id>`, nothing deleted). An `actor.items.v1` armour add
+  likewise adopts the equipment step's armour instead of replacing it.
+- An Actor that already holds two armour Items made by this module for the same armour, with the
+  same data, is repaired by the next approval or armour add: the one carrying the app's entry id
+  (else the oldest) is kept with both sets of flags, the copy is deleted
+  (`armour_twins_merged:<kept>:<deleted>`). Any other set of several armours is left untouched and
+  reported (`equipment_armour_conflict:<ids>`; the armour add still answers `item_conflict`).
+
 ## [0.32.0] - 2026-11-14
 
 ### Fixed
