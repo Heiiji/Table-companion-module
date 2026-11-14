@@ -284,6 +284,41 @@ describe("dnd5e.resources.v1 actor resolution", () => {
     );
   });
 
+  it("writes a recorded copy still bound to another character as an unbound Actor, never touching the original", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const original = fakeCharacter();
+    const before = structuredClone(original.flags);
+    const copy = Object.assign(fakeCharacter(), {
+      _stats: { duplicateSource: `Actor.${ACTOR_ID}` },
+    });
+    copy.id = "dnd5eActorCopy01";
+    stubWorld([original, copy]);
+    const req = request({
+      hp: 5,
+      characterId: "character-2",
+      expectedActorId: "dnd5eActorCopy01",
+    });
+    await dnd5eResourcesV1(req, {} as never);
+    expect(copy.flags[MODULE_ID]).toMatchObject({});
+    expect(
+      (copy.flags[MODULE_ID] as Record<string, unknown>).binding,
+    ).toBeUndefined();
+    expect(
+      copy.updates.some((u) => u["system.attributes.hp.value"] === 5),
+    ).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(original.flags).toEqual(before);
+    expect(original.updates).toHaveLength(0);
+    warn.mockRestore();
+
+    // Not a recorded copy: today's refusal, nothing stripped.
+    const unrecorded = fakeCharacter();
+    unrecorded.id = "dnd5eActorCopy01";
+    stubWorld([fakeCharacter(), unrecorded]);
+    await rejects(dnd5eResourcesV1(req, {} as never), "binding_conflict");
+    expect(unrecorded.updates).toHaveLength(0);
+  });
+
   it("refuses a missing Actor, another binding, or a non-character", async () => {
     const gone = fakeCharacter();
     gone.flags = {};

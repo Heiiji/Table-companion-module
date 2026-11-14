@@ -14,6 +14,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   refused otherwise. A new Actor created carrying a link another Actor already holds loses this
   module's flags before it is saved (one warning in the browser console); the original is never
   touched, and the module's own Actor creation is unaffected.
+- A copy made before this version, which still carries its original's link, no longer refuses
+  every write for the new character it is used for (`binding_conflict`). When a live write
+  (`actor.resources.v1`, `actor.items.v1`, `dnd5e.resources.v1`, `pf2e.resources.v1`) names that
+  copy for another character of the same table, and Foundry recorded it as a duplicate of an Actor
+  that still carries the same link, the copy's Table Companion flags are removed (one warning in
+  the browser console) and the write is served as for any unlinked Actor. The original is never
+  touched; any other case, including another table's link, is answered as before.
 
 ## [0.31.0] - 2026-11-13
 

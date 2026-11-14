@@ -199,6 +199,187 @@ describe("a duplicated Knight PC carrying the same binding", () => {
   });
 });
 
+describe("a recorded copy still carrying the first character's binding, named for another character", () => {
+  /** The original O (character-1) and its recorded copy C, both bound to
+   * character-1, with the lane records the first character left on them. */
+  function world(recorded = true) {
+    const original = bound();
+    (original.flags[MODULE_ID] as Record<string, unknown>).actorResourcesV1 = {
+      schemaVersion: 1,
+      resultDocId: ACTOR_ID,
+      outcome: "updated",
+      appliedRevision: 9_999,
+      appliedDigest: "f".repeat(64),
+      warnings: [],
+    };
+    original.flags.other = { kept: true };
+    const copy = copyOf(original, recorded);
+    stubFoundry([original, copy]);
+    return { original, copy, before: structuredClone(original.flags) };
+  }
+  const second = (overrides: Record<string, unknown> = {}) =>
+    resources({
+      characterId: "character-2",
+      expectedActorId: COPY_ID,
+      ...overrides,
+    });
+
+  it.each([13, 14])(
+    "actor.resources removes the copy's stale flags and writes it as an unbound Actor (Foundry %i)",
+    async (generation) => {
+      if (generation === 14) stubOperators();
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { original, copy, before } = world();
+      const result = (await actorResourcesV1(
+        second(),
+        {} as never,
+      )) as ActorResourcesResultV1;
+      expect(result.resultDocId).toBe(COPY_ID);
+      // The first character's sequence (9 999) was dropped with the flags.
+      expect((copy.system.sante as { value: number }).value).toBe(12);
+      const flags = copy.flags[MODULE_ID] as Record<string, unknown>;
+      // Served as an unbound Actor: never bound to the new character.
+      expect(flags.binding).toBeUndefined();
+      expect(copy.flags.other).toEqual({ kept: true });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(original.flags).toEqual(before);
+      expect(original.updates).toHaveLength(0);
+    },
+  );
+
+  it("actor.resources: a retry after the strip is served, a replay writes nothing more", async () => {
+    const { original, copy } = world();
+    const first = await actorResourcesV1(second(), {} as never);
+    const writes = copy.updates.length;
+    expect(await actorResourcesV1(second(), {} as never)).toEqual(first);
+    expect(copy.updates).toHaveLength(writes);
+    await actorResourcesV1(second({ sequence: 8 }), {} as never);
+    expect(original.updates).toHaveLength(0);
+  });
+
+  it("actor.resources: two requests in flight for the copy both land", async () => {
+    const { original, copy } = world();
+    await Promise.all([
+      actorResourcesV1(second(), {} as never),
+      actorResourcesV1(second({ sequence: 8 }), {} as never),
+    ]);
+    expect(
+      (copy.flags[MODULE_ID] as Record<string, unknown>).binding,
+    ).toBeUndefined();
+    expect(original.updates).toHaveLength(0);
+  });
+
+  it("actor.items reaches the copy past its stale binding", async () => {
+    const { original, copy } = world();
+    const req = {
+      schemaVersion: 1,
+      actorType: "knight",
+      worldId: "world-1",
+      tableId: "table-1",
+      characterId: "character-2",
+      expectedActorId: COPY_ID,
+      op: {
+        remove: {
+          itemId: "item000000000099",
+          kind: "module",
+          expectedName: "x",
+        },
+      },
+    };
+    await expect(actorItemsV1(req, {} as never)).resolves.toBeDefined();
+    expect(copy.flags[MODULE_ID]).toBeUndefined();
+    expect(original.updates).toHaveLength(0);
+  });
+
+  it("keeps binding_conflict for a copy Foundry recorded no source for", async () => {
+    const { original, copy } = world(false);
+    expect(await code(actorResourcesV1(second(), {} as never))).toBe(
+      "binding_conflict",
+    );
+    expect(copy.updates).toHaveLength(0);
+    expect(original.updates).toHaveLength(0);
+  });
+
+  it("keeps binding_conflict when the recorded source no longer carries the binding, or is gone", async () => {
+    const { original, copy } = world();
+    (original.flags[MODULE_ID] as { binding: { characterId: string } })[
+      "binding"
+    ].characterId = "character-3";
+    expect(await code(actorResourcesV1(second(), {} as never))).toBe(
+      "binding_conflict",
+    );
+    stubFoundry([copy]);
+    expect(await code(actorResourcesV1(second(), {} as never))).toBe(
+      "binding_conflict",
+    );
+    expect(copy.updates).toHaveLength(0);
+    expect(original.updates).toHaveLength(0);
+  });
+
+  it("never strips the original named for another character: it is not a recorded copy", async () => {
+    const { original, copy } = world();
+    expect(
+      await code(
+        actorResourcesV1(second({ expectedActorId: ACTOR_ID }), {} as never),
+      ),
+    ).toBe("binding_conflict");
+    expect(original.updates).toHaveLength(0);
+    expect(copy.updates).toHaveLength(0);
+  });
+
+  it("leaves another table's binding to the take-over path, untouched", async () => {
+    const { original, copy } = world();
+    for (const actor of [original, copy])
+      (actor.flags[MODULE_ID] as { binding: { tableId: string } })[
+        "binding"
+      ].tableId = "table-2";
+    const result = (await actorResourcesV1(
+      second(),
+      {} as never,
+    )) as ActorResourcesResultV1;
+    expect(result.warnings).toContain("binding_taken_over");
+    const binding = (
+      copy.flags[MODULE_ID] as { binding: Record<string, unknown> }
+    ).binding;
+    expect(binding).toMatchObject({
+      tableId: "table-1",
+      characterId: "character-2",
+      previous: [expect.objectContaining({ tableId: "table-2" })],
+    });
+    expect(original.updates).toHaveLength(0);
+  });
+
+  it("strips nothing when the request is for the copy's own character", async () => {
+    const { original, copy } = world();
+    await actorResourcesV1(
+      resources({ expectedActorId: COPY_ID, sequence: 10_000 }),
+      {} as never,
+    );
+    expect(
+      (copy.flags[MODULE_ID] as Record<string, unknown>).binding,
+    ).toBeDefined();
+    expect(original.updates).toHaveLength(0);
+  });
+
+  it("actor.upsert does not reach it: its answer stays binding_conflict", async () => {
+    const { original, copy } = world();
+    expect(
+      await code(
+        actorUpsertV1(
+          approved({
+            equipment: undefined,
+            characterId: "character-2",
+            expectedActorId: COPY_ID,
+          }),
+          {} as never,
+        ),
+      ),
+    ).toBe("binding_conflict");
+    expect(copy.updates).toHaveLength(0);
+    expect(original.updates).toHaveLength(0);
+  });
+});
+
 /** A pending Actor as Foundry hands it to `preCreateActor`: its source flags
  * and `updateSource`, which applies a deletion the way Foundry does (a
  * `ForcedDeletion` on 14, the `-=key` syntax before). */

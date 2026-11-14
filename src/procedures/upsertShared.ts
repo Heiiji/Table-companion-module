@@ -805,7 +805,7 @@ export function takeoverPatch(
  * by name. With `options` (the Knight lanes), the Actor the app names may be
  * bound to another table: `assertTakeover` decides, and the lane writes
  * `takeoverPatch` with its update. */
-export function linkedActor(
+export async function linkedActor(
   req: {
     worldId: string;
     tableId: string;
@@ -814,7 +814,7 @@ export function linkedActor(
   },
   actorType: string,
   options?: TakeoverOptions,
-): ActorLike {
+): Promise<ActorLike> {
   const collection = actorCollection();
   let actor = uniqueBoundActor(
     collection,
@@ -828,7 +828,15 @@ export function linkedActor(
     actor = collection.get(req.expectedActorId);
     if (!actor)
       throw new RpcError("deleted_link", "the linked Actor no longer exists");
-    const bound = bindingOf(actor);
+    let bound = bindingOf(actor);
+    if (
+      bound &&
+      actor.type === actorType &&
+      staleCopy(collection, actor, req)
+    ) {
+      await stripModuleFlags(actor, bound);
+      bound = null;
+    }
     if (bound)
       assertTakeover(
         bound,
@@ -843,6 +851,47 @@ export function linkedActor(
       "the binding points at a different Actor",
     );
   return actor;
+}
+
+/** True when `actor` — named by a request of `req`'s table for a character
+ * it is not bound to — is a recorded copy left with its source's link:
+ * bound to another character of the SAME table, its `_stats.duplicateSource`
+ * names another Actor of the world, and that Actor carries the same binding.
+ * Only the recorded source counts (a chain is never walked). Another table's
+ * binding stays the take-over path. */
+function staleCopy(
+  collection: ActorsLike,
+  actor: ActorLike,
+  req: { tableId: string; characterId: string },
+): boolean {
+  const bound = bindingOf(actor);
+  if (!bound || bound.tableId !== req.tableId || sameCharacter(bound, req))
+    return false;
+  const source = actor._stats?.duplicateSource;
+  if (typeof source !== "string" || !source.startsWith("Actor.")) return false;
+  const original = collection.get(source.slice("Actor.".length));
+  return (
+    original !== undefined &&
+    original !== actor &&
+    docId(original) !== docId(actor) &&
+    sameCharacter(bindingOf(original), bound)
+  );
+}
+
+/** Delete this module's whole flag namespace from `actor` (its binding and
+ * the lane records it copied), checked by reading the binding back: Foundry
+ * drops a refused update without an error. */
+async function stripModuleFlags(
+  actor: ActorLike,
+  bound: BindingV1,
+): Promise<void> {
+  const [key, value] = deletionEntry(MODULE_ID);
+  await actor.update({ [`flags.${key}`]: value });
+  if (bindingOf(actor))
+    throw new RpcError("procedure_failed", "Foundry did not apply the update");
+  log.warn(
+    `removed the Table Companion link that the Actor "${actor.name ?? ""}" (${docId(actor)}) kept from the Actor it was duplicated from (table ${bound.tableId}, character ${bound.characterId})`,
+  );
 }
 
 /** The result fields both lanes store on the Actor after an apply. */

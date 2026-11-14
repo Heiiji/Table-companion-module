@@ -403,7 +403,7 @@ export const dnd5eResourcesV1: Procedure = async (payload) => {
     DND5E_RESOURCES_REQUIREMENT,
   );
   const digest = await canonicalDigest(req);
-  const actor = linkedActor(req, ACTOR_TYPE);
+  const actor = await linkedActor(req, ACTOR_TYPE);
   const id = docId(actor);
 
   const stored = parseStoredResult(actor, FLAG_KEYS.dnd5eResources);

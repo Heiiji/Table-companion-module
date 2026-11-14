@@ -1102,7 +1102,7 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
   // Compared and written in pf2e's prepared order; the digests stay the
   // request's own, so a replay is recognised byte for byte.
   const req = inPreparedOrder(sent);
-  const actor = linkedActor(req, req.actorType);
+  const actor = await linkedActor(req, req.actorType);
   const id = docId(actor);
   if (
     typeof actor.increaseCondition !== "function" ||

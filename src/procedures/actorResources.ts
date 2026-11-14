@@ -297,7 +297,7 @@ export const actorResourcesV1: Procedure = async (payload) => {
   );
   assertKnightUpsertAuthority("actor.resources.v1");
   const digest = await canonicalDigest(req);
-  const actor = linkedActor(req, req.actorType, {
+  const actor = await linkedActor(req, req.actorType, {
     takeover: true,
     reclaim: req.reclaim,
   });

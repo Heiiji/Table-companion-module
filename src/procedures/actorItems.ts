@@ -364,7 +364,7 @@ export const actorItemsV1: Procedure = async (payload) => {
   const req = validateKnightActorItemsV1(payload);
   assertKnightUpsertAuthority(PROCEDURE);
   const digest = await canonicalDigest(req);
-  const actor = linkedActor(req, ACTOR_TYPE, { takeover: true });
+  const actor = await linkedActor(req, ACTOR_TYPE, { takeover: true });
   const warnings: string[] = [];
   // Another table's Actor is taken over first: this lane writes Items, not
   // the Actor, so the binding rides an update of its own, checked by reading
