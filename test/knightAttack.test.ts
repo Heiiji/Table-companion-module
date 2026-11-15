@@ -31,6 +31,7 @@ const FIXTURE = JSON.parse(
 
 const EVENT = "6f1c2a7e-4b1d-4c8e-9a51-2f0d7c3b9e10";
 const ENTRY = "0b7d5c1e-9f3a-4e2b-8c6d-1a2b3c4d5e6f";
+const SECOND_ENTRY = "11111111-1111-4111-8111-111111111111";
 const PC = "kQx3Lr9ZpT2mWv8A";
 const NOCTE = "Nf7cH2kLm9QwE4rT";
 const GARDE_TOKEN = "T0k3nZ9y8X7w6V5u";
@@ -1028,6 +1029,128 @@ describe("knight.attack.v1 follow-ups", () => {
     world.users.activeGM = { id: "otherGm000000001" };
     expect(await stampFollowUp(followUp(attack))).toBe(false);
     expect(await stampFollowUp(attack)).toBe(false);
+  });
+});
+
+describe("Akimbo's second weapon", () => {
+  it("validates Precise and prepares its two-handed copy without editing the Item", async () => {
+    const req = payload({
+      style: "precis",
+      preciseCharacteristic: "masque_dexterite",
+    });
+    expect(validateKnightAttackV1(req).preciseCharacteristic).toBe(
+      "masque_dexterite",
+    );
+    for (const invalid of [
+      payload({ preciseCharacteristic: "masque_dexterite" }),
+      payload({ style: "precis", preciseCharacteristic: "chair_force" }),
+      payload({ style: "precis", preciseCharacteristic: null }),
+    ])
+      expect(() => validateKnightAttackV1(invalid)).toThrow();
+    const item = world.actors
+      .get(PC)
+      .items.contents.find((i: Dict) => i.type === "arme");
+    item.system = {
+      type: "contact",
+      options2mains: { has: true, actuel: "1main" },
+    };
+    const before = JSON.stringify(item);
+    const prepare = vi.spyOn(FakeRollKnight.prototype, "prepareWpnContact");
+    scenario.weaponRaw = ["deuxmains"];
+    await knightAttackV1(req, {} as never);
+    expect(prepare.mock.calls[0][0].system.options2mains.actuel).toBe("2main");
+    expect(JSON.stringify(item)).toBe(before);
+    prepare.mockRestore();
+  });
+  it("validates and forwards the powerful style's bounded dice choice", async () => {
+    const choice = { type: "degats", value: 3 };
+    expect(
+      validateKnightAttackV1(payload({ style: "puissant", dataStyle: choice }))
+        .dataStyle,
+    ).toEqual(choice);
+    for (const dataStyle of [
+      null,
+      {},
+      { type: "damage", value: 3 },
+      { type: "degats", value: 7 },
+      { type: "degats", value: -1 },
+      { type: "degats", value: 1, extra: true },
+    ]) {
+      expect(() =>
+        validateKnightAttackV1(payload({ style: "puissant", dataStyle })),
+      ).toThrow();
+    }
+    expect(() =>
+      validateKnightAttackV1(payload({ dataStyle: choice })),
+    ).toThrow();
+    await expect(
+      knightAttackV1(
+        payload({ style: "puissant", dataStyle: choice }),
+        {} as never,
+      ),
+    ).rejects.toMatchObject({ code: "weapon_unsupported" });
+    expect(rollCalls).toHaveLength(0);
+    scenario.weapon = { effets: { raw: ["lourd"] } };
+    await knightAttackV1(
+      payload({ style: "puissant", dataStyle: choice }),
+      {} as never,
+    );
+    expect(rollCalls[0].data.dataStyle).toEqual(choice);
+  });
+  const akimbo = (over: Dict = {}) =>
+    payload({
+      style: "akimbo",
+      secondaryEntryId: SECOND_ENTRY,
+      secondaryAttackId: "a1",
+      ...over,
+    });
+  it("validates the optional pair without changing old requests", () => {
+    expect(validateKnightAttackV1(akimbo())).toEqual(akimbo());
+    for (const req of [
+      akimbo({ style: "standard" }),
+      akimbo({ secondaryEntryId: ENTRY }),
+      akimbo({ secondaryAttackId: "" }),
+      payload({ secondaryItemId: "item000000000002" }),
+      akimbo({ secondaryItemId: "short" }),
+    ])
+      expect(() => validateKnightAttackV1(req)).toThrow();
+    const incomplete = akimbo();
+    delete incomplete.secondaryAttackId;
+    expect(() => validateKnightAttackV1(incomplete)).toThrow();
+  });
+  it("passes a distinct prepared second weapon into Knight's card", async () => {
+    const actor = world.actors.get(PC);
+    actor.items.contents.push({
+      id: "item000000000002",
+      name: "Second sword",
+      type: "arme",
+      system: {
+        type: "contact",
+        options2mains: { has: true, actuel: "2main" },
+      },
+      flags: { [MODULE_ID]: { entryId: SECOND_ENTRY } },
+    });
+    const before = JSON.stringify(actor.items.contents);
+    await knightAttackV1(akimbo(), {} as never);
+    expect(rollCalls[0].data.addFlags.secondWpn.label).toBe("Second sword");
+    expect(JSON.stringify(actor.items.contents)).toBe(before);
+  });
+  it("refuses an absent second weapon and a two-handed weapon before rolling", async () => {
+    await expect(knightAttackV1(akimbo(), {} as never)).rejects.toMatchObject({
+      code: "weapon_not_found",
+    });
+    world.actors.get(PC).items.contents.push({
+      id: "item000000000002",
+      name: "Second sword",
+      type: "arme",
+      system: { type: "contact" },
+      flags: { [MODULE_ID]: { entryId: SECOND_ENTRY } },
+    });
+    scenario.weaponRaw = ["deuxmains"];
+    await expect(knightAttackV1(akimbo(), {} as never)).rejects.toMatchObject({
+      code: "weapon_unsupported",
+    });
+    expect(rollCalls).toHaveLength(0);
   });
 });
 

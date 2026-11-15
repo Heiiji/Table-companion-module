@@ -3,6 +3,7 @@ import {
   CAP_ACTOR_RESOURCES_NAME,
   CAP_ACTOR_RESOURCES_WEAR,
   CAP_KNIGHT_ATTACK_ITEM_ID,
+  CAP_KNIGHT_ATTACK_STYLES,
   CAP_KNIGHT_NPC_RESOURCES,
   CAP_BINDING_RECLAIM,
   CAP_BINDING_TAKEOVER,
@@ -268,6 +269,7 @@ export class Channel {
     if (caps.includes("actor.items.v1")) caps.push(CAP_ACTOR_ITEMS_ARMOUR);
     // The attack's itemId rides the attack lane.
     if (caps.includes("knight.attack.v1")) caps.push(CAP_KNIGHT_ATTACK_ITEM_ID);
+    if (caps.includes("knight.attack.v1")) caps.push(CAP_KNIGHT_ATTACK_STYLES);
     // The base values ride the lanes that take them.
     if (WRITE_BASE_PROCEDURES.some((proc) => caps.includes(proc)))
       caps.push(CAP_WRITE_BASE);

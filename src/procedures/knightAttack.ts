@@ -87,7 +87,14 @@ const PAYLOAD_KEYS = [
 ] as const;
 /** Optional: the weapon's Foundry Item id, for a weapon born in Foundry (no
  * `entryId` flag). Sent only to a build advertising `knightAttackItemIdV1`. */
-const OPTIONAL_KEYS = ["itemId"] as const;
+const OPTIONAL_KEYS = [
+  "itemId",
+  "secondaryEntryId",
+  "secondaryItemId",
+  "secondaryAttackId",
+  "dataStyle",
+  "preciseCharacteristic",
+] as const;
 
 const ORIGINS = ["app", "player"] as const;
 const VISIBILITIES = ["public", "gm", "blind", "self"] as const;
@@ -100,6 +107,11 @@ export interface KnightAttackV1 {
   actorId: string;
   entryId: string;
   itemId?: string;
+  secondaryEntryId?: string;
+  secondaryItemId?: string;
+  secondaryAttackId?: string;
+  dataStyle?: { type: "degats" | "violence"; value: number };
+  preciseCharacteristic?: string;
   label: string;
   dice: number;
   bonus: number[];
@@ -180,6 +192,21 @@ export function validateKnightAttackV1(payload: unknown): KnightAttackV1 {
   for (const key of PAYLOAD_KEYS)
     if (!(key in p)) invalid(`payload.${key} is required`);
   if (typeof p.surprise !== "boolean") invalid("surprise must be a boolean");
+  const dataStyle =
+    "dataStyle" in p
+      ? record(p.dataStyle, "dataStyle", ["type", "value"])
+      : undefined;
+  if (dataStyle && p.style !== "puissant")
+    invalid("dataStyle is only accepted for puissant");
+  if ("preciseCharacteristic" in p && p.style !== "precis")
+    invalid("preciseCharacteristic is only accepted for precis");
+  if (
+    "secondaryEntryId" in p !== "secondaryAttackId" in p ||
+    ("secondaryItemId" in p && !("secondaryEntryId" in p)) ||
+    ("secondaryEntryId" in p &&
+      (p.style !== "akimbo" || p.secondaryEntryId === p.entryId))
+  )
+    invalid("Akimbo needs a different second weapon and its attack mode");
   return {
     eventId: identifier(p.eventId, "eventId", uuid),
     origin: oneOf(p.origin, "origin", ORIGINS),
@@ -187,6 +214,55 @@ export function validateKnightAttackV1(payload: unknown): KnightAttackV1 {
     entryId: identifier(p.entryId, "entryId", uuid),
     ...("itemId" in p
       ? { itemId: identifier(p.itemId, "itemId", documentId) }
+      : {}),
+    ...("secondaryEntryId" in p
+      ? {
+          secondaryEntryId: identifier(
+            p.secondaryEntryId,
+            "secondaryEntryId",
+            uuid,
+          ),
+          secondaryAttackId: text(
+            p.secondaryAttackId,
+            "secondaryAttackId",
+            120,
+            true,
+          ),
+        }
+      : {}),
+    ...("secondaryItemId" in p
+      ? {
+          secondaryItemId: identifier(
+            p.secondaryItemId,
+            "secondaryItemId",
+            documentId,
+          ),
+        }
+      : {}),
+    ...(dataStyle
+      ? {
+          dataStyle: {
+            type: oneOf(dataStyle.type, "dataStyle.type", [
+              "degats",
+              "violence",
+            ] as const),
+            value: integer(dataStyle.value, "dataStyle.value", 0, 6),
+          },
+        }
+      : {}),
+    ...("preciseCharacteristic" in p
+      ? {
+          preciseCharacteristic: oneOf(
+            p.preciseCharacteristic,
+            "preciseCharacteristic",
+            [
+              "masque_dexterite",
+              "machine_savoir",
+              "bete_instinct",
+              "dame_sang_froid",
+            ] as const,
+          ),
+        }
       : {}),
     label: text(p.label, "label", 120, true),
     dice: integer(p.dice, "dice", 1, 60),
@@ -449,9 +525,78 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
     (item.system as { type?: unknown } | undefined)?.type === "distance";
   // ponytail: no module bonuses (`modules = {}`): the dialog's module damage
   // and violence bonuses are not applied; pass them here if the app sends them.
+  const preparedItem = (entry: typeof item) => {
+    const system = structuredClone(entry.system ?? {}) as Dict;
+    if (req.secondaryEntryId && (system.tourelle as Dict | undefined)?.has)
+      throw new RpcError(
+        "weapon_unsupported",
+        "Akimbo does not add turret damage",
+      );
+    if (req.secondaryEntryId && (system.options2mains as Dict | undefined)?.has)
+      (system.options2mains as Dict).actuel = "1main";
+    if (
+      req.preciseCharacteristic &&
+      (system.options2mains as Dict | undefined)?.has
+    )
+      (system.options2mains as Dict).actuel = "2main";
+    return {
+      id: docId(entry),
+      name: (entry as { name?: string }).name,
+      system,
+    };
+  };
   const weapon = isRanged
-    ? builder.prepareWpnDistance(item, {})
-    : builder.prepareWpnContact(item, {});
+    ? builder.prepareWpnDistance(preparedItem(item), {})
+    : builder.prepareWpnContact(preparedItem(item), {});
+  if (
+    req.preciseCharacteristic &&
+    (isRanged || !weapon.effets?.raw?.includes("deuxmains"))
+  )
+    throw new RpcError(
+      "weapon_unsupported",
+      "Precise requires a two-handed melee weapon",
+    );
+  if (
+    req.dataStyle?.value &&
+    (isRanged || !weapon.effets?.raw?.includes("lourd"))
+  )
+    throw new RpcError(
+      "weapon_unsupported",
+      "Powerful requires a heavy melee weapon",
+    );
+  let secondWpn: Weapon | undefined;
+  if (req.secondaryEntryId) {
+    const second =
+      weapons.find(
+        (i) => flagValue(i, FLAG_KEYS.entryId) === req.secondaryEntryId,
+      ) ??
+      (req.secondaryItemId
+        ? weapons.find((i) => docId(i) === req.secondaryItemId)
+        : undefined);
+    if (!second || docId(second) === docId(item))
+      throw new RpcError(
+        "weapon_not_found",
+        "Akimbo requires a distinct second weapon on the actor",
+      );
+    secondWpn =
+      (second.system as Dict | undefined)?.type === "distance"
+        ? builder.prepareWpnDistance(preparedItem(second), {})
+        : builder.prepareWpnContact(preparedItem(second), {});
+    for (const candidate of [weapon, secondWpn]) {
+      if (
+        [
+          ...(candidate.effets?.raw ?? []),
+          ...(candidate.structurelles?.raw ?? []),
+          ...(candidate.ornementales?.raw ?? []),
+        ].some((e) => e === "deuxmains") ||
+        (candidate as Dict).type === "tourelle"
+      )
+        throw new RpcError(
+          "weapon_unsupported",
+          "Akimbo requires weapons held in one hand",
+        );
+    }
+  }
   // The request is an attack, never a barrage: turn the option off, as the
   // sheet's roll dialog defaults it (ranged preparation defaults it on). A
   // barrage left active (no option to turn off) posts a card with no attack
@@ -494,12 +639,13 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
       style: req.style,
       surprise: req.surprise,
       targets: ids.map((id) => ({ id })),
-      dataStyle: {},
+      dataStyle: req.dataStyle ?? {},
       dataMod: {
         degats: { dice: 0, fixe: 0 },
         violence: { dice: 0, fixe: 0 },
       },
       maximize: { degats: false, violence: false },
+      ...(secondWpn ? { addFlags: { secondWpn } } : {}),
     }).doRoll({});
   } catch (error) {
     disarm(); // the roller failed: no card is coming

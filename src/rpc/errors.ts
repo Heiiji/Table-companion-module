@@ -43,6 +43,7 @@ export type RpcErrorCode =
   // Knight tests.
   | "actor_unsupported"
   | "test_card_timeout"
+  | "followup_outcome_unknown"
   // Pathfinder 2e checks and cards run by Foundry.
   | "statistic_not_found"
   | "strike_not_found"

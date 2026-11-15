@@ -154,6 +154,9 @@ export const CAP_KNIGHT_SHEET_GLORY = "knightSheetGloryV1";
  * NOT a procedure name — it has no handler. */
 export const CAP_KNIGHT_ATTACK_ITEM_ID = "knightAttackItemIdV1";
 
+/** Accepts a second bound weapon for an Akimbo attack; not a procedure. */
+export const CAP_KNIGHT_ATTACK_STYLES = "knightAttackStylesV1";
+
 /** Capability token advertised with any lane that takes the optional `base`
  * compare-and-set values (`actor.resources.v1`, `actor.upsert.v1`,
  * `npc.upsert.v1`, `dnd5e.resources.v1`, `pf2e.resources.v1`): apps send a

@@ -11,6 +11,10 @@ import { actorItemsV1 } from "./actorItems.js";
 import { knightAttackV1, rollKnightClass } from "./knightAttack.js";
 import { knightStatisticsV1 } from "./knightStatistics.js";
 import { knightTestV1, rollKnightTestClass } from "./knightTest.js";
+import {
+  knightFollowupV1,
+  supportsKnightFollowupV1Runtime,
+} from "./knightFollowup.js";
 import { dnd5eResourcesV1 } from "./dnd5eResources.js";
 import { pf2eActorUpsertV1 } from "./pf2eActorUpsert.js";
 import { pf2eActorCompleteV1 } from "./pf2eActorComplete.js";
@@ -138,6 +142,17 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
         "the Knight roller (game.knight.RollKnight) lacks prepareWpnContact, prepareWpnDistance or doRoll",
       );
     }
+    if (supportsKnightFollowupV1Runtime()) {
+      registry.register("knight.followup.v1", knightFollowupV1, {
+        kind: "mutation",
+        signedOnly: true,
+      });
+    } else {
+      registry.markUnsupported(
+        "knight.followup.v1",
+        "the Knight roller lacks damage or violence support",
+      );
+    }
     // A Knight test the app started (no weapon), run by the same roller:
     // same gate, plus the one member this lane calls.
     if (rollKnightTestClass()) {
@@ -171,6 +186,7 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
     registry.markUnsupported("actor.items.v1", reason);
     registry.markUnsupported("knight.attack.v1", reason);
     registry.markUnsupported("knight.test.v1", reason);
+    registry.markUnsupported("knight.followup.v1", reason);
     registry.markUnsupported("knight.statistics.v1", reason);
   }
   // Live counters of a Fifth Edition character (hit points, temporary hit

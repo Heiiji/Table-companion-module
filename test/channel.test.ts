@@ -1089,6 +1089,7 @@ describe("Channel response signing", () => {
       "actor.resources.v1",
       "actor.upsert.v1",
       "knight.attack.v1",
+      "knight.followup.v1",
       "knight.statistics.v1",
       "knight.test.v1",
       "npc.upsert.v1",
@@ -1105,6 +1106,8 @@ describe("Channel response signing", () => {
             prepareWpnContact() {}
             prepareWpnDistance() {}
             doRoll() {}
+            doRollDamage() {}
+            doRollViolence() {}
           },
         },
       });
