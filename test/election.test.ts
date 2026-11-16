@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { isResponder } from "../src/setup/election.js";
-import { SETTING_AGENT_USER } from "../src/constants.js";
+import {
+  SETTING_AGENT_USER,
+  SETTING_COMPANION_ANCHOR,
+} from "../src/constants.js";
 
 interface FakeUser {
   id: string;
@@ -14,12 +17,17 @@ function setGame(opts: {
   activeGM?: FakeUser | null;
   users?: FakeUser[];
   pairedUserId?: string;
+  companionAnchorId?: string;
 }): void {
   vi.stubGlobal("game", {
     user: opts.me,
     settings: {
-      get: (_scope: string, key: string) =>
-        key === SETTING_AGENT_USER ? (opts.pairedUserId ?? "") : "",
+      get: (_scope: string, key: string) => {
+        if (key === SETTING_AGENT_USER) return opts.pairedUserId ?? "";
+        if (key === SETTING_COMPANION_ANCHOR)
+          return opts.companionAnchorId ?? "";
+        return "";
+      },
     },
     users: {
       activeGM: opts.activeGM ?? null,
@@ -83,6 +91,30 @@ describe("isResponder", () => {
     const me = gm("svc");
     setGame({ me, activeGM: me, pairedUserId: "svc" });
     expect(isResponder()).toBe(false);
+  });
+
+  describe.each([
+    { pairedUserId: "0-service" },
+    { companionAnchorId: "0-service" },
+  ])("with an elevated service user identified by %o", (identity) => {
+    it.each([true, false])(
+      "elects only the lowest-id active human GM (service activeGM: %s)",
+      (serviceIsActiveGM) => {
+        const service = gm("0-service");
+        const firstHuman = gm("b");
+        const secondHuman = gm("c");
+        const users = [secondHuman, service, gm("a", false), firstHuman];
+        for (const me of [service, firstHuman, secondHuman]) {
+          setGame({
+            ...identity,
+            me,
+            activeGM: serviceIsActiveGM ? service : null,
+            users,
+          });
+          expect(isResponder()).toBe(me === firstHuman);
+        }
+      },
+    );
   });
 
   it("elects a human GM who carries the service user's default name", () => {
