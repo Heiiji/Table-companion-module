@@ -214,6 +214,10 @@ function startChannel(timeoutMs?: number, withActorUpsert = false): Channel {
     registry.register("npc.upsert.v1", () => ({}), SIGNED_MUTATION);
     registry.register("actor.resources.v1", () => ({}), SIGNED_MUTATION);
     registry.register("combat.sync.v1", () => ({}), SIGNED_MUTATION);
+    registry.register("combat.state.v1", () => ({}), {
+      kind: "read",
+      signedOnly: true,
+    });
   }
   const channel = new Channel(registry, "0.0.0-test", timeoutMs);
   channel.start();
@@ -1066,6 +1070,8 @@ describe("Channel response signing", () => {
     expect(unsigned).not.toContain(CAP_ACTOR_RESOURCES_WEAR);
     expect(unsigned).not.toContain(CAP_WRITE_BASE);
     expect(unsigned).not.toContain("combat.sync.v1");
+    // The combat snapshot steers the GM's table: signed or not offered.
+    expect(unsigned).not.toContain("combat.state.v1");
 
     const { signer } = await ModuleResponseSigner.generate();
     emitSpy.mockClear();
@@ -1079,6 +1085,7 @@ describe("Channel response signing", () => {
     expect(capabilities).toContain(CAP_ACTOR_RESOURCES_WEAR);
     expect(capabilities).toContain(CAP_WRITE_BASE);
     expect(capabilities).toContain("combat.sync.v1");
+    expect(capabilities).toContain("combat.state.v1");
     expect(capabilities).toContain(CAP_RESPONSE_SIG);
     expect(capabilities).toEqual([...capabilities].sort());
   });

@@ -91,10 +91,14 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
       kind: "mutation",
       signedOnly: true,
     });
-    // The way back: every Combat of the world as the apps read it, pushed on
-    // each change and read on demand. A read, so not signed-only. Its presence
-    // also says combat.sync.v1 adopts an existing Combat.
-    registry.register("combat.state.v1", combatStateV1, { kind: "read" });
+    // The way back: every Combat of the world as the apps read it. Signed-only:
+    // the backend trusts only this signed read (the change event is a bare
+    // nudge), and its snapshot steers the GM's table. Its presence also says
+    // combat.sync.v1 adopts an existing Combat.
+    registry.register("combat.state.v1", combatStateV1, {
+      kind: "read",
+      signedOnly: true,
+    });
   } else if (combatSyncRefusedSystem()) {
     // The backend never writes to these worlds: say so rather than promise it.
     for (const name of ["combat.sync.v1", "combat.state.v1"])

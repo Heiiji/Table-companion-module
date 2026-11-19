@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Channel } from "../src/rpc/channel.js";
 import {
   COMBAT_STATE_EVENT,
-  COMBAT_STATE_REQUEST_EVENT,
   combatStateV1,
   combatStateV1Snapshot,
   startCombatStateWatcher,
@@ -236,29 +235,19 @@ describe("combatStateV1Snapshot", () => {
 });
 
 describe("startCombatStateWatcher", () => {
-  let agentEvent: (proc: string, payload: unknown) => void = () => {};
   function watch() {
     const emit = vi.fn();
-    startCombatStateWatcher({
-      emitEvent: emit,
-      onEvent: (fn: typeof agentEvent) => {
-        agentEvent = fn;
-        return () => {};
-      },
-    } as unknown as Channel);
+    startCombatStateWatcher({ emitEvent: emit } as unknown as Channel);
     return emit;
   }
 
-  it("pushes the snapshot once after start and once per burst of combat changes", () => {
+  it("nudges once after start and once per burst of combat changes, with no content", () => {
     const emit = watch();
     vi.advanceTimersByTime(1000);
     expect(emit).toHaveBeenCalledTimes(1);
-    expect(emit).toHaveBeenLastCalledWith(COMBAT_STATE_EVENT, {
-      schemaVersion: 1,
-      truncated: false,
-      combats: [],
-    });
+    expect(emit).toHaveBeenLastCalledWith(COMBAT_STATE_EVENT, {});
 
+    // A combat started: the nudge never carries it (the backend reads it signed).
     world.push(combat("combatFoundry001", { round: 1 }));
     fire("createCombat");
     fire("createCombatant");
@@ -268,30 +257,14 @@ describe("startCombatStateWatcher", () => {
     expect(emit).toHaveBeenCalledTimes(1);
     vi.advanceTimersByTime(1);
     expect(emit).toHaveBeenCalledTimes(2);
-    expect(emit.mock.lastCall?.[1].combats[0].id).toBe("combatFoundry001");
+    expect(emit).toHaveBeenLastCalledWith(COMBAT_STATE_EVENT, {});
 
-    world = [];
-    fire("deleteCombat");
-    vi.advanceTimersByTime(250);
-    expect(emit.mock.lastCall?.[1].combats).toEqual([]);
-    for (const hook of ["updateCombatant", "deleteCombatant"]) {
+    for (const hook of ["deleteCombat", "updateCombatant", "deleteCombatant"]) {
       fire(hook);
       vi.advanceTimersByTime(250);
     }
     expect(emit).toHaveBeenCalledTimes(5);
-  });
-
-  it("answers the backend's request at once and ignores its other events", () => {
-    const emit = watch();
-    vi.advanceTimersByTime(1000);
-    world.push(combat("combatFoundry001", { round: 1 }));
-    agentEvent("app.presence", {});
-    vi.advanceTimersByTime(0);
-    expect(emit).toHaveBeenCalledTimes(1);
-    agentEvent(COMBAT_STATE_REQUEST_EVENT, {});
-    vi.advanceTimersByTime(0);
-    expect(emit).toHaveBeenCalledTimes(2);
-    expect(emit.mock.lastCall?.[1].combats[0].id).toBe("combatFoundry001");
+    for (const call of emit.mock.calls) expect(call[1]).toEqual({});
   });
 
   it("stays silent on a tab that is not the responder or not paired", () => {

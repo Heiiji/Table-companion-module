@@ -23,16 +23,15 @@ import {
  * The way back of the combat mirror: every Combat of the world as the
  * companion apps read it (`combat.state.v1`), in Foundry's own turn order with
  * the active combatant named, and our flags (the app combat a Combat mirrors,
- * the last sequence applied, the app entry a combatant mirrors). The elected
- * responder pushes it as the `combat.state` event on every Combat or Combatant
- * change, and on the backend's request after each handshake (through the same
- * event, so snapshots reach it in order).
+ * the last sequence applied, the app entry a combatant mirrors). A signed-only
+ * read: the backend reads it after each handshake and whenever the elected
+ * responder nudges it with the content-free `combat.state` event, so only a
+ * signed reply ever carries the combats.
  */
 
-/** Event name the snapshot is pushed under. */
+/** The « combats changed » nudge: no content, the backend reads
+ * `combat.state.v1` (signed) in answer. */
 export const COMBAT_STATE_EVENT = "combat.state";
-/** Backend event asking for the snapshot now (sent after each handshake). */
-export const COMBAT_STATE_REQUEST_EVENT = "combat.state.request";
 
 const MAX_COMBATS = 16;
 const MAX_COMBATANTS = 64;
@@ -169,13 +168,13 @@ const COMBAT_HOOKS = [
 ];
 
 /**
- * Push the snapshot to the backend on every Combat or Combatant change, from
- * the elected responder only and once paired (players' browsers never get
- * it). The hooks fire on every client for every change of the world, whatever
- * scene this tab views, so one responder sees them all. Debounced: a mirror
- * write or a combat start is several document writes. Also pushed shortly
- * after start, and when the backend asks (it does after each handshake), so a
- * backend that connected while a combat runs learns the current state.
+ * Nudge the backend on every Combat or Combatant change, from the elected
+ * responder only and once paired: an empty `combat.state` event, answered by
+ * a signed `combat.state.v1` read. The hooks fire on every client for every
+ * change of the world, whatever scene this tab views, so one responder sees
+ * them all. Debounced: a mirror write or a combat start is several document
+ * writes. Also sent shortly after start and when a user (dis)connects (a new
+ * responder speaks).
  */
 export function startCombatStateWatcher(channel: Channel): void {
   if (!supportsCombatSyncV1Runtime()) return;
@@ -183,7 +182,7 @@ export function startCombatStateWatcher(channel: Channel): void {
   const publish = () => {
     timer = undefined;
     if (!isResponder() || !pairedAgentUserId()) return;
-    channel.emitEvent(COMBAT_STATE_EVENT, combatStateV1Snapshot());
+    channel.emitEvent(COMBAT_STATE_EVENT, {});
   };
   const schedule = (delay = DEBOUNCE_MS) => {
     if (timer) clearTimeout(timer);
@@ -193,8 +192,5 @@ export function startCombatStateWatcher(channel: Channel): void {
   for (const hook of COMBAT_HOOKS) hooks?.on(hook, () => schedule());
   // A tab that becomes the responder (a GM joined or left) says it too.
   hooks?.on("userConnected", () => schedule(1000));
-  channel.onEvent((proc) => {
-    if (proc === COMBAT_STATE_REQUEST_EVENT) schedule(0);
-  });
   schedule(1000);
 }

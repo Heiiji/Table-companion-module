@@ -547,7 +547,13 @@ describe("ProcedureRegistry", () => {
     registerBuiltinProcedures(registry);
     expect(
       registry.capabilities().filter((name) => registry.isSignedOnly(name)),
-    ).toEqual([...MUTATION_PROCEDURES, "knight.statistics.v1"].sort());
+    ).toEqual(
+      [
+        ...MUTATION_PROCEDURES,
+        "knight.statistics.v1",
+        "combat.state.v1",
+      ].sort(),
+    );
   });
 
   it("advertises the Knight upserts on every Foundry generation from 13 up", () => {
@@ -644,7 +650,7 @@ describe("ProcedureRegistry", () => {
       expect(registry.capabilities(), id).toContain("combat.sync.v1");
       expect(registry.isSignedOnly("combat.sync.v1"), id).toBe(true);
       expect(registry.capabilities(), id).toContain("combat.state.v1");
-      expect(registry.isSignedOnly("combat.state.v1"), id).toBe(false);
+      expect(registry.isSignedOnly("combat.state.v1"), id).toBe(true);
     }
     vi.stubGlobal("game", {
       system: { id: "dnd5e" },
