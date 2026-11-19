@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Channel } from "../src/rpc/channel.js";
 import {
   COMBAT_STATE_EVENT,
+  COMBAT_STATE_REQUEST_EVENT,
   combatStateV1,
   combatStateV1Snapshot,
   startCombatStateWatcher,
@@ -235,9 +236,16 @@ describe("combatStateV1Snapshot", () => {
 });
 
 describe("startCombatStateWatcher", () => {
+  let agentEvent: (proc: string, payload: unknown) => void = () => {};
   function watch() {
     const emit = vi.fn();
-    startCombatStateWatcher({ emitEvent: emit } as unknown as Channel);
+    startCombatStateWatcher({
+      emitEvent: emit,
+      onEvent: (fn: typeof agentEvent) => {
+        agentEvent = fn;
+        return () => {};
+      },
+    } as unknown as Channel);
     return emit;
   }
 
@@ -271,6 +279,19 @@ describe("startCombatStateWatcher", () => {
       vi.advanceTimersByTime(250);
     }
     expect(emit).toHaveBeenCalledTimes(5);
+  });
+
+  it("answers the backend's request at once and ignores its other events", () => {
+    const emit = watch();
+    vi.advanceTimersByTime(1000);
+    world.push(combat("combatFoundry001", { round: 1 }));
+    agentEvent("app.presence", {});
+    vi.advanceTimersByTime(0);
+    expect(emit).toHaveBeenCalledTimes(1);
+    agentEvent(COMBAT_STATE_REQUEST_EVENT, {});
+    vi.advanceTimersByTime(0);
+    expect(emit).toHaveBeenCalledTimes(2);
+    expect(emit.mock.lastCall?.[1].combats[0].id).toBe("combatFoundry001");
   });
 
   it("stays silent on a tab that is not the responder or not paired", () => {

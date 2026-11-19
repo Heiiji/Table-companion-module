@@ -25,11 +25,14 @@ import {
  * the active combatant named, and our flags (the app combat a Combat mirrors,
  * the last sequence applied, the app entry a combatant mirrors). The elected
  * responder pushes it as the `combat.state` event on every Combat or Combatant
- * change; the backend also reads it after each handshake.
+ * change, and on the backend's request after each handshake (through the same
+ * event, so snapshots reach it in order).
  */
 
 /** Event name the snapshot is pushed under. */
 export const COMBAT_STATE_EVENT = "combat.state";
+/** Backend event asking for the snapshot now (sent after each handshake). */
+export const COMBAT_STATE_REQUEST_EVENT = "combat.state.request";
 
 const MAX_COMBATS = 16;
 const MAX_COMBATANTS = 64;
@@ -171,7 +174,8 @@ const COMBAT_HOOKS = [
  * it). The hooks fire on every client for every change of the world, whatever
  * scene this tab views, so one responder sees them all. Debounced: a mirror
  * write or a combat start is several document writes. Also pushed shortly
- * after start, so a backend already connected learns the current state.
+ * after start, and when the backend asks (it does after each handshake), so a
+ * backend that connected while a combat runs learns the current state.
  */
 export function startCombatStateWatcher(channel: Channel): void {
   if (!supportsCombatSyncV1Runtime()) return;
@@ -189,5 +193,8 @@ export function startCombatStateWatcher(channel: Channel): void {
   for (const hook of COMBAT_HOOKS) hooks?.on(hook, () => schedule());
   // A tab that becomes the responder (a GM joined or left) says it too.
   hooks?.on("userConnected", () => schedule(1000));
+  channel.onEvent((proc) => {
+    if (proc === COMBAT_STATE_REQUEST_EVENT) schedule(0);
+  });
   schedule(1000);
 }
