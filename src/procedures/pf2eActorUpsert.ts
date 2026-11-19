@@ -9,7 +9,11 @@ import {
 import type { Procedure } from "../rpc/registry.js";
 import {
   actorCollection,
+  agentGatesByTable,
   alreadyApplied,
+  assertTakeover,
+  lostActor,
+  takeOverGated,
   replayDigests,
   assertLaneAuthority,
   bindingFor,
@@ -271,13 +275,25 @@ export const pf2eActorUpsertV1: Procedure = async (payload) => {
   const collection = actorCollection();
   let actor = uniqueBoundActor(collection, binding, req.expectedActorId);
   let outcome: Outcome = "updated";
+  // With the backend's table gate: the Actor another table holds is taken
+  // over, and the one it took from this character taken back.
+  const gated = agentGatesByTable();
+  let reclaimed: ActorLike | undefined;
   if (req.expectedActorId) {
+    if (!actor && gated) {
+      const named = collection.get(req.expectedActorId);
+      const bound = named ? bindingOf(named) : null;
+      if (named && bound) {
+        assertTakeover(bound, req, "the Actor is bound to another character");
+        actor = named;
+      } else actor = reclaimed = lostActor(collection, req);
+    }
     if (!actor)
       throw new RpcError(
         "deleted_link",
         "the previously linked Actor no longer exists",
       );
-    if (docId(actor) !== req.expectedActorId)
+    if (!reclaimed && docId(actor) !== req.expectedActorId)
       throw new RpcError(
         "binding_conflict",
         "the binding points at a different Actor",
@@ -294,11 +310,15 @@ export const pf2eActorUpsertV1: Procedure = async (payload) => {
       throw new RpcError("actor_not_found", "assignedActorId does not exist");
     if (actor.type !== ACTOR_TYPE)
       invalid("assignedActorId must identify a character actor");
-    if (bindingOf(actor))
-      throw new RpcError(
-        "binding_conflict",
+    const bound = bindingOf(actor);
+    if (bound)
+      assertTakeover(
+        bound,
+        req,
         "assignedActorId is already bound to another character",
       );
+    outcome = "adopted";
+  } else if (!actor && gated && (actor = lostActor(collection, req))) {
     outcome = "adopted";
   } else if (!actor) {
     actor = await createActorDocument({
@@ -323,6 +343,8 @@ export const pf2eActorUpsertV1: Procedure = async (payload) => {
   if (!foundryId.test(id))
     throw new Error("Foundry returned an invalid Actor id");
 
+  // Taken over: the other table's records are dropped before any is read.
+  const tookOver = await takeOverGated(actor, req);
   const previous = storedResult(actor);
   if (
     previous &&
@@ -335,7 +357,12 @@ export const pf2eActorUpsertV1: Procedure = async (payload) => {
   )
     return { ...previous, warnings: [...previous.warnings] };
   // A re-send after a failed first apply on an Actor this lane created.
-  if (!previous && flagValue(actor, FLAG_KEYS.pf2eCreated) === true)
+  // Never after a take-over: that creation was the other table's.
+  if (
+    !tookOver &&
+    !previous &&
+    flagValue(actor, FLAG_KEYS.pf2eCreated) === true
+  )
     outcome = "created";
 
   // pf2e raises a new character's default ownership to LIMITED on create
@@ -343,7 +370,10 @@ export const pf2eActorUpsertV1: Procedure = async (payload) => {
   await actor.update({
     name: req.name,
     ownership: normalizedOwnershipUpdate(actor, req.foundryUserId),
-    [`flags.${MODULE_ID}.${FLAG_KEYS.binding}`]: binding,
+    // A take-over already wrote the binding with its history.
+    ...(tookOver
+      ? {}
+      : { [`flags.${MODULE_ID}.${FLAG_KEYS.binding}`]: binding }),
   });
   assertOwnershipApplied(actor, req.foundryUserId, "pf2e.actor.upsert.v1");
 

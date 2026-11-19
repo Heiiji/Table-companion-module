@@ -10,6 +10,7 @@ import {
   type ActorUpsertResultV1,
 } from "../src/procedures/actorUpsert.js";
 import { MODULE_ID } from "../src/constants.js";
+import { setAgentTableGate } from "../src/procedures/upsertShared.js";
 import { RpcError } from "../src/rpc/errors.js";
 import {
   ACTOR_ID,
@@ -598,5 +599,66 @@ describe("actor.resources.v1 reclaim validation", () => {
     expect(() => validateKnightActorResourcesV1(resources(overrides))).toThrow(
       message,
     );
+  });
+});
+
+describe("binding take-over with the backend's table gate", () => {
+  afterEach(() => setAgentTableGate(false));
+  const lost = () => heldBy("table-2", "character-2", [entry("table-1")]);
+
+  it("takes a lost Actor back on actor.resources with no reclaim", async () => {
+    setAgentTableGate(true);
+    const actor = lost();
+    stubFoundry([actor]);
+    const result = await applyResources(resources());
+    expect(result.warnings).toEqual(["binding_taken_over"]);
+    expect(flags(actor).binding).toMatchObject({
+      tableId: "table-1",
+      characterId: "character-1",
+      previous: [entry("table-2", "character-2", expect.any(String))],
+    });
+  });
+
+  it("takes a lost Actor back on actor.items", async () => {
+    setAgentTableGate(true);
+    const actor = lost();
+    stubFoundry([actor]);
+    // The Item op itself may refuse; the take-over rides its own update first.
+    await Promise.resolve(actorItemsV1(items(), {} as never)).catch(
+      () => undefined,
+    );
+    expect(flags(actor).binding).toMatchObject({
+      tableId: "table-1",
+      characterId: "character-1",
+    });
+  });
+
+  it("takes the lost Actor back on actor.upsert instead of creating one", async () => {
+    for (const ids of [{}, { expectedActorId: "actor00000000077" }]) {
+      vi.unstubAllGlobals();
+      setAgentTableGate(true);
+      const actor = lost();
+      const create = vi.fn();
+      stubFoundry([actor], create);
+      const result = (await actorUpsertV1(
+        approved({ ...ids, equipment: undefined }),
+        {} as never,
+      )) as ActorUpsertResultV1;
+      expect(create).not.toHaveBeenCalled();
+      expect(result.resultDocId).toBe(ACTOR_ID);
+      expect(result.warnings).toContain("binding_taken_over");
+      expect(flags(actor).binding).toMatchObject({
+        tableId: "table-1",
+        characterId: "character-1",
+      });
+    }
+  });
+
+  it("still refuses another character of the same table", async () => {
+    setAgentTableGate(true);
+    const actor = heldBy("table-1", "character-9");
+    stubFoundry([actor]);
+    expect(await code(applyResources(resources()))).toBe("binding_conflict");
+    expect(actor.updates).toHaveLength(0);
   });
 });

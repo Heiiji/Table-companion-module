@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 import { MODULE_ID, SETTING_AGENT_USER } from "../src/constants.js";
+import { setAgentTableGate } from "../src/procedures/upsertShared.js";
 import {
   pf2eActorUpsertV1,
   validatePf2eActorUpsertV1,
@@ -725,5 +726,56 @@ describe("pf2e.actor.upsert.v1 after the world is linked again", () => {
       (actor.flags[MODULE_ID] as { binding: { worldId: string } }).binding
         .worldId,
     ).toBe("world-2");
+  });
+});
+
+describe("pf2e.actor.upsert.v1 with the backend's table gate", () => {
+  afterEach(() => setAgentTableGate(false));
+
+  /** An Actor table-2 created and holds, its records far ahead. */
+  const theirs = (previous?: unknown) => {
+    const actor = character();
+    bind(actor, draft({ tableId: "table-2", characterId: "character-9" }));
+    const flags = actor.flags[MODULE_ID] as Record<string, any>;
+    if (previous) flags.binding.previous = previous;
+    flags.pf2eUpsertCreatedV1 = true;
+    flags.pf2eUpsertV1 = {
+      schemaVersion: 1,
+      resultDocId: actor.id,
+      outcome: "created",
+      appliedRevision: 9_999_999,
+      appliedDigest: "f".repeat(64),
+      equipmentCompleteness: "complete",
+      warnings: [],
+    };
+    return actor;
+  };
+
+  it("takes over the Actor the app names, never re-adding its build", async () => {
+    setAgentTableGate(true);
+    const actor = theirs();
+    const world = stubWorld([actor]);
+    const result = await run(draft({ expectedActorId: actor.id }));
+    expect(result).toMatchObject({ resultDocId: actor.id, appliedRevision: 1 });
+    expect(result.outcome).not.toBe("created");
+    expect(world.create).not.toHaveBeenCalled();
+    expect(
+      (actor.flags[MODULE_ID] as Record<string, any>).binding,
+    ).toMatchObject({
+      tableId: "table-1",
+      characterId: "character-1",
+      previous: [{ tableId: "table-2", characterId: "character-9" }],
+    });
+  });
+
+  it("takes back the Actor another table took, instead of creating", async () => {
+    setAgentTableGate(true);
+    const actor = theirs([
+      { tableId: "table-1", characterId: "character-1", at: "x" },
+    ]);
+    const world = stubWorld([actor]);
+    const result = await run(draft());
+    expect(result).toMatchObject({ resultDocId: actor.id, outcome: "adopted" });
+    expect(world.create).not.toHaveBeenCalled();
   });
 });

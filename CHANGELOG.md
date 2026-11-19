@@ -8,6 +8,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 - Combats started or changed in Foundry now reach the companion apps: the module tells the backend when Combats change, and the backend reads every Combat of the world (turn order, active combatant, initiatives) through the signed-only `combat.state.v1` read.
+- When the backend says it follows one companion table per world (`tableGateV1` on its hello), every lane takes over a character Actor or a Combat another table holds, and takes back one that table took from it, instead of refusing it as bound elsewhere; history is kept and nothing is deleted. Without it, nothing changes.
 - The combat mirror (`combat.sync.v1`) can take over a Combat started in Foundry and its combatants instead of creating a second one; an app entry without an Actor no longer clears a combatant's Actor or token, and an initiative the app only rounded keeps Foundry's value.
 
 ### Changed

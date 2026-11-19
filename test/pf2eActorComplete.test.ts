@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MODULE_ID, SETTING_AGENT_USER } from "../src/constants.js";
+import { setAgentTableGate } from "../src/procedures/upsertShared.js";
 import { pf2eActorCompleteV1 } from "../src/procedures/pf2eActorComplete.js";
 import {
   validatePf2eActorCompleteV1,
@@ -1003,5 +1004,25 @@ describe("pf2e.actor.complete.v1 after the world is linked again", () => {
     const updates = actor.updates.length;
     await expect(run(request({ worldId: "world-2" }))).resolves.toEqual(first);
     expect(actor.updates.length).toBe(updates);
+  });
+});
+
+describe("pf2e.actor.complete.v1 with the backend's table gate", () => {
+  afterEach(() => setAgentTableGate(false));
+
+  it("takes over the character Actor another table holds", async () => {
+    setAgentTableGate(true);
+    const actor = character();
+    const flags = actor.flags[MODULE_ID] as Record<string, any>;
+    flags.binding.tableId = "table-2";
+    flags.binding.characterId = "character-9";
+    stubWorld([actor]);
+    await expect(run(request())).resolves.toMatchObject({
+      completeness: "full",
+    });
+    expect(flags.binding).toMatchObject({
+      tableId: "table-1",
+      previous: [{ tableId: "table-2", characterId: "character-9" }],
+    });
   });
 });

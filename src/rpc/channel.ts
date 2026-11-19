@@ -26,8 +26,11 @@ import {
   SEEN_ID_CACHE_MAX,
   SETTING_AGENT_KEY,
 } from "../constants.js";
-import { MODULE_ID } from "../constants.js";
-import { supportsPf2eSheetWritesV1Runtime } from "../procedures/upsertShared.js";
+import { CAP_TABLE_GATE, MODULE_ID } from "../constants.js";
+import {
+  setAgentTableGate,
+  supportsPf2eSheetWritesV1Runtime,
+} from "../procedures/upsertShared.js";
 import { isResponder } from "../setup/election.js";
 import {
   companionAnchorId,
@@ -478,6 +481,9 @@ export class Channel {
     this.status.enrolledKeys = env.responseKeys?.length
       ? env.responseKeys
       : null;
+    // Only a verified backend envelope reaches here, so no other user can
+    // turn the cross-table take-over on.
+    setAgentTableGate(env.capabilities?.includes(CAP_TABLE_GATE) ?? false);
   }
 
   /** Subscribe to module-bound `event` envelopes (agent push notifications). */

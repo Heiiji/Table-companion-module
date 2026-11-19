@@ -4,6 +4,10 @@ import { ProcedureRegistry } from "../src/rpc/registry.js";
 import { registerBuiltinProcedures } from "../src/procedures/index.js";
 import { RpcError } from "../src/rpc/errors.js";
 import {
+  agentGatesByTable,
+  setAgentTableGate,
+} from "../src/procedures/upsertShared.js";
+import {
   ModuleResponseSigner,
   responseSigningString,
 } from "../src/rpc/responseSigning.js";
@@ -1488,6 +1492,27 @@ describe("Channel reply-key enrollment", () => {
     expect(channel.replyKeyEnrolled()).toBe(true);
     await deliver(await sign(agentEnv("hello", { id: "h6" }))); // single-key backend
     expect(channel.replyKeyEnrolled()).toBeNull();
+  });
+
+  it("follows the backend's table gate from its verified hello only", async () => {
+    await withKey(false);
+    try {
+      // Unsigned: dropped, the gate stays off.
+      await deliver(
+        agentEnv("hello", { id: "g0", capabilities: ["tableGateV1"] }),
+      );
+      expect(agentGatesByTable()).toBe(false);
+      await deliver(
+        await sign(
+          agentEnv("hello", { id: "g1", capabilities: ["tableGateV1"] }),
+        ),
+      );
+      expect(agentGatesByTable()).toBe(true);
+      await deliver(await sign(agentEnv("hello", { id: "g2" })));
+      expect(agentGatesByTable()).toBe(false);
+    } finally {
+      setAgentTableGate(false);
+    }
   });
 });
 

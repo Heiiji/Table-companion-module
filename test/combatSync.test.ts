@@ -7,6 +7,7 @@ import {
 } from "../src/procedures/combatSync.js";
 import { combatStateV1Snapshot } from "../src/procedures/combatSyncState.js";
 import { MODULE_ID } from "../src/constants.js";
+import { setAgentTableGate } from "../src/procedures/upsertShared.js";
 import { RpcError } from "../src/rpc/errors.js";
 import { applyUpdate } from "./support/actorUpsertHarness.js";
 
@@ -805,6 +806,30 @@ describe("combat.sync.v1 adopting a Combat started in Foundry", () => {
     expect(
       "foundryCombatantId" in validateCombatSyncV1(request()).combatants[0],
     ).toBe(false);
+  });
+
+  describe("with the backend's table gate", () => {
+    afterEach(() => setAgentTableGate(false));
+
+    it("re-flags a running Combat another table's combat mirrors", async () => {
+      setAgentTableGate(true);
+      stub();
+      const taken = foundryCombat();
+      taken.flags = {
+        [MODULE_ID]: { combatSync: { schemaVersion: 1, combatId: "another" } },
+      };
+      // The other table keyed its combatants; this table matches them by id.
+      taken.list[0].flags = { [MODULE_ID]: { key: "their-hero" } };
+      const req = adoption(taken);
+      const result = await apply(req);
+      expect(result.resultDocId).toBe(taken.id);
+      expect((taken.flags[MODULE_ID] as Dict).combatSync).toMatchObject({
+        combatId: req.combatId,
+      });
+      expect(create).not.toHaveBeenCalled();
+      expect(taken.list).toHaveLength(2);
+      expect(taken.list.map(keyOf).sort()).toEqual(["hero-entry", "orc-entry"]);
+    });
   });
 });
 

@@ -7,6 +7,7 @@ import {
   type NpcUpsertResultV1,
 } from "../src/procedures/npcUpsert.js";
 import { MODULE_ID, SETTING_AGENT_USER } from "../src/constants.js";
+import { setAgentTableGate } from "../src/procedures/upsertShared.js";
 import { RpcError } from "../src/rpc/errors.js";
 import {
   ownershipRefused,
@@ -666,6 +667,44 @@ describe("npc.upsert.v1", () => {
     await expect(
       npcUpsertV1(request() as unknown as Record<string, unknown>, {} as never),
     ).resolves.toMatchObject({ schemaVersion: 1 });
+  });
+});
+
+describe("npc.upsert.v1 with the backend's table gate", () => {
+  afterEach(() => setAgentTableGate(false));
+
+  it("takes the NPC another table took back, never a second Actor", async () => {
+    setAgentTableGate(true);
+    const req = request();
+    const taken = fakeActor("actor00000000ddd");
+    taken.flags[MODULE_ID] = {
+      binding: {
+        schemaVersion: 1,
+        worldId: req.worldId,
+        tableId: "table-2",
+        characterId: "npc-9",
+        previous: [
+          { tableId: req.tableId, characterId: req.characterId, at: "x" },
+        ],
+      },
+    };
+    const create = stubFoundry([taken]);
+    const result = (await npcUpsertV1(
+      req as unknown as Record<string, unknown>,
+      {} as never,
+    )) as { resultDocId: string; outcome: string };
+    expect(create).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      resultDocId: "actor00000000ddd",
+      outcome: "adopted",
+    });
+    expect(
+      (taken.flags[MODULE_ID] as Record<string, unknown>).binding,
+    ).toMatchObject({
+      tableId: req.tableId,
+      characterId: req.characterId,
+      previous: [{ tableId: "table-2", characterId: "npc-9" }],
+    });
   });
 });
 

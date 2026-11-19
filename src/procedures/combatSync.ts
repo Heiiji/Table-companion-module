@@ -14,6 +14,7 @@ import {
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import {
+  agentGatesByTable,
   SCHEMA_VERSION,
   alreadyApplied,
   assertGMResponder,
@@ -228,7 +229,9 @@ function flaggedCombatId(combat: CombatLike): unknown {
 }
 
 /** The existing Foundry Combat an adopting request names, or undefined when
- * it is gone. A Combat already mirroring another app combat is never taken. */
+ * it is gone. A Combat already mirroring another app combat is never taken —
+ * unless the backend gates writes by table: only the table the world follows
+ * reaches this lane then, so Foundry's running Combat is re-flagged to it. */
 function adoptedCombat(req: CombatSyncV1): CombatLike | undefined {
   if (!req.foundryCombatId) return undefined;
   const combat = contentsOf(gameCombats()).find(
@@ -236,7 +239,7 @@ function adoptedCombat(req: CombatSyncV1): CombatLike | undefined {
   );
   if (!combat) return undefined;
   const owner = flaggedCombatId(combat);
-  if (owner !== undefined && owner !== req.combatId)
+  if (owner !== undefined && owner !== req.combatId && !agentGatesByTable())
     throw new RpcError(
       "binding_conflict",
       "the Foundry Combat already mirrors another Table Companion combat",
@@ -381,6 +384,10 @@ export const combatSyncV1: Procedure = async (payload) => {
   }
 
   let outcome: CombatSyncResultV1["outcome"] = "updated";
+  // A Combat re-flagged from another table's combat (table gate): that
+  // table's combatant keys mean nothing here, so its combatants are matched
+  // by Foundry id like unkeyed ones, and none is removed for its key.
+  let reflagged = false;
   if (combat) {
     const previous = storedResult(combat);
     if (alreadyApplied(previous, req.sequence, digest, "sequence"))
@@ -394,6 +401,8 @@ export const combatSyncV1: Procedure = async (payload) => {
         "not_found",
         "the Foundry Combat to adopt no longer exists",
       );
+    const owner = flaggedCombatId(combat);
+    reflagged = owner !== undefined && owner !== req.combatId;
   } else {
     combat = await createCombat(req.combatId);
     outcome = "created";
@@ -405,7 +414,7 @@ export const combatSyncV1: Procedure = async (payload) => {
   const unkeyed = new Map<string, CombatantLike>();
   for (const c of contentsOf(combat.combatants)) {
     const key = flagValue(c, FLAG_KEYS.combatantKey);
-    if (typeof key === "string") existing.set(key, c);
+    if (typeof key === "string" && !reflagged) existing.set(key, c);
     else unkeyed.set(docId(c), c);
   }
   const creates: Dict[] = [];

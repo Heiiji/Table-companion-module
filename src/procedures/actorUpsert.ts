@@ -20,7 +20,7 @@ import {
   parseStoredResult,
   recordedFields,
   uniqueBoundActor,
-  assertNotLost,
+  lostActor,
   assertTakeover,
   takeoverPatch,
   valueAt,
@@ -113,6 +113,7 @@ export const actorUpsertV1: Procedure = async (payload) => {
   const collection = actorCollection();
   let actor = uniqueBoundActor(collection, binding, req.expectedActorId);
   let outcome: Outcome = "updated";
+  let reclaimed: ActorLike | undefined;
   if (req.expectedActorId && !actor) {
     // The Actor the app names may be held by another table now: a take-over
     // (or `binding_lost` for a table that lost it). Unbound, it is a link the
@@ -128,14 +129,18 @@ export const actorUpsertV1: Procedure = async (payload) => {
       );
       actor = named;
     } else {
-      assertNotLost(collection, req);
-      throw new RpcError(
-        "deleted_link",
-        "the previously linked Actor no longer exists",
-      );
+      // With the backend's table gate, the Actor another table took from this
+      // character is taken back instead (its id is the result's).
+      reclaimed = lostActor(collection, req);
+      if (!reclaimed)
+        throw new RpcError(
+          "deleted_link",
+          "the previously linked Actor no longer exists",
+        );
+      actor = reclaimed;
     }
   }
-  if (req.expectedActorId && actor) {
+  if (req.expectedActorId && actor && !reclaimed) {
     if (docId(actor) !== req.expectedActorId)
       throw new RpcError(
         "binding_conflict",
@@ -165,9 +170,12 @@ export const actorUpsertV1: Procedure = async (payload) => {
       );
     outcome = "adopted";
   } else if (!actor) {
-    assertNotLost(collection, req);
-    actor = await createActor(req, binding);
-    outcome = "created";
+    actor = lostActor(collection, req);
+    if (actor) outcome = "adopted";
+    else {
+      actor = await createActor(req, binding);
+      outcome = "created";
+    }
   }
   if (actor.type !== ACTOR_TYPE) invalid("bound Actor is not a Knight actor");
   const id = docId(actor);

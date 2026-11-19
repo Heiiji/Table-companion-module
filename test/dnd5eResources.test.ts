@@ -5,6 +5,7 @@ import {
   type Dnd5eActorResourcesV1,
 } from "../src/procedures/dnd5eResources.js";
 import { MODULE_ID } from "../src/constants.js";
+import { setAgentTableGate } from "../src/procedures/upsertShared.js";
 import { RpcError } from "../src/rpc/errors.js";
 import { applyUpdate, hasFixturePath } from "./support/actorUpsertHarness.js";
 import FIXTURE from "./fixtures/dnd5e-6.0.6-character.json";
@@ -918,5 +919,63 @@ describe("dnd5e.resources.v1 on the sanitized dnd5e 6.0.6 character", () => {
       ]),
     );
     expect(result.warnings).toEqual([]);
+  });
+});
+
+describe("with the backend's table gate", () => {
+  afterEach(() => setAgentTableGate(false));
+
+  const bind = (actor: FakeCharacter, binding: Record<string, unknown>) => {
+    const flags = actor.flags[MODULE_ID] as Record<string, unknown>;
+    flags.binding = { schemaVersion: 1, worldId: "world-1", ...binding };
+    // Another table's record, its sequence far ahead of this table's.
+    flags.dnd5eResourcesV1 = {
+      schemaVersion: 1,
+      resultDocId: ACTOR_ID,
+      appliedRevision: 9_999_999_999_999,
+      appliedDigest: "f".repeat(64),
+      warnings: [],
+    };
+    return flags;
+  };
+
+  it("takes over an Actor another table holds, keeping its history", async () => {
+    setAgentTableGate(true);
+    const actor = fakeCharacter();
+    const flags = bind(actor, {
+      tableId: "table-2",
+      characterId: "character-9",
+    });
+    await run(actor, request({ hp: 5 }));
+    expect(flags.binding).toMatchObject({
+      tableId: "table-1",
+      characterId: "character-1",
+      previous: [{ tableId: "table-2", characterId: "character-9" }],
+    });
+    expect(flags.dnd5eResourcesV1).toMatchObject({ appliedRevision: 3 });
+  });
+
+  it("takes back an Actor whose history names this character", async () => {
+    setAgentTableGate(true);
+    const actor = fakeCharacter();
+    const flags = bind(actor, {
+      tableId: "table-2",
+      characterId: "character-9",
+      previous: [{ tableId: "table-1", characterId: "character-1", at: "x" }],
+    });
+    await run(actor, request({ hp: 5 }));
+    expect(flags.binding).toMatchObject({
+      tableId: "table-1",
+      characterId: "character-1",
+      previous: [{ tableId: "table-2", characterId: "character-9" }],
+    });
+  });
+
+  it("still refuses another character of the same table", async () => {
+    setAgentTableGate(true);
+    const actor = fakeCharacter();
+    bind(actor, { tableId: "table-1", characterId: "someone-else" });
+    await rejects(run(actor, request({ hp: 5 })), "binding_conflict");
+    expect(actor.updates).toHaveLength(0);
   });
 });

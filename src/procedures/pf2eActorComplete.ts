@@ -4,6 +4,8 @@ import { gameItems, gameUsers } from "../foundry/runtime.js";
 import type { Procedure } from "../rpc/registry.js";
 import { pairedAgentUserId } from "../setup/identity.js";
 import {
+  assertTakeover,
+  takeOverGated,
   actorCollection,
   assertLaneAuthority,
   bindingOf,
@@ -54,9 +56,18 @@ function targetActor(req: Pf2eActorCompleteV1): ActorLike {
   const actor = actorCollection().get(req.actorId);
   if (!actor)
     throw new RpcError("actor_not_found", "the character's Actor is gone");
-  if (actor.type !== ACTOR_TYPE || !sameCharacter(bindingOf(actor), req))
+  const bound = bindingOf(actor);
+  if (actor.type !== ACTOR_TYPE || !bound)
     throw new RpcError(
       "binding_conflict",
+      "the Actor is not this character's bound character Actor",
+    );
+  // Another table's binding: a conflict, unless the backend gates by table —
+  // then this character's table takes the Actor over (`takeOverGated`).
+  if (!sameCharacter(bound, req))
+    assertTakeover(
+      bound,
+      req,
       "the Actor is not this character's bound character Actor",
     );
   const draft = parseStoredResult(actor, FLAG_KEYS.pf2eUpsert);
@@ -242,6 +253,8 @@ export const pf2eActorCompleteV1: Procedure = async (payload) => {
       "the Actor's level differs from the completed build's",
     );
   const digest = await canonicalDigest(req);
+  // Taken over: the other table's completion record is dropped first.
+  await takeOverGated(actor, req);
   const previous = storedCompletion(actor);
   if (previous) {
     if (previous.revision > req.completionRevision)

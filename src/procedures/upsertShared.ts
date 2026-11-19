@@ -716,6 +716,39 @@ const LANE_RECORDS = [
   FLAG_KEYS.npcUpsert,
 ] as const;
 
+/** When the backend gates writes by table every lane takes over, so every
+ * lane's record is another table's to drop. */
+const GATED_LANE_RECORDS = [
+  ...LANE_RECORDS,
+  FLAG_KEYS.dnd5eResources,
+  FLAG_KEYS.pf2eUpsert,
+  FLAG_KEYS.pf2eComplete,
+  FLAG_KEYS.pf2eResources,
+] as const;
+
+/** Whether the paired backend said, on its last verified hello / hello.ack,
+ * that it gates writes by table (`CAP_TABLE_GATE`). */
+let tableGate = false;
+
+/** Recorded by the channel from each verified backend hello / hello.ack. */
+export function setAgentTableGate(on: boolean): void {
+  tableGate = on;
+}
+
+/** True when the backend follows one table per world: only that table's
+ * writes reach this module, so taking an Actor or Combat over from another
+ * table can no longer flip back and forth. */
+export function agentGatesByTable(): boolean {
+  return tableGate;
+}
+
+/** The take-over options a lane resolves with: its own (`undefined` on the
+ * lanes that never take over), or, when the backend gates by table, a
+ * take-over that also takes back an Actor this character lost. */
+function gatedOptions(options?: TakeoverOptions): TakeoverOptions | undefined {
+  return tableGate ? { takeover: true, reclaim: true } : options;
+}
+
 /** Options of the Knight lanes, which take over an Actor another table holds
  * (the other systems' lanes never do). `reclaim`: a table that lost the Actor
  * takes it back. */
@@ -732,8 +765,9 @@ export function assertTakeover(
   bound: BindingV1,
   req: { tableId: string; characterId: string },
   conflict: string,
-  options?: TakeoverOptions,
+  laneOptions?: TakeoverOptions,
 ): void {
+  const options = gatedOptions(laneOptions);
   if (!options?.takeover || bound.tableId === req.tableId)
     throw new RpcError("binding_conflict", conflict);
   if (!options.reclaim && lostBy(bound, req))
@@ -758,6 +792,38 @@ export function assertNotLost(
 ): void {
   if (contentsOf(collection).some((actor) => lostBy(bindingOf(actor), req)))
     throw new RpcError("binding_lost", "another table took this Actor over");
+}
+
+/** When the backend gates writes by table: the Actor another table took from
+ * this character (its history names it), for the lane to take back instead
+ * of creating a second one; undefined otherwise. Without the gate this is
+ * `assertNotLost`. */
+export function lostActor(
+  collection: ActorsLike,
+  req: { tableId: string; characterId: string },
+): ActorLike | undefined {
+  if (!tableGate) {
+    assertNotLost(collection, req);
+    return undefined;
+  }
+  return contentsOf(collection).find((actor) => lostBy(bindingOf(actor), req));
+}
+
+/** Hand `actor` to the request's character now, in its own update read back
+ * (Foundry drops a refused update without an error), when the backend gates by
+ * table and another table holds it. The lanes that never took over before
+ * call it once the Actor is resolved, so they read no other table's record.
+ * True when it took the Actor. */
+export async function takeOverGated(
+  actor: ActorLike,
+  req: { worldId: string; tableId: string; characterId: string },
+): Promise<boolean> {
+  const patch = tableGate ? takeoverPatch(actor, req) : undefined;
+  if (!patch) return false;
+  await actor.update(patch);
+  if (!sameCharacter(bindingOf(actor), req))
+    throw new RpcError("procedure_failed", "Foundry did not apply the update");
+  return true;
 }
 
 /**
@@ -789,7 +855,7 @@ export function takeoverPatch(
   const binding: BindingV1 = { ...bindingFor(req), previous };
   return {
     ...Object.fromEntries(
-      LANE_RECORDS.map((key) => {
+      (tableGate ? GATED_LANE_RECORDS : LANE_RECORDS).map((key) => {
         const [k, v] = deletionEntry(key);
         return [`flags.${MODULE_ID}.${k}`, v];
       }),
@@ -850,6 +916,8 @@ export async function linkedActor(
       "binding_conflict",
       "the binding points at a different Actor",
     );
+  // A lane that takes over itself folds `takeoverPatch` into its own update.
+  if (!options) await takeOverGated(actor, req);
   return actor;
 }
 

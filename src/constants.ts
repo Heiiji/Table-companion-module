@@ -128,6 +128,14 @@ export const CAP_KNIGHT_NPC_RESOURCES = "knightNpcResourcesV1";
  * handler. */
 export const CAP_BINDING_TAKEOVER = "bindingTakeoverV1";
 
+/** Capability token the BACKEND advertises on its own hello / hello.ack when
+ * it gates writes by table: it follows one table per world and never relays
+ * another table's write. With it, every lane takes over an Actor (or Combat)
+ * another table holds and takes back one whose history names the request's
+ * character — no `binding_conflict` / `binding_lost` between tables. Read from
+ * the backend, never advertised by this module. */
+export const CAP_TABLE_GATE = "tableGateV1";
+
 /** Capability token advertised with `CAP_BINDING_TAKEOVER`: a `reclaim` on
  * `actor.resources.v1` takes the binding back and writes no value — the
  * reclaiming table then reads Foundry's current values. This build accepts a

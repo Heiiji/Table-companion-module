@@ -28,7 +28,8 @@ import {
   record,
   text,
   uniqueBoundActor,
-  assertNotLost,
+  lostActor,
+  takeOverGated,
   writtenFields,
   type ActorLike,
   type AspectScoresV1,
@@ -381,10 +382,21 @@ export const npcUpsertV1: Procedure = async (payload) => {
     );
   }
   if (!actor) {
-    // Another table took this NPC over: never a second Actor of it.
-    assertNotLost(actorCollection(), req);
-    actor = await createNpcActor(req, binding);
-    outcome = "created";
+    // Another table took this NPC over: never a second Actor of it. With the
+    // backend's table gate it is taken back; without, binding_lost.
+    actor = lostActor(actorCollection(), req);
+    if (actor) {
+      if (actor.type !== NPC_ACTOR_TYPE)
+        throw new RpcError(
+          "binding_conflict",
+          "the binding points at a non-pnj Actor",
+        );
+      await takeOverGated(actor, req);
+      outcome = "adopted";
+    } else {
+      actor = await createNpcActor(req, binding);
+      outcome = "created";
+    }
   }
   const id = docId(actor);
   if (!foundryId.test(id))
