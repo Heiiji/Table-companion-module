@@ -1,6 +1,7 @@
 import { MODULE_ID } from "../constants.js";
 import { gameItems, gamePacks } from "../foundry/runtime.js";
 import { KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1 } from "../refdata/knightCompendiumCrosswalkV14_0_1.js";
+import { KNIGHT_WEAPON_CROSSWALK_V14_0_1 } from "../refdata/knightWeaponCrosswalkV14_0_1.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import { pairedAgentUser } from "../setup/identity.js";
@@ -31,7 +32,7 @@ import {
   sameName,
   readFields,
   holds,
-  sameValue,
+  sameField,
   armourGuarded,
 } from "./actorItems.read.js";
 import {
@@ -48,7 +49,7 @@ import {
   SLOT_KEYS,
   SLOTS,
 } from "./actorItems.validate.js";
-import { fieldPatch } from "./actorItems.patch.js";
+import { fieldPatch, weaponFill } from "./actorItems.patch.js";
 
 /**
  * Modules and weapons of a linked Knight player character
@@ -99,6 +100,19 @@ async function applyPatch(item: ItemDoc, patch: Dict): Promise<void> {
   await item.update(patch);
 }
 
+/** A dotted update as the nested source `createEmbeddedDocuments` takes. */
+function expand(patch: Dict): Dict {
+  const out: Dict = {};
+  for (const [path, value] of Object.entries(patch)) {
+    const parts = path.split(".");
+    let node = out;
+    for (const part of parts.slice(0, -1))
+      node = (node[part] = isDict(node[part]) ? node[part] : {}) as Dict;
+    node[parts.at(-1)!] = value;
+  }
+  return out;
+}
+
 /** The source document an `add` copies, or undefined when it must be built. */
 async function copiedSource(
   source: ItemSourceV1,
@@ -119,6 +133,15 @@ async function copiedSource(
     const compendium = gamePacks()?.get(pack);
     if (!compendium || !readable(compendium, agent)) return undefined;
     const doc = await compendium.getDocument(id);
+    return doc ? { raw: doc.toObject() } : undefined;
+  }
+  if (kind === "weapon") {
+    // A weapon copies the one document that carries its first attack.
+    const weapon = KNIGHT_WEAPON_CROSSWALK_V14_0_1[source.catalogId];
+    if (!weapon || compendiumAvailabilityWarning() !== null) return undefined;
+    const doc = await gamePacks()
+      ?.get(weapon.pack)
+      ?.getDocument(weapon.documentId);
     return doc ? { raw: doc.toObject() } : undefined;
   }
   const mapped = KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1[source.catalogId];
@@ -150,11 +173,14 @@ async function addItem(
       docId(a) < docId(b) ? -1 : docId(a) > docId(b) ? 1 : 0,
     )[0];
   if (flagged) {
-    // A re-send: the Item is already there, so the add converges as an update.
+    // A re-send: the Item is already there, so the add converges as an
+    // update; a weapon only fills what Foundry does not carry.
     const item = ofKind(flagged, add.kind);
     await applyPatch(
       item,
-      fieldPatch(item, add.kind, add.item, false, warnings),
+      add.kind === "weapon"
+        ? weaponFill(item, add.item, warnings)
+        : fieldPatch(item, add.kind, add.item, false, warnings),
     );
     return docId(item);
   }
@@ -174,7 +200,12 @@ async function addItem(
     delete source.ownership;
   } else {
     warnings.push("item_built");
-    source = { name: add.item.name, type, system: {} };
+    // A weapon is created whole, so a re-send never meets a half-built one.
+    source =
+      add.kind === "weapon"
+        ? expand(fieldPatch({ system: {} }, add.kind, add.item, true, warnings))
+        : { name: add.item.name, type, system: {} };
+    source.type = type;
   }
   // Only the entry identity: never the equipment-catalog flags, which would
   // hand the Item to actor.upsert's reconciliation.
@@ -191,6 +222,11 @@ async function addItem(
       (i) => flagValue(i, FLAG_KEYS.entryId) === add.entryId,
     );
   if (!item) throw new Error("Foundry did not return the created Item");
+  if (add.kind === "weapon") {
+    if (!warnings.includes("item_built"))
+      await applyPatch(item, weaponFill(item, add.item, warnings));
+    return docId(item);
+  }
   const fields =
     add.item.level === undefined && copy?.level !== undefined
       ? { ...add.item, level: copy.level }
@@ -419,7 +455,7 @@ export const actorItemsV1: Procedure = async (payload) => {
     if (
       key === "name"
         ? !sameName(item, value, true)
-        : !sameValue(current[key], value)
+        : !sameField(key, current[key], value)
     )
       throw new RpcError("item_conflict", `the Item's ${key} moved in Foundry`);
   const patch = fieldPatch(item, kind, fields, false, warnings);

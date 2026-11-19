@@ -23,6 +23,12 @@ export const PROCEDURE = "actor.items.v1";
 const MAX_NAME = 200;
 const MAX_DESCRIPTION_BYTES = 8192;
 const MAX_PROFILES = 8;
+const MAX_EFFECTS = 32;
+/** A Knight raw effect token: the system's key, then an optional parameter. */
+const EFFECT_TOKEN = /^[a-z0-9]{1,40}( [0-9]{1,4})?$/;
+/** The Knight `arme` schema's `rarete` values. */
+export const RARITIES = ["standard", "avance", "rare", "prestige", "espoir"];
+const MAX_COST = 9999;
 /** The weapon snapshot envelope's own ceiling bounds every profile string. */
 const MAX_PROFILE_TEXT = 4096;
 
@@ -86,6 +92,8 @@ export interface AttackProfileV1 {
   range?: string;
   damage?: DiceV1;
   violence?: DiceV1;
+  /** Foundry raw effect tokens; absent leaves the Item's effects alone. */
+  effects?: string[];
 }
 
 export interface ItemFieldsV1 {
@@ -98,6 +106,9 @@ export interface ItemFieldsV1 {
   chargesMax?: number;
   profiles?: AttackProfileV1[];
   description?: string;
+  /** Weapon only: `system.rarete` and `system.prix`. */
+  rarity?: string;
+  cost?: number;
   /** Armour only, every one required on an armour add. */
   generation?: number;
   armourBase?: number;
@@ -234,12 +245,32 @@ function dice(value: unknown, path: string): DiceV1 {
   };
 }
 
+function effects(value: unknown, path: string): string[] {
+  if (
+    !Array.isArray(value) ||
+    value.length > MAX_EFFECTS ||
+    value.some((t) => typeof t !== "string" || !EFFECT_TOKEN.test(t)) ||
+    new Set(value).size !== value.length
+  )
+    invalid(
+      `${path} must be at most ${MAX_EFFECTS} unique Knight effect tokens`,
+    );
+  return value as string[];
+}
+
 function profiles(value: unknown, path: string): AttackProfileV1[] {
   if (!Array.isArray(value) || value.length > MAX_PROFILES)
     invalid(`${path} must be an array of at most ${MAX_PROFILES} attacks`);
   const out = value.map((raw, i): AttackProfileV1 => {
     const at = `${path}[${i}]`;
-    const a = record(raw, at, ["id", "name", "range", "damage", "violence"]);
+    const a = record(raw, at, [
+      "id",
+      "name",
+      "range",
+      "damage",
+      "violence",
+      "effects",
+    ]);
     return {
       id: text(a.id, `${at}.id`, MAX_PROFILE_TEXT, true),
       name: text(a.name, `${at}.name`, MAX_PROFILE_TEXT),
@@ -252,6 +283,9 @@ function profiles(value: unknown, path: string): AttackProfileV1[] {
       ...(a.violence === undefined
         ? {}
         : { violence: dice(a.violence, `${at}.violence`) }),
+      ...(a.effects === undefined
+        ? {}
+        : { effects: effects(a.effects, `${at}.effects`) }),
     };
   });
   if (new Set(out.map((a) => a.id)).size !== out.length)
@@ -267,7 +301,9 @@ function itemFields(
 ): ItemFieldsV1 {
   const allowed =
     kind === "weapon"
-      ? ["name", "profiles"]
+      ? options.description
+        ? ["name", "profiles", "rarity", "cost", "description"]
+        : ["name", "profiles", "rarity", "cost"]
       : options.description
         ? [...MODULE_KEYS, "description"]
         : MODULE_KEYS;
@@ -305,6 +341,13 @@ function itemFields(
   }
   if (p.profiles !== undefined)
     out.profiles = profiles(p.profiles, `${path}.profiles`);
+  if (p.rarity !== undefined) {
+    if (typeof p.rarity !== "string" || !RARITIES.includes(p.rarity))
+      invalid(`${path}.rarity must be one of ${RARITIES.join(", ")}`);
+    out.rarity = p.rarity;
+  }
+  if (p.cost !== undefined)
+    out.cost = integer(p.cost, `${path}.cost`, 0, MAX_COST);
   if (p.description !== undefined) {
     if (
       typeof p.description !== "string" ||

@@ -11,6 +11,7 @@ import {
   CAP_ACTOR_RESOURCES_NAME,
   CAP_ACTOR_RESOURCES_WEAR,
   CAP_ACTOR_ITEMS_ARMOUR,
+  CAP_ACTOR_ITEMS_WEAPON_DETAILS,
   CAP_KNIGHT_ATTACK_ITEM_ID,
   CAP_KNIGHT_NPC_RESOURCES,
   CAP_BINDING_RECLAIM,
@@ -1137,6 +1138,7 @@ describe("Channel response signing", () => {
     expect(capabilities).not.toContain(CAP_WRITE_BASE);
     // The armour and wear tokens ride the items and resources lanes.
     expect(capabilities).not.toContain(CAP_ACTOR_ITEMS_ARMOUR);
+    expect(capabilities).not.toContain(CAP_ACTOR_ITEMS_WEAPON_DETAILS);
     expect(capabilities).not.toContain(CAP_ACTOR_RESOURCES_WEAR);
     // The attack's itemId token rides the attack lane.
     expect(capabilities).not.toContain(CAP_KNIGHT_ATTACK_ITEM_ID);
@@ -1165,6 +1167,9 @@ describe("Channel response signing", () => {
       CAP_KNIGHT_NPC_RESOURCES,
     );
     expect(admitted.capabilities as string[]).toContain(CAP_ACTOR_ITEMS_ARMOUR);
+    expect(admitted.capabilities as string[]).toContain(
+      CAP_ACTOR_ITEMS_WEAPON_DETAILS,
+    );
     expect(admitted.capabilities as string[]).toContain(
       CAP_KNIGHT_ATTACK_ITEM_ID,
     );

@@ -1,0 +1,8093 @@
+{
+ "compendium": {
+  "commit": "a7c06e20245247752b5d350f8252a8b89ddeed9c",
+  "id": "knight-compendium",
+  "version": "14.0.1"
+ },
+ "effectKeys": [
+  "affecteanatheme",
+  "anatheme",
+  "aneantirbande",
+  "annihilation",
+  "antianatheme",
+  "antivehicule",
+  "artillerie",
+  "assassin",
+  "assistanceattaque",
+  "aucundegatsviolence",
+  "autohit",
+  "barrage",
+  "boost",
+  "boostdegats",
+  "boostviolence",
+  "bourreau",
+  "briserlaresilience",
+  "cadence",
+  "cataclysme",
+  "cdf",
+  "chargeur",
+  "chirurgical",
+  "choc",
+  "conviction",
+  "defense",
+  "deferlante",
+  "degatscontinus",
+  "demoralisant",
+  "designation",
+  "destructeur",
+  "deuxmains",
+  "devastation",
+  "deviation",
+  "dispersion",
+  "enchaine",
+  "esperance",
+  "excellence",
+  "exposer",
+  "fatal",
+  "frappeaportee",
+  "fureur",
+  "guidage",
+  "hecatombe",
+  "ignorearmure",
+  "ignorechampdeforce",
+  "immobilisation",
+  "intimidantana",
+  "intimidanthum",
+  "jumeleakimbo",
+  "jumeleambidextrie",
+  "leste",
+  "lourd",
+  "lumiere",
+  "meurtrier",
+  "mobile",
+  "nonletal",
+  "obliteration",
+  "orfevrerie",
+  "parasitage",
+  "penetrant",
+  "percearmure",
+  "pillage",
+  "precision",
+  "reaction",
+  "regularite",
+  "rempart",
+  "retourflamme",
+  "retribution",
+  "sansarmure",
+  "sensitif",
+  "silencieux",
+  "soumission",
+  "sournois",
+  "specialiste",
+  "tenebricide",
+  "terrifiant",
+  "tirelite",
+  "tirenrafale",
+  "tirensecurite",
+  "titanicide",
+  "ultraviolence",
+  "unemain"
+ ],
+ "system": {
+  "id": "knight",
+  "version": "3.58.37"
+ },
+ "weapons": [
+  {
+   "catalogId": "knight.weapon.grenade-intelligente",
+   "cost": 0,
+   "document": null,
+   "name": "Grenade intelligente",
+   "profiles": [
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "dispersion 6",
+      "meurtrier",
+      "ultraviolence"
+     ],
+     "id": "munition-0",
+     "name": "Shrapnel",
+     "range": "Courte",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "effects": [
+      "barrage 2",
+      "choc 1",
+      "dispersion 6",
+      "lumiere 2"
+     ],
+     "id": "munition-1",
+     "name": "Flashbang",
+     "range": "Courte"
+    },
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "destructeur",
+      "dispersion 6",
+      "penetrant 6",
+      "percearmure 20"
+     ],
+     "id": "munition-2",
+     "name": "Anti-blindage",
+     "range": "Courte",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "effects": [
+      "dispersion 6",
+      "parasitage 2"
+     ],
+     "id": "munition-3",
+     "name": "IEM",
+     "range": "Courte"
+    },
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "antivehicule",
+      "choc 1",
+      "dispersion 3"
+     ],
+     "id": "munition-4",
+     "name": "Explosive",
+     "range": "Courte",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.pistolet-de-service",
+   "cost": 15,
+   "document": {
+    "documentCount": 2,
+    "documentId": "df9dd63546eda43e",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "df9dd63546eda43e",
+     "img": "modules/knight-compendium/assets/weapons/pistolet-de-service.webp",
+     "name": "Pistolet de service - Contact",
+     "system": {
+      "degats": {
+       "dice": 1,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "silencieux"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 15,
+      "rarete": "standard",
+      "type": "contact",
+      "violence": {
+       "dice": 0,
+       "fixe": 1
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Pistolet de service",
+   "profiles": [
+    {
+     "damage": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "silencieux"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 0,
+      "faces": 6,
+      "flat": 1
+     }
+    },
+    {
+     "damage": {
+      "count": 2,
+      "faces": 6,
+      "flat": 6
+     },
+     "effects": [
+      "silencieux"
+     ],
+     "id": "a2",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.shotgun-escamotable",
+   "cost": 20,
+   "document": {
+    "documentCount": 1,
+    "documentId": "9e6924b375d1b2bc",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "9e6924b375d1b2bc",
+     "img": "modules/knight-compendium/assets/weapons/shotgun-escamotable.webp",
+     "name": "Shotgun escamotable",
+     "system": {
+      "degats": {
+       "dice": 2,
+       "fixe": 10
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "barrage 2",
+        "choc 1",
+        "deuxmains",
+        "meurtrier"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 20,
+      "rarete": "standard",
+      "type": "distance",
+      "violence": {
+       "dice": 2,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Shotgun escamotable",
+   "profiles": [
+    {
+     "damage": {
+      "count": 2,
+      "faces": 6,
+      "flat": 10
+     },
+     "effects": [
+      "barrage 2",
+      "choc 1",
+      "deuxmains",
+      "meurtrier"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.fusil-dassaut",
+   "cost": 30,
+   "document": {
+    "documentCount": 1,
+    "documentId": "3471977efdf10002",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "3471977efdf10002",
+     "img": "modules/knight-compendium/assets/weapons/fusil-dassaut.webp",
+     "name": "Fusil d'assaut",
+     "system": {
+      "degats": {
+       "dice": 2,
+       "fixe": 6
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "barrage 2",
+        "deuxmains",
+        "ultraviolence"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "longue",
+      "prix": 30,
+      "rarete": "standard",
+      "type": "distance",
+      "violence": {
+       "dice": 3,
+       "fixe": 9
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Fusil d'assaut",
+   "profiles": [
+    {
+     "damage": {
+      "count": 2,
+      "faces": 6,
+      "flat": 6
+     },
+     "effects": [
+      "barrage 2",
+      "deuxmains",
+      "ultraviolence"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Longue",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 9
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.pistolet-mitrailleur",
+   "cost": 25,
+   "document": {
+    "documentCount": 1,
+    "documentId": "62be65b080418e07",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "62be65b080418e07",
+     "img": "modules/knight-compendium/assets/weapons/pistolet-mitrailleur.webp",
+     "name": "Pistolet mitrailleur",
+     "system": {
+      "degats": {
+       "dice": 3,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "jumeleakimbo",
+        "meurtrier",
+        "ultraviolence"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 25,
+      "rarete": "standard",
+      "type": "distance",
+      "violence": {
+       "dice": 4,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Pistolet mitrailleur",
+   "profiles": [
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "jumeleakimbo",
+      "meurtrier",
+      "ultraviolence"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.fusil-de-precision",
+   "cost": 40,
+   "document": {
+    "documentCount": 1,
+    "documentId": "f76b17830826ba92",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "f76b17830826ba92",
+     "img": "modules/knight-compendium/assets/weapons/fusil-de-precision.webp",
+     "name": "Fusil de précision",
+     "system": {
+      "degats": {
+       "dice": 4,
+       "fixe": 6
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "assistanceattaque",
+        "designation",
+        "deuxmains",
+        "precision",
+        "tirensecurite"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "lointaine",
+      "prix": 40,
+      "rarete": "standard",
+      "type": "distance",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Fusil de précision",
+   "profiles": [
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 6
+     },
+     "effects": [
+      "assistanceattaque",
+      "designation",
+      "deuxmains",
+      "precision",
+      "tirensecurite"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Lointaine",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.lance-grenade-leger",
+   "cost": 40,
+   "document": {
+    "documentCount": 1,
+    "documentId": "0c47b61b2d78f3bc",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "0c47b61b2d78f3bc",
+     "img": "modules/knight-compendium/assets/weapons/lance-grenade-leger.webp",
+     "name": "Lance-grenade léger",
+     "system": {
+      "degats": {
+       "dice": 3,
+       "fixe": 10
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": true,
+       "liste": {
+        "0": {
+         "custom": [],
+         "degats": {
+          "dice": 3,
+          "fixe": 10
+         },
+         "liste": [],
+         "nom": "Grenade anti-blindage",
+         "raw": [
+          "destructeur"
+         ],
+         "violence": {
+          "dice": 1,
+          "fixe": null
+         }
+        },
+        "1": {
+         "custom": [],
+         "degats": {
+          "dice": 4,
+          "fixe": null
+         },
+         "liste": [],
+         "nom": "Grenade explosive",
+         "raw": [
+          "dispersion 3"
+         ],
+         "violence": {
+          "dice": 3,
+          "fixe": null
+         }
+        },
+        "2": {
+         "custom": [],
+         "degats": {
+          "dice": 2,
+          "fixe": null
+         },
+         "liste": [],
+         "nom": "Grenade incendiaire",
+         "raw": [
+          "degatscontinus 3"
+         ],
+         "violence": {
+          "dice": 3,
+          "fixe": 10
+         }
+        }
+       },
+       "value": 3
+      },
+      "portee": "moyenne",
+      "prix": 40,
+      "rarete": "standard",
+      "type": "distance",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Lance-grenade léger",
+   "profiles": [
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "dispersion 3"
+     ],
+     "id": "munition-0",
+     "name": "Grenade explosive",
+     "range": "Moyenne",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 10
+     },
+     "effects": [
+      "destructeur"
+     ],
+     "id": "munition-1",
+     "name": "Grenade anti-blindage",
+     "range": "Moyenne",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "damage": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "degatscontinus 3"
+     ],
+     "id": "munition-2",
+     "name": "Grenade incendiaire",
+     "range": "Moyenne",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 10
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.morgenstern",
+   "cost": 15,
+   "document": {
+    "documentCount": 1,
+    "documentId": "e33ef6366b61fb23",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "e33ef6366b61fb23",
+     "img": "modules/knight-compendium/assets/weapons/morgenstern.webp",
+     "name": "Morgenstern",
+     "system": {
+      "degats": {
+       "dice": 3,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "leste"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 15,
+      "rarete": "standard",
+      "type": "contact",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Morgenstern",
+   "profiles": [
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "leste"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.marteau-epieu",
+   "cost": 10,
+   "document": {
+    "documentCount": 2,
+    "documentId": "62a75eda8200a5e8",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "62a75eda8200a5e8",
+     "img": "modules/knight-compendium/assets/weapons/marteau-epieu.webp",
+     "name": "Marteau-épieu - Contact",
+     "system": {
+      "degats": {
+       "dice": 3,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "percearmure 40"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 10,
+      "rarete": "standard",
+      "type": "contact",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Marteau-épieu",
+   "profiles": [
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "percearmure 40"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 12
+     },
+     "effects": [
+      "chargeur 1",
+      "degatscontinus 3",
+      "dispersion 3",
+      "lumiere 2"
+     ],
+     "id": "a2",
+     "name": "Tir",
+     "range": "Courte",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 12
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.couteau-de-combat",
+   "cost": 15,
+   "document": {
+    "documentCount": 1,
+    "documentId": "a02e4ffc8ec4f1eb",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "a02e4ffc8ec4f1eb",
+     "img": "modules/knight-compendium/assets/weapons/couteau-de-combat.webp",
+     "name": "Couteau de combat",
+     "system": {
+      "degats": {
+       "dice": 3,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "jumeleambidextrie",
+        "orfevrerie",
+        "silencieux"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 15,
+      "rarete": "standard",
+      "type": "contact",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Couteau de combat",
+   "profiles": [
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "jumeleambidextrie",
+      "orfevrerie",
+      "silencieux"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.ceste-lourd",
+   "cost": 20,
+   "document": {
+    "documentCount": 1,
+    "documentId": "ef56836e96882724",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "ef56836e96882724",
+     "img": "modules/knight-compendium/assets/weapons/ceste-lourd.webp",
+     "name": "Ceste lourd",
+     "system": {
+      "degats": {
+       "dice": 3,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "jumeleakimbo",
+        "leste"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 20,
+      "rarete": "standard",
+      "type": "contact",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Ceste lourd",
+   "profiles": [
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "jumeleakimbo",
+      "leste"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.epee-batarde",
+   "cost": 30,
+   "document": {
+    "documentCount": 1,
+    "documentId": "18e9b939fbd53d17",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "18e9b939fbd53d17",
+     "img": "modules/knight-compendium/assets/weapons/epee-batarde.webp",
+     "name": "Épée bâtarde",
+     "system": {
+      "degats": {
+       "dice": 4,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "orfevrerie"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "deuxmains",
+        "leste"
+       ]
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 4,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 2,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 4,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 3,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": true
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 30,
+      "rarete": "standard",
+      "type": "contact",
+      "violence": {
+       "dice": 3,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Épée bâtarde",
+   "profiles": [
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "orfevrerie"
+     ],
+     "id": "1main",
+     "name": "Une main",
+     "range": "Contact",
+     "violence": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "deuxmains",
+      "leste"
+     ],
+     "id": "2main",
+     "name": "Deux mains",
+     "range": "Contact",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.bouclier-amovible",
+   "cost": 20,
+   "document": {
+    "documentCount": 2,
+    "documentId": "f0f7ec5d55a69c6f",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "f0f7ec5d55a69c6f",
+     "img": "modules/knight-compendium/assets/weapons/bouclier-amovible.webp",
+     "name": "Bouclier amovible - Contact",
+     "system": {
+      "degats": {
+       "dice": 0,
+       "fixe": 1
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "defense 2",
+        "jumeleambidextrie"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 20,
+      "rarete": "standard",
+      "type": "contact",
+      "violence": {
+       "dice": 0,
+       "fixe": 1
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Bouclier amovible",
+   "profiles": [
+    {
+     "damage": {
+      "count": 0,
+      "faces": 6,
+      "flat": 1
+     },
+     "effects": [
+      "defense 2",
+      "jumeleambidextrie"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 0,
+      "faces": 6,
+      "flat": 1
+     }
+    },
+    {
+     "damage": {
+      "count": 2,
+      "faces": 6,
+      "flat": 6
+     },
+     "effects": [
+      "antianatheme",
+      "chargeur 1",
+      "lumiere 4"
+     ],
+     "id": "a2",
+     "name": "Tir (bouclier déployé)",
+     "range": "Courte",
+     "violence": {
+      "count": 2,
+      "faces": 6,
+      "flat": 6
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.lance-missile",
+   "cost": 15,
+   "document": {
+    "documentCount": 1,
+    "documentId": "RqcFLHhAOZQ7xQDb",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "RqcFLHhAOZQ7xQDb",
+     "img": "modules/knight-compendium/assets/weapons/lance-missile.webp",
+     "name": "Lance-missile",
+     "system": {
+      "degats": {
+       "dice": 7,
+       "fixe": 10
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "assistanceattaque",
+        "deuxmains",
+        "lourd"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": true,
+       "liste": {
+        "0": {
+         "custom": [],
+         "degats": {
+          "dice": 7,
+          "fixe": 10
+         },
+         "liste": [],
+         "nom": "Missiles",
+         "raw": [
+          "antivehicule",
+          "artillerie"
+         ],
+         "violence": {
+          "dice": 3,
+          "fixe": 0
+         }
+        },
+        "1": {
+         "custom": [],
+         "degats": {
+          "dice": 3,
+          "fixe": 0
+         },
+         "liste": [],
+         "nom": "Roquettes",
+         "raw": [
+          "dispersion 6",
+          "fureur"
+         ],
+         "violence": {
+          "dice": 7,
+          "fixe": 10
+         }
+        }
+       },
+       "value": 2
+      },
+      "portee": "lointaine",
+      "prix": 15,
+      "rarete": "avance",
+      "type": "distance",
+      "violence": {
+       "dice": 3,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Lance-missile",
+   "profiles": [
+    {
+     "damage": {
+      "count": 7,
+      "faces": 6,
+      "flat": 10
+     },
+     "effects": [
+      "assistanceattaque",
+      "deuxmains",
+      "lourd",
+      "antivehicule",
+      "artillerie"
+     ],
+     "id": "munition-0",
+     "name": "Missiles",
+     "range": "Lointaine",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "assistanceattaque",
+      "deuxmains",
+      "lourd",
+      "dispersion 6",
+      "fureur"
+     ],
+     "id": "munition-1",
+     "name": "Roquettes",
+     "range": "Lointaine",
+     "violence": {
+      "count": 7,
+      "faces": 6,
+      "flat": 10
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.mitrailleuse-lourde",
+   "cost": 45,
+   "document": {
+    "documentCount": 1,
+    "documentId": "53b6HFXHNYMAgOR1",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "53b6HFXHNYMAgOR1",
+     "img": "modules/knight-compendium/assets/weapons/mitrailleuse-lourde.webp",
+     "name": "Mitrailleuse lourde",
+     "system": {
+      "degats": {
+       "dice": 5,
+       "fixe": 10
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "destructeur",
+        "deuxmains",
+        "lourd",
+        "percearmure 20"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 45,
+      "rarete": "avance",
+      "type": "distance",
+      "violence": {
+       "dice": 4,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Mitrailleuse lourde",
+   "profiles": [
+    {
+     "damage": {
+      "count": 5,
+      "faces": 6,
+      "flat": 10
+     },
+     "effects": [
+      "destructeur",
+      "deuxmains",
+      "lourd",
+      "percearmure 20"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.pistolet-dinfiltration",
+   "cost": 50,
+   "document": {
+    "documentCount": 1,
+    "documentId": "BjzowSIdz05Ckm9s",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "BjzowSIdz05Ckm9s",
+     "img": "modules/knight-compendium/assets/weapons/pistolet-dinfiltration.webp",
+     "name": "Pistolet d'infiltration",
+     "system": {
+      "degats": {
+       "dice": 4,
+       "fixe": 6
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "jumeleambidextrie",
+        "silencieux"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": true,
+       "liste": {
+        "0": {
+         "custom": [],
+         "degats": {
+          "dice": 4,
+          "fixe": 6
+         },
+         "liste": [],
+         "nom": "Fléchettes à nanomachines",
+         "raw": [
+          "destructeur"
+         ],
+         "violence": {
+          "dice": 1,
+          "fixe": null
+         }
+        },
+        "1": {
+         "custom": [],
+         "degats": {
+          "dice": 4,
+          "fixe": null
+         },
+         "liste": [],
+         "nom": "Fléchettes à neurotoxine",
+         "raw": [
+          "degatscontinus 3",
+          "ignorearmure"
+         ],
+         "violence": {
+          "dice": 1,
+          "fixe": null
+         }
+        },
+        "2": {
+         "custom": [],
+         "degats": {
+          "dice": 3,
+          "fixe": null
+         },
+         "liste": [],
+         "nom": "Fléchettes choc",
+         "raw": [
+          "choc 2",
+          "ignorearmure"
+         ],
+         "violence": {
+          "dice": 1,
+          "fixe": null
+         }
+        }
+       },
+       "value": 3
+      },
+      "portee": "moyenne",
+      "prix": 50,
+      "rarete": "avance",
+      "type": "distance",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Pistolet d'infiltration",
+   "profiles": [
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "jumeleambidextrie",
+      "silencieux",
+      "degatscontinus 3",
+      "ignorearmure"
+     ],
+     "id": "munition-0",
+     "name": "Fléchettes à neurotoxine",
+     "range": "Moyenne",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "jumeleambidextrie",
+      "silencieux",
+      "choc 2",
+      "ignorearmure"
+     ],
+     "id": "munition-1",
+     "name": "Fléchettes choc",
+     "range": "Moyenne",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 6
+     },
+     "effects": [
+      "jumeleambidextrie",
+      "silencieux",
+      "destructeur"
+     ],
+     "id": "munition-2",
+     "name": "Fléchettes à nanomachines",
+     "range": "Moyenne",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.lance-grenade-lourd",
+   "cost": 60,
+   "document": {
+    "documentCount": 1,
+    "documentId": "VqK42Xr17qspD27S",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "VqK42Xr17qspD27S",
+     "img": "modules/knight-compendium/assets/weapons/lance-grenade-lourd.webp",
+     "name": "Lance-grenade lourd",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "assistanceattaque",
+        "deuxmains",
+        "lourd"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": true,
+       "liste": {
+        "0": {
+         "custom": [],
+         "degats": {
+          "dice": 6,
+          "fixe": null
+         },
+         "liste": [],
+         "nom": "Grenade adhésive",
+         "raw": [
+          "dispersion 3"
+         ],
+         "violence": {
+          "dice": 3,
+          "fixe": null
+         }
+        },
+        "1": {
+         "custom": [],
+         "degats": {
+          "dice": 5,
+          "fixe": 6
+         },
+         "liste": [],
+         "nom": "Grenade anti-blindage",
+         "raw": [
+          "destructeur"
+         ],
+         "violence": {
+          "dice": 1,
+          "fixe": null
+         }
+        },
+        "2": {
+         "custom": [],
+         "degats": {
+          "dice": 5,
+          "fixe": null
+         },
+         "liste": [],
+         "nom": "Grenade explosive",
+         "raw": [
+          "dispersion 3"
+         ],
+         "violence": {
+          "dice": 3,
+          "fixe": 6
+         }
+        },
+        "3": {
+         "custom": [],
+         "degats": {
+          "dice": 2,
+          "fixe": null
+         },
+         "liste": [],
+         "nom": "Grenade incendiaire",
+         "raw": [
+          "degatscontinus 3"
+         ],
+         "violence": {
+          "dice": 6,
+          "fixe": 6
+         }
+        }
+       },
+       "value": 4
+      },
+      "portee": "moyenne",
+      "prix": 60,
+      "rarete": "avance",
+      "type": "distance",
+      "violence": {
+       "dice": 3,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Lance-grenade lourd",
+   "profiles": [
+    {
+     "damage": {
+      "count": 5,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "assistanceattaque",
+      "deuxmains",
+      "lourd",
+      "dispersion 3"
+     ],
+     "id": "munition-0",
+     "name": "Grenade explosive",
+     "range": "Moyenne",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 6
+     }
+    },
+    {
+     "damage": {
+      "count": 5,
+      "faces": 6,
+      "flat": 6
+     },
+     "effects": [
+      "assistanceattaque",
+      "deuxmains",
+      "lourd",
+      "destructeur"
+     ],
+     "id": "munition-1",
+     "name": "Grenade anti-blindage",
+     "range": "Moyenne",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "damage": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "assistanceattaque",
+      "deuxmains",
+      "lourd",
+      "degatscontinus 3"
+     ],
+     "id": "munition-2",
+     "name": "Grenade incendiaire",
+     "range": "Moyenne",
+     "violence": {
+      "count": 6,
+      "faces": 6,
+      "flat": 6
+     }
+    },
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "assistanceattaque",
+      "deuxmains",
+      "lourd",
+      "dispersion 3"
+     ],
+     "id": "munition-3",
+     "name": "Grenade adhésive",
+     "range": "Moyenne",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.fusil-anti-materiel",
+   "cost": 60,
+   "document": {
+    "documentCount": 1,
+    "documentId": "CRS6DOWZori7imSa",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "CRS6DOWZori7imSa",
+     "img": "modules/knight-compendium/assets/weapons/fusil-anti-materiel.webp",
+     "name": "Fusil anti-matériel",
+     "system": {
+      "degats": {
+       "dice": 5,
+       "fixe": 6
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "assistanceattaque",
+        "designation",
+        "destructeur",
+        "deuxmains",
+        "lourd",
+        "percearmure 40",
+        "precision",
+        "tirensecurite"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "lointaine",
+      "prix": 60,
+      "rarete": "avance",
+      "type": "distance",
+      "violence": {
+       "dice": 2,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Fusil anti-matériel",
+   "profiles": [
+    {
+     "damage": {
+      "count": 5,
+      "faces": 6,
+      "flat": 6
+     },
+     "effects": [
+      "assistanceattaque",
+      "designation",
+      "destructeur",
+      "deuxmains",
+      "lourd",
+      "percearmure 40",
+      "precision",
+      "tirensecurite"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Lointaine",
+     "violence": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.shotgun-automatique",
+   "cost": 70,
+   "document": {
+    "documentCount": 1,
+    "documentId": "IEmwIIJ9O37gTSpK",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "IEmwIIJ9O37gTSpK",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Shotgun automatique",
+     "system": {
+      "degats": {
+       "dice": 4,
+       "fixe": 10
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "barrage 4",
+        "demoralisant",
+        "deuxmains",
+        "dispersion 3",
+        "lourd",
+        "ultraviolence"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 70,
+      "rarete": "avance",
+      "type": "distance",
+      "violence": {
+       "dice": 6,
+       "fixe": 10
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Shotgun automatique",
+   "profiles": [
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 10
+     },
+     "effects": [
+      "barrage 4",
+      "demoralisant",
+      "deuxmains",
+      "dispersion 3",
+      "lourd",
+      "ultraviolence"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 6,
+      "faces": 6,
+      "flat": 10
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.ceste-repulsif",
+   "cost": 30,
+   "document": {
+    "documentCount": 1,
+    "documentId": "gKUcqNy1LS66r3Qk",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "gKUcqNy1LS66r3Qk",
+     "img": "modules/knight-compendium/assets/weapons/ceste-repulsif.webp",
+     "name": "Ceste répulsif",
+     "system": {
+      "degats": {
+       "dice": 5,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "choc 2",
+        "jumeleakimbo",
+        "defense 2"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 30,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 2,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Ceste répulsif",
+   "profiles": [
+    {
+     "damage": {
+      "count": 5,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "choc 2",
+      "jumeleakimbo",
+      "defense 2"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.epee-longue",
+   "cost": 35,
+   "document": {
+    "documentCount": 1,
+    "documentId": "iLpUpxweb9AdKnDN",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "iLpUpxweb9AdKnDN",
+     "img": "modules/knight-compendium/assets/weapons/epee-longue.webp",
+     "name": "Épée longue",
+     "system": {
+      "degats": {
+       "dice": 5,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "choc 1",
+        "defense 1",
+        "deuxmains",
+        "leste"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 35,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 5,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Épée longue",
+   "profiles": [
+    {
+     "damage": {
+      "count": 5,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "choc 1",
+      "defense 1",
+      "deuxmains",
+      "leste"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 5,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.dague",
+   "cost": 40,
+   "document": {
+    "documentCount": 1,
+    "documentId": "dkW6POTAPe9l5csq",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "dkW6POTAPe9l5csq",
+     "img": "modules/knight-compendium/assets/weapons/dague.webp",
+     "name": "Dague",
+     "system": {
+      "degats": {
+       "dice": 3,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "assistanceattaque",
+        "ignorearmure",
+        "jumeleambidextrie",
+        "orfevrerie",
+        "silencieux"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 40,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 0,
+       "fixe": 1
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Dague",
+   "profiles": [
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "assistanceattaque",
+      "ignorearmure",
+      "jumeleambidextrie",
+      "orfevrerie",
+      "silencieux"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 0,
+      "faces": 6,
+      "flat": 1
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.belier-a-piston",
+   "cost": 40,
+   "document": {
+    "documentCount": 1,
+    "documentId": "ajDYsyHiPjlV0HUe",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "ajDYsyHiPjlV0HUe",
+     "img": "modules/knight-compendium/assets/weapons/belier-a-piston.webp",
+     "name": "Bélier à piston",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "assistanceattaque",
+        "choc 1",
+        "destructeur",
+        "leste"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 40,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Bélier à piston",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "assistanceattaque",
+      "choc 1",
+      "destructeur",
+      "leste"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.matraques-electriques",
+   "cost": 40,
+   "document": {
+    "documentCount": 1,
+    "documentId": "b5CRpLOXt4JccAPv",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "b5CRpLOXt4JccAPv",
+     "img": "modules/knight-compendium/assets/weapons/matraques-electriques.webp",
+     "name": "Matraques électriques",
+     "system": {
+      "degats": {
+       "dice": 5,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "barrage 4",
+        "choc 4",
+        "deuxmains",
+        "enchaine",
+        "meurtrier"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 40,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 5,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Matraques électriques",
+   "profiles": [
+    {
+     "damage": {
+      "count": 5,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "barrage 4",
+      "choc 4",
+      "deuxmains",
+      "enchaine",
+      "meurtrier"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 5,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.sabre-brulant",
+   "cost": 40,
+   "document": {
+    "documentCount": 1,
+    "documentId": "kJWSdng4NHkLBTmB",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "kJWSdng4NHkLBTmB",
+     "img": "modules/knight-compendium/assets/weapons/sabre-brulant.webp",
+     "name": "Sabre brûlant",
+     "system": {
+      "degats": {
+       "dice": 5,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antianatheme",
+        "jumeleambidextrie",
+        "lumiere 4",
+        "meurtrier",
+        "orfevrerie"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 40,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 3,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Sabre brûlant",
+   "profiles": [
+    {
+     "damage": {
+      "count": 5,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "antianatheme",
+      "jumeleambidextrie",
+      "lumiere 4",
+      "meurtrier",
+      "orfevrerie"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.targe-amovible",
+   "cost": 45,
+   "document": {
+    "documentCount": 2,
+    "documentId": "OVdrZGTMNnWmJNZ8",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "OVdrZGTMNnWmJNZ8",
+     "img": "modules/knight-compendium/assets/weapons/targe-amovible.webp",
+     "name": "Targe amovible - Targe pliée",
+     "system": {
+      "degats": {
+       "dice": 0,
+       "fixe": 2
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "defense 2",
+        "jumeleambidextrie"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 45,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 0,
+       "fixe": 2
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Targe amovible",
+   "profiles": [
+    {
+     "damage": {
+      "count": 0,
+      "faces": 6,
+      "flat": 2
+     },
+     "effects": [
+      "defense 2",
+      "jumeleambidextrie"
+     ],
+     "id": "a1",
+     "name": "Targe pliée",
+     "range": "Contact",
+     "violence": {
+      "count": 0,
+      "faces": 6,
+      "flat": 2
+     }
+    },
+    {
+     "damage": {
+      "count": 0,
+      "faces": 6,
+      "flat": 2
+     },
+     "effects": [
+      "choc 1",
+      "defense 3",
+      "jumeleambidextrie",
+      "reaction 3"
+     ],
+     "id": "a2",
+     "name": "Targe dépliée",
+     "range": "Contact",
+     "violence": {
+      "count": 0,
+      "faces": 6,
+      "flat": 2
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.fleau-repulsif",
+   "cost": 55,
+   "document": {
+    "documentCount": 1,
+    "documentId": "mZOkug4D3NGiBrqt",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "mZOkug4D3NGiBrqt",
+     "img": "modules/knight-compendium/assets/weapons/fleau-repulsif.webp",
+     "name": "Fléau répulsif",
+     "system": {
+      "degats": {
+       "dice": 7,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "barrage 3",
+        "choc 2",
+        "dispersion 3",
+        "enchaine"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 55,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 4,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Fléau répulsif",
+   "profiles": [
+    {
+     "damage": {
+      "count": 7,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "barrage 3",
+      "choc 2",
+      "dispersion 3",
+      "enchaine"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.torche-plasma",
+   "cost": 50,
+   "document": {
+    "documentCount": 1,
+    "documentId": "SkLEgZrkETUt0Sjq",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "SkLEgZrkETUt0Sjq",
+     "img": "modules/knight-compendium/assets/weapons/torche-plasma.webp",
+     "name": "Torche plasma",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "defense 2",
+        "destructeur",
+        "deuxmains",
+        "fureur",
+        "lumiere 4",
+        "percearmure 60"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 50,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 4,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Torche plasma",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "defense 2",
+      "destructeur",
+      "deuxmains",
+      "fureur",
+      "lumiere 4",
+      "percearmure 60"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.revolver-lourd",
+   "cost": 70,
+   "document": {
+    "documentCount": 1,
+    "documentId": "93aaf9881cdcd09b",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "93aaf9881cdcd09b",
+     "img": "modules/knight-compendium/assets/weapons/revolver-lourd.webp",
+     "name": "Revolver lourd",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 10
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": true,
+       "liste": {
+        "0": {
+         "custom": [],
+         "degats": {
+          "dice": 6,
+          "fixe": 10
+         },
+         "liste": [],
+         "nom": "600 NE",
+         "raw": [
+          "meurtrier",
+          "percearmure 40",
+          "penetrant 10"
+         ],
+         "violence": {
+          "dice": 1,
+          "fixe": null
+         }
+        },
+        "1": {
+         "custom": [],
+         "degats": {
+          "dice": 6,
+          "fixe": 20
+         },
+         "liste": [],
+         "nom": "T-800",
+         "raw": [
+          "antivehicule",
+          "ignorearmure",
+          "ignorechampdeforce"
+         ],
+         "violence": {
+          "dice": 2,
+          "fixe": null
+         }
+        }
+       },
+       "value": 2
+      },
+      "portee": "moyenne",
+      "prix": 70,
+      "rarete": "rare",
+      "type": "distance",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Revolver lourd",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 10
+     },
+     "effects": [
+      "meurtrier",
+      "percearmure 40",
+      "penetrant 10"
+     ],
+     "id": "munition-0",
+     "name": "600 NE",
+     "range": "Moyenne",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 20
+     },
+     "effects": [
+      "antivehicule",
+      "ignorearmure",
+      "ignorechampdeforce"
+     ],
+     "id": "munition-1",
+     "name": "T-800",
+     "range": "Moyenne",
+     "violence": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.fusil-laser",
+   "cost": 70,
+   "document": {
+    "documentCount": 1,
+    "documentId": "90bcde6b02f365b6",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "90bcde6b02f365b6",
+     "img": "modules/knight-compendium/assets/weapons/fusil-laser.webp",
+     "name": "Fusil laser",
+     "system": {
+      "degats": {
+       "dice": 4,
+       "fixe": 6
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antianatheme",
+        "deuxmains",
+        "ignorechampdeforce",
+        "lumiere 4"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 70,
+      "rarete": "rare",
+      "type": "distance",
+      "violence": {
+       "dice": 3,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Fusil laser",
+   "profiles": [
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 6
+     },
+     "effects": [
+      "antianatheme",
+      "deuxmains",
+      "ignorechampdeforce",
+      "lumiere 4"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.arbalete-magnetique",
+   "cost": 70,
+   "document": {
+    "documentCount": 1,
+    "documentId": "121348a6090f38b4",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "121348a6090f38b4",
+     "img": "modules/knight-compendium/assets/weapons/arbalete-magnetique.webp",
+     "name": "Arbalète magnétique",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 6
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "deuxmains",
+        "precision",
+        "silencieux"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": true,
+       "liste": {
+        "0": {
+         "custom": [],
+         "degats": {
+          "dice": 6,
+          "fixe": 6
+         },
+         "liste": [],
+         "nom": "Carreau à nanomachines",
+         "raw": [
+          "antivehicule",
+          "destructeur",
+          "lumiere 4"
+         ],
+         "violence": {
+          "dice": null,
+          "fixe": 0
+         }
+        },
+        "1": {
+         "custom": [],
+         "degats": {
+          "dice": 5,
+          "fixe": null
+         },
+         "liste": [],
+         "nom": "Carreau à neurotoxine",
+         "raw": [
+          "degatscontinus 9",
+          "ignorearmure"
+         ],
+         "violence": {
+          "dice": null,
+          "fixe": 1
+         }
+        },
+        "2": {
+         "custom": [],
+         "degats": {
+          "dice": 6,
+          "fixe": null
+         },
+         "liste": [],
+         "nom": "Carreau barbelé",
+         "raw": [
+          "ignorearmure"
+         ],
+         "violence": {
+          "dice": null,
+          "fixe": 1
+         }
+        },
+        "3": {
+         "custom": [],
+         "degats": {
+          "dice": 4,
+          "fixe": null
+         },
+         "liste": [],
+         "nom": "Carreau choc",
+         "raw": [
+          "choc 4",
+          "ignorearmure"
+         ],
+         "violence": {
+          "dice": null,
+          "fixe": 1
+         }
+        }
+       },
+       "value": 4
+      },
+      "portee": "longue",
+      "prix": 70,
+      "rarete": "rare",
+      "type": "distance",
+      "violence": {
+       "dice": 0,
+       "fixe": 1
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Arbalète magnétique",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "deuxmains",
+      "precision",
+      "silencieux",
+      "ignorearmure"
+     ],
+     "id": "munition-0",
+     "name": "Carreau barbelé",
+     "range": "Longue",
+     "violence": {
+      "count": 0,
+      "faces": 6,
+      "flat": 1
+     }
+    },
+    {
+     "damage": {
+      "count": 5,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "deuxmains",
+      "precision",
+      "silencieux",
+      "degatscontinus 9",
+      "ignorearmure"
+     ],
+     "id": "munition-1",
+     "name": "Carreau à neurotoxine",
+     "range": "Longue",
+     "violence": {
+      "count": 0,
+      "faces": 6,
+      "flat": 1
+     }
+    },
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "deuxmains",
+      "precision",
+      "silencieux",
+      "choc 4",
+      "ignorearmure"
+     ],
+     "id": "munition-2",
+     "name": "Carreau choc",
+     "range": "Longue",
+     "violence": {
+      "count": 0,
+      "faces": 6,
+      "flat": 1
+     }
+    },
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 6
+     },
+     "effects": [
+      "deuxmains",
+      "precision",
+      "silencieux",
+      "antivehicule",
+      "destructeur",
+      "lumiere 4"
+     ],
+     "id": "munition-3",
+     "name": "Carreau à nanomachines",
+     "range": "Longue",
+     "violence": {
+      "count": 0,
+      "faces": 6,
+      "flat": 1
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.shotgun-auto-lourd",
+   "cost": 80,
+   "document": {
+    "documentCount": 1,
+    "documentId": "69d16505712c021d",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "69d16505712c021d",
+     "img": "modules/knight-compendium/assets/weapons/shotgun-auto-lourd.webp",
+     "name": "Shotgun auto. lourd",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 12
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "demoralisant",
+        "deuxmains",
+        "dispersion 6",
+        "fureur",
+        "lourd"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 80,
+      "rarete": "rare",
+      "type": "distance",
+      "violence": {
+       "dice": 6,
+       "fixe": 12
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Shotgun auto. lourd",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 12
+     },
+     "effects": [
+      "demoralisant",
+      "deuxmains",
+      "dispersion 6",
+      "fureur",
+      "lourd"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 6,
+      "faces": 6,
+      "flat": 12
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.lance-flammes",
+   "cost": 100,
+   "document": {
+    "documentCount": 1,
+    "documentId": "1cec7557b4d15010",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "1cec7557b4d15010",
+     "img": "modules/knight-compendium/assets/weapons/lance-flammes.webp",
+     "name": "Lance-flammes",
+     "system": {
+      "degats": {
+       "dice": 4,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "barrage 5",
+        "degatscontinus 6",
+        "demoralisant",
+        "deuxmains",
+        "dispersion 6",
+        "fureur",
+        "lourd",
+        "lumiere 2"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 100,
+      "rarete": "rare",
+      "type": "distance",
+      "violence": {
+       "dice": 8,
+       "fixe": 12
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Lance-flammes",
+   "profiles": [
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "barrage 5",
+      "degatscontinus 6",
+      "demoralisant",
+      "deuxmains",
+      "dispersion 6",
+      "fureur",
+      "lourd",
+      "lumiere 2"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 8,
+      "faces": 6,
+      "flat": 12
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.railgun",
+   "cost": 90,
+   "document": {
+    "documentCount": 1,
+    "documentId": "58ae79bc821a314f",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "58ae79bc821a314f",
+     "img": "modules/knight-compendium/assets/weapons/railgun.webp",
+     "name": "Railgun",
+     "system": {
+      "degats": {
+       "dice": 5,
+       "fixe": 10
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antivehicule",
+        "artillerie",
+        "assistanceattaque",
+        "designation",
+        "deuxmains",
+        "ignorearmure",
+        "precision"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "lointaine",
+      "prix": 90,
+      "rarete": "rare",
+      "type": "distance",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Railgun",
+   "profiles": [
+    {
+     "damage": {
+      "count": 5,
+      "faces": 6,
+      "flat": 10
+     },
+     "effects": [
+      "antivehicule",
+      "artillerie",
+      "assistanceattaque",
+      "designation",
+      "deuxmains",
+      "ignorearmure",
+      "precision"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Lointaine",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.hache-a-reaction",
+   "cost": 60,
+   "document": {
+    "documentCount": 1,
+    "documentId": "314e155d8b406db8",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "314e155d8b406db8",
+     "img": "modules/knight-compendium/assets/weapons/hache-a-reaction.webp",
+     "name": "Hache à réaction",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "assistanceattaque",
+        "enchaine",
+        "ignorechampdeforce",
+        "leste",
+        "orfevrerie"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 60,
+      "rarete": "rare",
+      "type": "contact",
+      "violence": {
+       "dice": 4,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Hache à réaction",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "assistanceattaque",
+      "enchaine",
+      "ignorechampdeforce",
+      "leste",
+      "orfevrerie"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.pavois",
+   "cost": 60,
+   "document": {
+    "documentCount": 2,
+    "documentId": "699223ab4d42e4a9",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "699223ab4d42e4a9",
+     "img": "modules/knight-compendium/assets/weapons/pavois.webp",
+     "name": "Pavois - Pavois",
+     "system": {
+      "degats": {
+       "dice": 0,
+       "fixe": 2
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "defense 4",
+        "jumeleambidextrie",
+        "reaction 4"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 60,
+      "rarete": "rare",
+      "type": "contact",
+      "violence": {
+       "dice": 0,
+       "fixe": 2
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Pavois",
+   "profiles": [
+    {
+     "damage": {
+      "count": 0,
+      "faces": 6,
+      "flat": 2
+     },
+     "effects": [
+      "defense 4",
+      "jumeleambidextrie",
+      "reaction 4"
+     ],
+     "id": "a1",
+     "name": "Pavois",
+     "range": "Contact",
+     "violence": {
+      "count": 0,
+      "faces": 6,
+      "flat": 2
+     }
+    },
+    {
+     "damage": {
+      "count": 0,
+      "faces": 6,
+      "flat": 10
+     },
+     "effects": [
+      "choc 2",
+      "leste"
+     ],
+     "id": "a2",
+     "name": "Charge",
+     "range": "Courte",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.epee-lumiere",
+   "cost": 70,
+   "document": {
+    "documentCount": 1,
+    "documentId": "292185629cc75c5f",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "292185629cc75c5f",
+     "img": "modules/knight-compendium/assets/weapons/epee-lumiere.webp",
+     "name": "Épée lumière",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antianatheme",
+        "assistanceattaque",
+        "orfevrerie",
+        "lumiere 6"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antianatheme",
+        "assistanceattaque",
+        "deuxmains",
+        "leste",
+        "lumiere 6"
+       ]
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 6,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 3,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 6,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 6,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": true
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 70,
+      "rarete": "rare",
+      "type": "contact",
+      "violence": {
+       "dice": 6,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Épée lumière",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "antianatheme",
+      "assistanceattaque",
+      "orfevrerie",
+      "lumiere 6"
+     ],
+     "id": "1main",
+     "name": "Une main",
+     "range": "Contact",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "antianatheme",
+      "assistanceattaque",
+      "deuxmains",
+      "leste",
+      "lumiere 6"
+     ],
+     "id": "2main",
+     "name": "Deux mains",
+     "range": "Contact",
+     "violence": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.epee-cinetique",
+   "cost": 70,
+   "document": {
+    "documentCount": 1,
+    "documentId": "005106924e02b7c5",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "005106924e02b7c5",
+     "img": "modules/knight-compendium/assets/weapons/epee-cinetique.webp",
+     "name": "Épée cinétique",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "assistanceattaque",
+        "defense 2",
+        "jumeleambidextrie",
+        "orfevrerie",
+        "ignorearmure"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 70,
+      "rarete": "rare",
+      "type": "contact",
+      "violence": {
+       "dice": 3,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Épée cinétique",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "assistanceattaque",
+      "defense 2",
+      "jumeleambidextrie",
+      "orfevrerie",
+      "ignorearmure"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.masse-magnetique",
+   "cost": 90,
+   "document": {
+    "documentCount": 1,
+    "documentId": "31020f7af7a1d200",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "31020f7af7a1d200",
+     "img": "modules/knight-compendium/assets/weapons/masse-magnetique.webp",
+     "name": "Masse magnétique",
+     "system": {
+      "degats": {
+       "dice": 8,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "choc 2",
+        "deuxmains",
+        "dispersion 3",
+        "ignorechampdeforce",
+        "leste",
+        "lourd",
+        "lumiere 2"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 90,
+      "rarete": "rare",
+      "type": "contact",
+      "violence": {
+       "dice": 6,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Masse magnétique",
+   "profiles": [
+    {
+     "damage": {
+      "count": 8,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "choc 2",
+      "deuxmains",
+      "dispersion 3",
+      "ignorechampdeforce",
+      "leste",
+      "lourd",
+      "lumiere 2"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.ceste-de-fracture",
+   "cost": 80,
+   "document": {
+    "documentCount": 1,
+    "documentId": "2361d79c38e2c72e",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "2361d79c38e2c72e",
+     "img": "modules/knight-compendium/assets/weapons/ceste-de-fracture.webp",
+     "name": "Ceste de fracture",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antivehicule",
+        "choc 2",
+        "defense 2",
+        "destructeur",
+        "ignorearmure",
+        "jumeleakimbo"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 80,
+      "rarete": "rare",
+      "type": "contact",
+      "violence": {
+       "dice": 3,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Ceste de fracture",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "antivehicule",
+      "choc 2",
+      "defense 2",
+      "destructeur",
+      "ignorearmure",
+      "jumeleakimbo"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.epee-sonique",
+   "cost": 100,
+   "document": {
+    "documentCount": 1,
+    "documentId": "68b4a43786470690",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "68b4a43786470690",
+     "img": "modules/knight-compendium/assets/weapons/epee-sonique.webp",
+     "name": "Épée sonique",
+     "system": {
+      "degats": {
+       "dice": 4,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antivehicule",
+        "assistanceattaque",
+        "deuxmains",
+        "fureur",
+        "ignorearmure",
+        "lourd"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 100,
+      "rarete": "rare",
+      "type": "contact",
+      "violence": {
+       "dice": 4,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Épée sonique",
+   "profiles": [
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "antivehicule",
+      "assistanceattaque",
+      "deuxmains",
+      "fureur",
+      "ignorearmure",
+      "lourd"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.matraque-taser",
+   "cost": 25,
+   "document": {
+    "documentCount": 1,
+    "documentId": "36d5897545abc4f8",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "36d5897545abc4f8",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Matraque taser",
+     "system": {
+      "degats": {
+       "dice": 3,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "barrage 2",
+        "choc 2",
+        "deuxmains"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 25,
+      "rarete": "standard",
+      "type": "contact",
+      "violence": {
+       "dice": 2,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Matraque taser",
+   "profiles": [
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "barrage 2",
+      "choc 2",
+      "deuxmains"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.pistolet-connecte",
+   "cost": 20,
+   "document": {
+    "documentCount": 1,
+    "documentId": "564ed4c4931059af",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "564ed4c4931059af",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Pistolet connecté",
+     "system": {
+      "degats": {
+       "dice": 2,
+       "fixe": 6
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "assistanceattaque",
+        "jumeleakimbo"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 20,
+      "rarete": "standard",
+      "type": "distance",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Pistolet connecté",
+   "profiles": [
+    {
+     "damage": {
+      "count": 2,
+      "faces": 6,
+      "flat": 6
+     },
+     "effects": [
+      "assistanceattaque",
+      "jumeleakimbo"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.pistolet-de-precision",
+   "cost": 20,
+   "document": {
+    "documentCount": 1,
+    "documentId": "75583ef07d468757",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "75583ef07d468757",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Pistolet de précision",
+     "system": {
+      "degats": {
+       "dice": 2,
+       "fixe": 6
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "designation",
+        "precision"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 20,
+      "rarete": "standard",
+      "type": "distance",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Pistolet de précision",
+   "profiles": [
+    {
+     "damage": {
+      "count": 2,
+      "faces": 6,
+      "flat": 6
+     },
+     "effects": [
+      "designation",
+      "precision"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.hache-de-combat",
+   "cost": 30,
+   "document": {
+    "documentCount": 1,
+    "documentId": "5903834c3bbbeb6a",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "5903834c3bbbeb6a",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Hache de combat",
+     "system": {
+      "degats": {
+       "dice": 4,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "deuxmains",
+        "leste",
+        "lourd",
+        "ultraviolence"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 30,
+      "rarete": "standard",
+      "type": "contact",
+      "violence": {
+       "dice": 3,
+       "fixe": 3
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Hache de combat",
+   "profiles": [
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "deuxmains",
+      "leste",
+      "lourd",
+      "ultraviolence"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 3
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.lance-perforante-a-piston",
+   "cost": 30,
+   "document": {
+    "documentCount": 1,
+    "documentId": "2cd3f9b543f9aa86",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "2cd3f9b543f9aa86",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Lance perforante à piston",
+     "system": {
+      "degats": {
+       "dice": 5,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "defense 2",
+        "deuxmains",
+        "percearmure 20"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 30,
+      "rarete": "standard",
+      "type": "contact",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Lance perforante à piston",
+   "profiles": [
+    {
+     "damage": {
+      "count": 5,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "defense 2",
+      "deuxmains",
+      "percearmure 20"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.shotgun-automatique-leger",
+   "cost": 50,
+   "document": {
+    "documentCount": 1,
+    "documentId": "Ok6GcCfOxmkGin4K",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "Ok6GcCfOxmkGin4K",
+     "img": "modules/knight-compendium/assets/weapons/shotgun-automatique-leger.webp",
+     "name": "Shotgun automatique léger",
+     "system": {
+      "degats": {
+       "dice": 3,
+       "fixe": 10
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "barrage 2",
+        "dispersion 3",
+        "jumeleakimbo",
+        "meurtrier",
+        "ultraviolence"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 50,
+      "rarete": "avance",
+      "type": "distance",
+      "violence": {
+       "dice": 5,
+       "fixe": 10
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Shotgun automatique léger",
+   "profiles": [
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 10
+     },
+     "effects": [
+      "barrage 2",
+      "dispersion 3",
+      "jumeleakimbo",
+      "meurtrier",
+      "ultraviolence"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 5,
+      "faces": 6,
+      "flat": 10
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.baton-de-combat",
+   "cost": 30,
+   "document": {
+    "documentCount": 1,
+    "documentId": "oEMCeU8E2dLr1ScR",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "oEMCeU8E2dLr1ScR",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Baton de combat",
+     "system": {
+      "degats": {
+       "dice": 3,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "cadence 2",
+        "choc 1",
+        "deuxmains",
+        "orfevrerie"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 30,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Baton de combat",
+   "profiles": [
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "cadence 2",
+      "choc 1",
+      "deuxmains",
+      "orfevrerie"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.cimeterre-cinetique",
+   "cost": 40,
+   "document": {
+    "documentCount": 1,
+    "documentId": "Xl07YhgIVqQdPYFu",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "Xl07YhgIVqQdPYFu",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Cimeterre cinétique",
+     "system": {
+      "degats": {
+       "dice": 3,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "assassin 2",
+        "deuxmains",
+        "orfevrerie",
+        "percearmure 30"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 40,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Cimeterre cinétique",
+   "profiles": [
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "assassin 2",
+      "deuxmains",
+      "orfevrerie",
+      "percearmure 30"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.ceste-shotgun",
+   "cost": 50,
+   "document": {
+    "documentCount": 2,
+    "documentId": "gnNvk02R1AngjIbl",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "gnNvk02R1AngjIbl",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Ceste shotgun - Mêlée",
+     "system": {
+      "degats": {
+       "dice": 4,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "choc 1",
+        "jumeleakimbo",
+        "leste",
+        "meurtrier"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 50,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 2,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Ceste shotgun",
+   "profiles": [
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "choc 1",
+      "jumeleakimbo",
+      "leste",
+      "meurtrier"
+     ],
+     "id": "a1",
+     "name": "Mêlée",
+     "range": "Contact",
+     "violence": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "damage": {
+      "count": 2,
+      "faces": 6,
+      "flat": 10
+     },
+     "effects": [
+      "barrage 2",
+      "choc 1",
+      "jumeleakimbo",
+      "meurtrier"
+     ],
+     "id": "a2",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.trident-machoire",
+   "cost": 50,
+   "document": {
+    "documentCount": 1,
+    "documentId": "sXYmNiFMj7pJOFzQ",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "sXYmNiFMj7pJOFzQ",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Trident mâchoire",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "defense 2",
+        "deuxmains",
+        "meurtrier",
+        "orfevrerie",
+        "soumission"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 50,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 4,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Trident mâchoire",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "defense 2",
+      "deuxmains",
+      "meurtrier",
+      "orfevrerie",
+      "soumission"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.paire-de-pistolets-ouragan",
+   "cost": 70,
+   "document": {
+    "documentCount": 1,
+    "documentId": "1868304a6711c069",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "1868304a6711c069",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Paire de pistolets ouragan",
+     "system": {
+      "degats": {
+       "dice": 5,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "cadence 3",
+        "deuxmains",
+        "dispersion 3",
+        "fureur",
+        "tirenrafale"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 70,
+      "rarete": "rare",
+      "type": "distance",
+      "violence": {
+       "dice": 6,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Paire de pistolets ouragan",
+   "profiles": [
+    {
+     "damage": {
+      "count": 5,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "cadence 3",
+      "deuxmains",
+      "dispersion 3",
+      "fureur",
+      "tirenrafale"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.stylet-thermique",
+   "cost": 65,
+   "document": {
+    "documentCount": 1,
+    "documentId": "7393c658f3838219",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "7393c658f3838219",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Stylet thermique",
+     "system": {
+      "degats": {
+       "dice": 2,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "assassin 2",
+        "degatscontinus 6",
+        "ignorearmure",
+        "ignorechampdeforce",
+        "lumiere 4",
+        "orfevrerie"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 65,
+      "rarete": "rare",
+      "type": "contact",
+      "violence": {
+       "dice": 0,
+       "fixe": 1
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Stylet thermique",
+   "profiles": [
+    {
+     "damage": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "assassin 2",
+      "degatscontinus 6",
+      "ignorearmure",
+      "ignorechampdeforce",
+      "lumiere 4",
+      "orfevrerie"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 0,
+      "faces": 6,
+      "flat": 1
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.lance-thermique",
+   "cost": 90,
+   "document": {
+    "documentCount": 1,
+    "documentId": "fe08ed4014712c3a",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "fe08ed4014712c3a",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Lance thermique",
+     "system": {
+      "degats": {
+       "dice": 7,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antianatheme",
+        "degatscontinus 6",
+        "deuxmains",
+        "lumiere 4",
+        "orfevrerie",
+        "soumission"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 90,
+      "rarete": "rare",
+      "type": "contact",
+      "violence": {
+       "dice": 4,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Lance thermique",
+   "profiles": [
+    {
+     "damage": {
+      "count": 7,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "antianatheme",
+      "degatscontinus 6",
+      "deuxmains",
+      "lumiere 4",
+      "orfevrerie",
+      "soumission"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.chaine-tronconneuse",
+   "cost": 100,
+   "document": {
+    "documentCount": 1,
+    "documentId": "44fb61ee52ef3dfe",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "44fb61ee52ef3dfe",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Chaîne tronçonneuse",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "cadence 3",
+        "destructeur",
+        "deuxmains",
+        "fureur",
+        "orfevrerie",
+        "soumission"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "courte",
+      "prix": 100,
+      "rarete": "rare",
+      "type": "distance",
+      "violence": {
+       "dice": 6,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Chaîne tronçonneuse",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "cadence 3",
+      "destructeur",
+      "deuxmains",
+      "fureur",
+      "orfevrerie",
+      "soumission"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Courte",
+     "violence": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.fusil-longbow",
+   "cost": 0,
+   "document": null,
+   "name": "Fusil Longbow",
+   "profiles": [
+    {
+     "damage": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "assistanceattaque",
+      "deuxmains",
+      "lourd"
+     ],
+     "id": "munition-0",
+     "name": "Profil de base",
+     "range": "Moyenne",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "effects": [],
+     "id": "munition-1",
+     "name": "Evolution 50PG : effets suppl.",
+     "range": "Moyenne"
+    },
+    {
+     "damage": {
+      "count": 5,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "assistanceattaque",
+      "deuxmains",
+      "lourd"
+     ],
+     "id": "munition-2",
+     "name": "Evolution 50PG : profil de base",
+     "range": "Moyenne",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    },
+    {
+     "effects": [],
+     "id": "munition-3",
+     "name": "Evolution 50PG : suppression lourd",
+     "range": "Moyenne"
+    },
+    {
+     "effects": [],
+     "id": "munition-4",
+     "name": "Evolution 100PG : -2PE par effet de liste (1PE min)",
+     "range": "Moyenne"
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.coups",
+   "cost": 0,
+   "document": {
+    "documentCount": 1,
+    "documentId": "e3c2ed71294dc29a",
+    "pack": "knight-compendium.weapons-standard",
+    "source": {
+     "_id": "e3c2ed71294dc29a",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Coups",
+     "system": {
+      "degats": {
+       "dice": 1,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 0,
+      "rarete": "standard",
+      "type": "contact",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Coups",
+   "profiles": [
+    {
+     "damage": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.fusil-sonique",
+   "cost": 30,
+   "document": {
+    "documentCount": 1,
+    "documentId": "7tMkfOj63SRJ2r6w",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "7tMkfOj63SRJ2r6w",
+     "img": "modules/knight-compendium/assets/weapons/fusil-sonique.webp",
+     "name": "Fusil sonique",
+     "system": {
+      "degats": {
+       "dice": 4,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "choc 1",
+        "deuxmains",
+        "dispersion 3",
+        "obliteration"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "courte",
+      "prix": 30,
+      "rarete": "avance",
+      "type": "distance",
+      "violence": {
+       "dice": 4,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Fusil sonique",
+   "profiles": [
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "choc 1",
+      "deuxmains",
+      "dispersion 3",
+      "obliteration"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Courte",
+     "violence": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.canon-concussion",
+   "cost": 60,
+   "document": {
+    "documentCount": 1,
+    "documentId": "d3a6b52076292422",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "d3a6b52076292422",
+     "img": "modules/knight-compendium/assets/weapons/canon-concussion.webp",
+     "name": "Canon à concussion",
+     "system": {
+      "degats": {
+       "dice": 7,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "choc 1",
+        "deuxmains",
+        "dispersion 6",
+        "lourd",
+        "obliteration"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 60,
+      "rarete": "rare",
+      "type": "distance",
+      "violence": {
+       "dice": 7,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Canon à concussion",
+   "profiles": [
+    {
+     "damage": {
+      "count": 7,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "choc 1",
+      "deuxmains",
+      "dispersion 6",
+      "lourd",
+      "obliteration"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 7,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.ceste-concussion",
+   "cost": 40,
+   "document": {
+    "documentCount": 1,
+    "documentId": "6gdDqDrZglx2mtyh",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "6gdDqDrZglx2mtyh",
+     "img": "modules/knight-compendium/assets/weapons/ceste-concussion.webp",
+     "name": "Ceste à concussion",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "choc 1",
+        "obliteration"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 40,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 3,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Ceste à concussion",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "choc 1",
+      "obliteration"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 3,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.fusil-uv",
+   "cost": 40,
+   "document": {
+    "documentCount": 1,
+    "documentId": "1wm4Vf9baj7wpSJG",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "1wm4Vf9baj7wpSJG",
+     "img": "modules/knight-compendium/assets/weapons/fusil-uv.webp",
+     "name": "Fusil UV",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 5
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antianatheme",
+        "lumiere 2",
+        "tenebricide",
+        "deuxmains"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "courte",
+      "prix": 40,
+      "rarete": "avance",
+      "type": "distance",
+      "violence": {
+       "dice": 4,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Fusil UV",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 5
+     },
+     "effects": [
+      "antianatheme",
+      "lumiere 2",
+      "tenebricide",
+      "deuxmains"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Courte",
+     "violence": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.canon-uv",
+   "cost": 80,
+   "document": {
+    "documentCount": 1,
+    "documentId": "385d01ce83c89ed1",
+    "pack": "knight-compendium.weapons-rare",
+    "source": {
+     "_id": "385d01ce83c89ed1",
+     "img": "modules/knight-compendium/assets/weapons/canon-uv.webp",
+     "name": "Canon UV",
+     "system": {
+      "degats": {
+       "dice": 10,
+       "fixe": 10
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antianatheme",
+        "deuxmains",
+        "lourd",
+        "lumiere 6",
+        "tenebricide"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 80,
+      "rarete": "rare",
+      "type": "distance",
+      "violence": {
+       "dice": 6,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Canon UV",
+   "profiles": [
+    {
+     "damage": {
+      "count": 10,
+      "faces": 6,
+      "flat": 10
+     },
+     "effects": [
+      "antianatheme",
+      "deuxmains",
+      "lourd",
+      "lumiere 6",
+      "tenebricide"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "rare"
+  },
+  {
+   "catalogId": "knight.weapon.lance-de-lumiere",
+   "cost": 60,
+   "document": {
+    "documentCount": 1,
+    "documentId": "qcqyhw6jguQmAQXV",
+    "pack": "knight-compendium.weapons-avance",
+    "source": {
+     "_id": "qcqyhw6jguQmAQXV",
+     "img": "modules/knight-compendium/assets/weapons/lance-de-lumiere.webp",
+     "name": "Lance de lumière",
+     "system": {
+      "degats": {
+       "dice": 8,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antianatheme",
+        "deuxmains",
+        "lumiere 6",
+        "orfevrerie",
+        "tenebricide"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 60,
+      "rarete": "avance",
+      "type": "contact",
+      "violence": {
+       "dice": 4,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Lance de lumière",
+   "profiles": [
+    {
+     "damage": {
+      "count": 8,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "antianatheme",
+      "deuxmains",
+      "lumiere 6",
+      "orfevrerie",
+      "tenebricide"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "avance"
+  },
+  {
+   "catalogId": "knight.weapon.epee-du-sacre-de-charlemagne",
+   "cost": 40,
+   "document": {
+    "documentCount": 1,
+    "documentId": "5447033b86de57de",
+    "pack": "knight-compendium.weapons-espoir",
+    "source": {
+     "_id": "5447033b86de57de",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Épée du sacre de Charlemagne",
+     "system": {
+      "degats": {
+       "dice": 6,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antianatheme",
+        "esperance",
+        "lumiere 4",
+        "tenebricide"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 40,
+      "rarete": "espoir",
+      "type": "contact",
+      "violence": {
+       "dice": 4,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Épée du sacre de Charlemagne",
+   "profiles": [
+    {
+     "damage": {
+      "count": 6,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "antianatheme",
+      "esperance",
+      "lumiere 4",
+      "tenebricide"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 4,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "espoir"
+  },
+  {
+   "catalogId": "knight.weapon.premiere-grande-lance-du-japon",
+   "cost": 60,
+   "document": {
+    "documentCount": 1,
+    "documentId": "056d04bfc40b5383",
+    "pack": "knight-compendium.weapons-espoir",
+    "source": {
+     "_id": "056d04bfc40b5383",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Première grande lance du Japon",
+     "system": {
+      "degats": {
+       "dice": 8,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antianatheme",
+        "esperance",
+        "ignorearmure",
+        "lumiere 2",
+        "tenebricide"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 60,
+      "rarete": "espoir",
+      "type": "contact",
+      "violence": {
+       "dice": 2,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Première grande lance du Japon",
+   "profiles": [
+    {
+     "damage": {
+      "count": 8,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "antianatheme",
+      "esperance",
+      "ignorearmure",
+      "lumiere 2",
+      "tenebricide"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "espoir"
+  },
+  {
+   "catalogId": "knight.weapon.griffes-de-fenrir",
+   "cost": 120,
+   "document": {
+    "documentCount": 1,
+    "documentId": "28ba5b2fb9bed7f2",
+    "pack": "knight-compendium.weapons-prestige",
+    "source": {
+     "_id": "28ba5b2fb9bed7f2",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Griffes de Fenrir",
+     "system": {
+      "degats": {
+       "dice": 8,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "defense 4",
+        "deuxmains",
+        "dispersion 6",
+        "ignorechampdeforce",
+        "reaction 4"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 120,
+      "rarete": "prestige",
+      "type": "distance",
+      "violence": {
+       "dice": 8,
+       "fixe": 6
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Griffes de Fenrir",
+   "profiles": [
+    {
+     "damage": {
+      "count": 8,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "defense 4",
+      "deuxmains",
+      "dispersion 6",
+      "ignorechampdeforce",
+      "reaction 4"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Moyenne",
+     "violence": {
+      "count": 8,
+      "faces": 6,
+      "flat": 6
+     }
+    }
+   ],
+   "rarity": "prestige"
+  },
+  {
+   "catalogId": "knight.weapon.chaine-epee-wyvern",
+   "cost": 150,
+   "document": {
+    "documentCount": 1,
+    "documentId": "4dfc2d52a17fa0e4",
+    "pack": "knight-compendium.weapons-prestige",
+    "source": {
+     "_id": "4dfc2d52a17fa0e4",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Chaîne-épée Wyvern",
+     "system": {
+      "degats": {
+       "dice": 9,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "artillerie",
+        "defense 2",
+        "dispersion 3",
+        "fureur",
+        "ignorearmure",
+        "orfevrerie"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "courte",
+      "prix": 150,
+      "rarete": "prestige",
+      "type": "distance",
+      "violence": {
+       "dice": 9,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Chaîne-épée Wyvern",
+   "profiles": [
+    {
+     "damage": {
+      "count": 9,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "artillerie",
+      "defense 2",
+      "dispersion 3",
+      "fureur",
+      "ignorearmure",
+      "orfevrerie"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Courte",
+     "violence": {
+      "count": 9,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "prestige"
+  },
+  {
+   "catalogId": "knight.weapon.marteau-cinetique-typhon",
+   "cost": 150,
+   "document": {
+    "documentCount": 1,
+    "documentId": "112845c28cdd5aef",
+    "pack": "knight-compendium.weapons-prestige",
+    "source": {
+     "_id": "112845c28cdd5aef",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Marteau cinétique Typhon",
+     "system": {
+      "degats": {
+       "dice": 0,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antivehicule",
+        "deuxmains",
+        "ignorechampdeforce",
+        "leste",
+        "lourd",
+        "dispersion 6"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 150,
+      "rarete": "prestige",
+      "type": "contact",
+      "violence": {
+       "dice": 0,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Marteau cinétique Typhon",
+   "profiles": [
+    {
+     "damage": {
+      "count": 12,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "antivehicule",
+      "deuxmains",
+      "ignorechampdeforce",
+      "leste",
+      "lourd",
+      "dispersion 6"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 6,
+      "faces": 6,
+      "flat": 6
+     }
+    }
+   ],
+   "rarity": "prestige"
+  },
+  {
+   "catalogId": "knight.weapon.pulseur-alpha",
+   "cost": 120,
+   "document": {
+    "documentCount": 1,
+    "documentId": "954402429d33e63f",
+    "pack": "knight-compendium.weapons-prestige",
+    "source": {
+     "_id": "954402429d33e63f",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Pulseur Alpha",
+     "system": {
+      "degats": {
+       "dice": 4,
+       "fixe": 10
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "assistanceattaque",
+        "demoralisant",
+        "deuxmains",
+        "dispersion 6",
+        "fureur",
+        "ignorearmure",
+        "meurtrier",
+        "obliteration"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "longue",
+      "prix": 120,
+      "rarete": "prestige",
+      "type": "distance",
+      "violence": {
+       "dice": 12,
+       "fixe": 10
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Pulseur Alpha",
+   "profiles": [
+    {
+     "damage": {
+      "count": 4,
+      "faces": 6,
+      "flat": 10
+     },
+     "effects": [
+      "assistanceattaque",
+      "demoralisant",
+      "deuxmains",
+      "dispersion 6",
+      "fureur",
+      "ignorearmure",
+      "meurtrier",
+      "obliteration"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Longue",
+     "violence": {
+      "count": 12,
+      "faces": 6,
+      "flat": 10
+     }
+    }
+   ],
+   "rarity": "prestige"
+  },
+  {
+   "catalogId": "knight.weapon.canon-nova",
+   "cost": 120,
+   "document": {
+    "documentCount": 1,
+    "documentId": "02fce8711b40801e",
+    "pack": "knight-compendium.weapons-prestige",
+    "source": {
+     "_id": "02fce8711b40801e",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Canon Nova",
+     "system": {
+      "degats": {
+       "dice": 0,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antianatheme",
+        "barrage 4",
+        "deuxmains",
+        "lumiere 6",
+        "tenebricide"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 120,
+      "rarete": "prestige",
+      "type": "distance",
+      "violence": {
+       "dice": 0,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Canon Nova",
+   "profiles": [
+    {
+     "damage": {
+      "count": 10,
+      "faces": 6,
+      "flat": 6
+     },
+     "effects": [
+      "antianatheme",
+      "barrage 4",
+      "deuxmains",
+      "lumiere 6",
+      "tenebricide"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 10,
+      "faces": 6,
+      "flat": 6
+     }
+    }
+   ],
+   "rarity": "prestige"
+  },
+  {
+   "catalogId": "knight.weapon.seth-canon-intelligent-munition-drones",
+   "cost": 150,
+   "document": {
+    "documentCount": 1,
+    "documentId": "db48239933b039c0",
+    "pack": "knight-compendium.weapons-prestige",
+    "source": {
+     "_id": "db48239933b039c0",
+     "img": "systems/knight/assets/icons/arme.svg",
+     "name": "Seth, canon intelligent à munition drones",
+     "system": {
+      "degats": {
+       "dice": 12,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "antivehicule",
+        "artillerie",
+        "assistanceattaque",
+        "designation",
+        "deuxmains",
+        "dispersion 3",
+        "lourd",
+        "precision",
+        "ultraviolence"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "lointaine",
+      "prix": 150,
+      "rarete": "prestige",
+      "type": "distance",
+      "violence": {
+       "dice": 2,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Seth, canon intelligent à munition drones",
+   "profiles": [
+    {
+     "damage": {
+      "count": 12,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "antivehicule",
+      "artillerie",
+      "assistanceattaque",
+      "designation",
+      "deuxmains",
+      "dispersion 3",
+      "lourd",
+      "precision",
+      "ultraviolence"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Lointaine",
+     "violence": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "prestige"
+  },
+  {
+   "catalogId": "knight.weapon.pistolet-polycalibre",
+   "cost": 0,
+   "document": {
+    "documentCount": 1,
+    "documentId": "VSCCX2zEIZ0gXjzT",
+    "pack": "knight-compendium.adl-armes-1-standard",
+    "source": {
+     "_id": "VSCCX2zEIZ0gXjzT",
+     "img": "modules/knight-compendium/assets/weapons/pistolet-de-service.webp",
+     "name": "Pistolet Polycalibre",
+     "system": {
+      "degats": {
+       "dice": 2,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "fatal"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "moyenne",
+      "prix": 0,
+      "rarete": "standard",
+      "type": "distance",
+      "violence": {
+       "dice": 2,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Pistolet Polycalibre",
+   "profiles": [
+    {
+     "damage": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "fatal"
+     ],
+     "id": "a1",
+     "name": "Tir",
+     "range": "Moyenne",
+     "violence": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  },
+  {
+   "catalogId": "knight.weapon.lame-polymorphique",
+   "cost": 0,
+   "document": {
+    "documentCount": 1,
+    "documentId": "t1xJY3DUD0fDZdTj",
+    "pack": "knight-compendium.adl-armes-1-standard",
+    "source": {
+     "_id": "t1xJY3DUD0fDZdTj",
+     "img": "modules/knight-compendium/assets/weapons/couteau-de-combat.webp",
+     "name": "Lame Polymorphique",
+     "system": {
+      "degats": {
+       "dice": 2,
+       "fixe": 0
+      },
+      "description": "<p>(prose omitted)</p>",
+      "effets": {
+       "custom": [],
+       "liste": [],
+       "raw": [
+        "silencieux",
+        "fatal"
+       ]
+      },
+      "effets2mains": {
+       "custom": [],
+       "liste": [],
+       "raw": []
+      },
+      "options2mains": {
+       "1main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "2main": {
+        "degats": {
+         "dice": 0,
+         "fixe": 0
+        },
+        "violence": {
+         "dice": 0,
+         "fixe": 0
+        }
+       },
+       "actuel": "1main",
+       "has": false
+      },
+      "optionsmunitions": {
+       "actuel": "0",
+       "has": false,
+       "liste": {},
+       "value": 1
+      },
+      "portee": "contact",
+      "prix": 0,
+      "rarete": "standard",
+      "type": "contact",
+      "violence": {
+       "dice": 1,
+       "fixe": 0
+      }
+     },
+     "type": "arme"
+    }
+   },
+   "name": "Lame Polymorphique",
+   "profiles": [
+    {
+     "damage": {
+      "count": 2,
+      "faces": 6,
+      "flat": 0
+     },
+     "effects": [
+      "silencieux",
+      "fatal"
+     ],
+     "id": "a1",
+     "name": "Contact",
+     "range": "Contact",
+     "violence": {
+      "count": 1,
+      "faces": 6,
+      "flat": 0
+     }
+    }
+   ],
+   "rarity": "standard"
+  }
+ ]
+}

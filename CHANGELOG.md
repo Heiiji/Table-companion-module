@@ -10,6 +10,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Combats started or changed in Foundry now reach the companion apps: the module tells the backend when Combats change, and the backend reads every Combat of the world (turn order, active combatant, initiatives) through the signed-only `combat.state.v1` read.
 - The combat mirror (`combat.sync.v1`) can take over a Combat started in Foundry and its combatants instead of creating a second one; an app entry without an Actor no longer clears a combatant's Actor or token, and an initiative the app only rounded keeps Foundry's value.
 
+### Changed
+- Knight weapons added from the app are copied from the Knight Compendium whenever it holds them, keeping their image, every one-/two-hand or ammunition mode, effects, rarity and cost; only values the copy lacks (empty dice, effects or description) come from the app, and a built weapon now carries its effects, rarity, cost and description (capability `actorItemsWeaponDetailsV1`).
+
 ## [0.34.0] - 2026-11-16
 
 ### Added

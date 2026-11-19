@@ -232,7 +232,7 @@ describe("actor.items.v1 validation", () => {
       add: {
         entryId: ENTRY,
         kind: "weapon",
-        source: { custom: true },
+        source: { live: { pack: "", docId: WORLD_ITEM } },
         item: { name: "Fusil", description: "x" },
       },
     });

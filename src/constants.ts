@@ -105,6 +105,12 @@ export const CAP_ACTOR_RESOURCES_WEAR = "actorResourcesWearV1";
  * advertises it. NOT a procedure name — it has no handler. */
 export const CAP_ACTOR_ITEMS_ARMOUR = "actorItemsArmourV1";
 
+/** Capability token advertised alongside `actor.items.v1`: this build accepts
+ * a weapon's `rarity`, `cost` and `description` and each attack's `effects`,
+ * and copies every crosswalked compendium weapon. Apps send those keys only
+ * when the world advertises it. NOT a procedure name — it has no handler. */
+export const CAP_ACTOR_ITEMS_WEAPON_DETAILS = "actorItemsWeaponDetailsV1";
+
 /** Capability token advertised alongside `actor.resources.v1`: this build
  * accepts `actorType` "pnj", "creature", "bande" or "vehicule" on that
  * procedure (health, armour and energy currents on the Actor's own pools) and

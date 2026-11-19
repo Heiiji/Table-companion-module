@@ -9,6 +9,7 @@ import {
   type DiceV1,
   type AttackProfileV1,
   PRINTED_RANGES,
+  RARITIES,
 } from "./actorItems.validate.js";
 
 // ------------------------------------------------- the app's read of an Item
@@ -101,11 +102,24 @@ function readDice(node: unknown): DiceV1 | undefined {
   return count <= 0 && flat <= 0 ? undefined : { count, faces: 6, flat };
 }
 
+/** The raw effect tokens at `path`, strings only. */
+function rawAt(system: unknown, path: string): string[] {
+  const raw = at(system, path);
+  return Array.isArray(raw)
+    ? raw.filter((t): t is string => typeof t === "string")
+    : [];
+}
+
+const tokenSet = (tokens: string[]) => [...new Set(tokens)].sort();
+
 /** An `arme` Item's attacks exactly as the app's weapon snapshot encodes them:
- * one-/two-hand profiles, ammunition profiles, else the flat dice. */
+ * one-/two-hand profiles, ammunition profiles, else the flat dice. With
+ * `withEffects`, each carries its sorted effect tokens: the hand's own list,
+ * or the weapon's list plus the ammunition's. */
 export function readWeaponAttacks(
   system: unknown,
   name: string,
+  withEffects = false,
 ): AttackProfileV1[] {
   const portee = at(system, "portee");
   const printed =
@@ -114,7 +128,12 @@ export function readWeaponAttacks(
     printed && Object.hasOwn(PRINTED_RANGES, printed)
       ? PRINTED_RANGES[printed]
       : printed;
-  const attack = (id: string, n: string, node: unknown): AttackProfileV1 => {
+  const attack = (
+    id: string,
+    n: string,
+    node: unknown,
+    effects: string[],
+  ): AttackProfileV1 => {
     const damage = readDice(at(node, "degats"));
     const violence = readDice(at(node, "violence"));
     return {
@@ -123,15 +142,22 @@ export function readWeaponAttacks(
       ...(range ? { range } : {}),
       ...(damage ? { damage } : {}),
       ...(violence ? { violence } : {}),
+      ...(withEffects ? { effects: tokenSet(effects) } : {}),
     };
   };
+  const base = rawAt(system, "effets.raw");
   const type = at(system, "type");
   const kind = typeof type === "string" ? type : "contact";
   const liste = at(system, "optionsmunitions.liste");
   if (kind === "contact" && at(system, "options2mains.has") === true)
     return [
-      attack("1main", "Une main", at(system, "options2mains.1main")),
-      attack("2main", "Deux mains", at(system, "options2mains.2main")),
+      attack("1main", "Une main", at(system, "options2mains.1main"), base),
+      attack(
+        "2main",
+        "Deux mains",
+        at(system, "options2mains.2main"),
+        rawAt(system, "effets2mains.raw"),
+      ),
     ];
   if (
     kind === "distance" &&
@@ -146,16 +172,60 @@ export function readWeaponAttacks(
         const nom = at(liste[k], "nom");
         const label =
           typeof nom === "string" && nom.trim() ? nom.trim() : `Munition ${k}`;
-        return attack(`munition-${k}`, label, liste[k]);
+        return attack(`munition-${k}`, label, liste[k], [
+          ...base,
+          ...rawAt(liste[k], "raw"),
+        ]);
       });
   }
-  return [attack("primary", name, system)];
+  return [attack("primary", name, system, base)];
 }
 
 export function readFields(item: ItemDoc, kind: ItemKind): ItemFieldsV1 {
   if (kind === "module") return readModule(item);
   const name = itemName(item, "weapon");
-  return { name, profiles: readWeaponAttacks(item.system, name) };
+  const rarete = at(item.system, "rarete");
+  return {
+    name,
+    profiles: readWeaponAttacks(item.system, name, true),
+    rarity:
+      typeof rarete === "string" && RARITIES.includes(rarete)
+        ? rarete
+        : "standard",
+    cost: intValue(at(item.system, "prix")) ?? 0,
+  };
+}
+
+/** Read profiles as compared with `value`: a profile the app sends without
+ * `effects` ignores the Item's (an older app compares as before); with
+ * `effects`, both sides compare as sorted sets. */
+function comparable(
+  read: unknown,
+  value: unknown,
+): { read: unknown; value: unknown } {
+  if (!Array.isArray(read) || !Array.isArray(value)) return { read, value };
+  return {
+    read: read.map((r: Dict, i) => {
+      const v: unknown = value[i];
+      if (isDict(v) && v.effects !== undefined) return r;
+      const rest = { ...r };
+      delete rest.effects;
+      return rest;
+    }),
+    value: value.map((v: unknown) =>
+      isDict(v) && Array.isArray(v.effects)
+        ? { ...v, effects: tokenSet(v.effects as string[]) }
+        : v,
+    ),
+  };
+}
+
+/** Whether a read field equals the app's value (`profiles` per
+ * `comparable`). */
+export function sameField(key: string, read: unknown, value: unknown) {
+  if (key !== "profiles") return sameValue(read, value);
+  const c = comparable(read, value);
+  return sameValue(c.read, c.value);
 }
 
 export function sameValue(a: unknown, b: unknown): boolean {
@@ -193,13 +263,14 @@ export function holds(
     const read = current.profiles as AttackProfileV1[];
     return (
       read.length === 1 &&
-      sameValue(
-        { ...read[0], id: "primary", name: "" },
-        { ...(value[0] as AttackProfileV1), id: "primary", name: "" },
+      sameField(
+        key,
+        [{ ...read[0], id: "primary", name: "" }],
+        [{ ...(value[0] as AttackProfileV1), id: "primary", name: "" }],
       )
     );
   }
-  return sameValue(current[key], value);
+  return sameField(key, current[key], value);
 }
 
 // ------------------------------------------------------------ the armour
