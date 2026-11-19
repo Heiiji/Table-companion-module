@@ -4,6 +4,12 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Combats started or changed in Foundry now reach the companion apps: the module reports every Combat of the world (turn order, active combatant, initiatives) on each change, and offers it as the `combat.state.v1` capability.
+- The combat mirror (`combat.sync.v1`) can take over a Combat started in Foundry and its combatants instead of creating a second one; an app entry without an Actor no longer clears a combatant's Actor or token, and an initiative the app only rounded keeps Foundry's value.
+
 ## [0.34.0] - 2026-11-16
 
 ### Added

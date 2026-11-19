@@ -35,7 +35,11 @@ const NEVER_ADVERTISED = [
 
 // Every system on Foundry 13 or later: the floor plus the core-document combat
 // mirror (Combat and Combatant are not system-specific).
-const MODERN_CAPABILITIES = ["combat.sync.v1", ...BASE_CAPABILITIES].sort();
+const MODERN_CAPABILITIES = [
+  "combat.state.v1",
+  "combat.sync.v1",
+  ...BASE_CAPABILITIES,
+].sort();
 
 const KNIGHT_ONLY_MUTATIONS = [
   "actor.items.v1",
@@ -183,6 +187,7 @@ describe("ProcedureRegistry", () => {
       ]);
       expect(registry.isSignedOnly("pf2e.resources.v1")).toBe(true);
       expect(registry.unsupported()).toEqual({
+        "combat.state.v1": "combat mirroring is not available on pf2e",
         "combat.sync.v1": "combat mirroring is not available on pf2e",
         "pf2e.actor.upsert.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.6.1 or a later 8.x on Foundry 14`,
         "pf2e.actor.complete.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.6.1 or a later 8.x on Foundry 14`,
@@ -270,6 +275,7 @@ describe("ProcedureRegistry", () => {
         ["actor.image.v1", "pf2e.card.v1", ...PF2E_LANES].sort(),
       );
       expect(registry.unsupported(), version).toEqual({
+        "combat.state.v1": "combat mirroring is not available on pf2e",
         "combat.sync.v1": "combat mirroring is not available on pf2e",
         "pf2e.check.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.5.1 or a later 8.x on Foundry 14 with game.pf2e.Check`,
         "pf2e.reroll.v1": `pf2e ${version} on Foundry 14; requires pf2e 8.5.1 or a later 8.x on Foundry 14 with game.pf2e.Check.rerollFromMessage`,
@@ -637,6 +643,8 @@ describe("ProcedureRegistry", () => {
       registerBuiltinProcedures(registry);
       expect(registry.capabilities(), id).toContain("combat.sync.v1");
       expect(registry.isSignedOnly("combat.sync.v1"), id).toBe(true);
+      expect(registry.capabilities(), id).toContain("combat.state.v1");
+      expect(registry.isSignedOnly("combat.state.v1"), id).toBe(false);
     }
     vi.stubGlobal("game", {
       system: { id: "dnd5e" },
@@ -646,6 +654,9 @@ describe("ProcedureRegistry", () => {
     registerBuiltinProcedures(old);
     expect(old.capabilities()).not.toContain("combat.sync.v1");
     expect(old.unsupported()["combat.sync.v1"]).toBe(
+      "Foundry 12; requires Foundry 13 or later",
+    );
+    expect(old.unsupported()["combat.state.v1"]).toBe(
       "Foundry 12; requires Foundry 13 or later",
     );
   });
@@ -658,6 +669,10 @@ describe("ProcedureRegistry", () => {
       expect(registry.capabilities(), id).not.toContain("combat.sync.v1");
       expect(registry.mutations(), id).toEqual(["actor.image.v1"]);
       expect(registry.unsupported()["combat.sync.v1"], id).toBe(
+        `combat mirroring is not available on ${id}`,
+      );
+      expect(registry.capabilities(), id).not.toContain("combat.state.v1");
+      expect(registry.unsupported()["combat.state.v1"], id).toBe(
         `combat mirroring is not available on ${id}`,
       );
     }

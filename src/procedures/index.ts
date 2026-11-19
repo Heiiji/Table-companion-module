@@ -34,6 +34,7 @@ import {
   supportsCombatSyncV1Runtime,
   combatSyncRefusedSystem,
 } from "./combatSync.js";
+import { combatStateV1 } from "./combatSyncState.js";
 import {
   DND5E_RESOURCES_REQUIREMENT,
   KNIGHT_UPSERT_SYSTEM_VERSION_LABEL,
@@ -90,17 +91,23 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
       kind: "mutation",
       signedOnly: true,
     });
+    // The way back: every Combat of the world as the apps read it, pushed on
+    // each change and read on demand. A read, so not signed-only. Its presence
+    // also says combat.sync.v1 adopts an existing Combat.
+    registry.register("combat.state.v1", combatStateV1, { kind: "read" });
   } else if (combatSyncRefusedSystem()) {
     // The backend never writes to these worlds: say so rather than promise it.
-    registry.markUnsupported(
-      "combat.sync.v1",
-      `combat mirroring is not available on ${systemId()}`,
-    );
+    for (const name of ["combat.sync.v1", "combat.state.v1"])
+      registry.markUnsupported(
+        name,
+        `combat mirroring is not available on ${systemId()}`,
+      );
   } else if (foundryGeneration() > 0) {
-    registry.markUnsupported(
-      "combat.sync.v1",
-      `Foundry ${foundryGeneration()}; requires Foundry ${MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION} or later`,
-    );
+    for (const name of ["combat.sync.v1", "combat.state.v1"])
+      registry.markUnsupported(
+        name,
+        `Foundry ${foundryGeneration()}; requires Foundry ${MINIMUM_COMBAT_SYNC_FOUNDRY_GENERATION} or later`,
+      );
   }
   // Consequential, signed-response-only actor provisioning: `signedOnly` keeps
   // them unadvertised and refused on a responder that cannot sign its replies,

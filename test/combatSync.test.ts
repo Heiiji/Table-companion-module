@@ -5,6 +5,7 @@ import {
   type CombatSyncResultV1,
   type CombatSyncV1,
 } from "../src/procedures/combatSync.js";
+import { combatStateV1Snapshot } from "../src/procedures/combatSyncState.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
 import { applyUpdate } from "./support/actorUpsertHarness.js";
@@ -632,5 +633,225 @@ describe("combat.sync.v1", () => {
       "invalid_args",
     );
     expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe("combat.sync.v1 adopting a Combat started in Foundry", () => {
+  const OTHER_SCENE = {
+    id: "scene00000000002",
+    tokens: { contents: [{ id: "tokenHero0000002", actorId: HERO }] },
+  };
+
+  /** A Combat the GM started in Foundry, on a scene the responder tab does
+   * not view: a linked hero with its token and an NPC Actor of no app sheet. */
+  function foundryCombat(): FakeCombat {
+    const combat = new FakeCombat({}, OTHER_SCENE as typeof SCENE);
+    combat.list.push(
+      {
+        id: "cbtHero000000001",
+        name: "Hero",
+        initiative: 14.5,
+        hidden: false,
+        actorId: HERO,
+        tokenId: "tokenHero0000002",
+        flags: {},
+      },
+      {
+        id: "cbtOrc0000000001",
+        name: "Orc",
+        initiative: 9,
+        hidden: true,
+        actorId: "actorOrcNpc00001",
+        tokenId: "tokenOrc00000001",
+        flags: {},
+      },
+    );
+    combat.setupTurns();
+    combat.round = 1;
+    combat.turn = 0;
+    combats.push(combat);
+    return combat;
+  }
+
+  /** The app's request after adopting it: a bound hero, the orc as a plain
+   * entry (no Actor), both born from Foundry combatants. */
+  function adoption(combat: FakeCombat, overrides: Partial<CombatSyncV1> = {}) {
+    return request({
+      foundryCombatId: combat.id,
+      activeKey: "hero-entry",
+      combatants: [
+        {
+          key: "hero-entry",
+          actorId: HERO,
+          name: "Hero",
+          initiative: 15,
+          hidden: false,
+          foundryCombatantId: "cbtHero000000001",
+        },
+        {
+          key: "orc-entry",
+          actorId: null,
+          name: "Orc",
+          initiative: 9,
+          hidden: true,
+          foundryCombatantId: "cbtOrc0000000001",
+        },
+      ],
+      ...overrides,
+    });
+  }
+
+  it("keys the existing Combat and combatants in place, on any scene, without touching their links", async () => {
+    stub();
+    const combat = foundryCombat();
+    const result = await apply(adoption(combat));
+
+    expect(create).not.toHaveBeenCalled();
+    expect(combats).toEqual([combat]);
+    expect(result).toMatchObject({
+      resultDocId: combat.id,
+      outcome: "updated",
+      appliedRevision: 1,
+      warnings: [],
+    });
+    expect(combat.list).toHaveLength(2);
+    expect(combat.list.map(keyOf)).toEqual(["hero-entry", "orc-entry"]);
+    // The NPC sent as a plain entry keeps its Actor and token; the hero its
+    // token on the other scene; 14.5 survives the app's rounded 15.
+    expect(combat.list[0]).toMatchObject({
+      actorId: HERO,
+      tokenId: "tokenHero0000002",
+      initiative: 14.5,
+    });
+    expect(combat.list[1]).toMatchObject({
+      actorId: "actorOrcNpc00001",
+      tokenId: "tokenOrc00000001",
+      hidden: true,
+    });
+    expect((combat.flags[MODULE_ID] as Dict).combatSync).toMatchObject({
+      combatId: request().combatId,
+      appliedRevision: 1,
+    });
+    expect(combat.updates.at(-1)?.changes).toMatchObject({ round: 1, turn: 0 });
+
+    // The next sequence finds it by its flag; no second combatant appears.
+    await apply(adoption(combat, { sequence: 2, round: 2 }));
+    expect(combat.list).toHaveLength(2);
+    expect(combat.round).toBe(2);
+  });
+
+  it("adds an app entry next to the adopted ones and sets a new initiative", async () => {
+    stub();
+    const combat = foundryCombat();
+    const req = adoption(combat);
+    req.combatants[0].initiative = 20;
+    req.combatants.push({
+      key: "goblin",
+      actorId: null,
+      name: "Goblin",
+      initiative: 3,
+      hidden: false,
+    });
+    await apply(req);
+    expect(combat.list).toHaveLength(3);
+    expect(combat.list[0].initiative).toBe(20);
+    expect(combat.list.find((c) => keyOf(c) === "goblin")).toMatchObject({
+      name: "Goblin",
+      actorId: null,
+    });
+  });
+
+  it("refuses a Combat that is gone or mirrors another app combat", async () => {
+    stub();
+    const combat = foundryCombat();
+    const req = adoption(combat);
+    await combat.delete();
+    expect(await rpcCode(apply(req))).toBe("not_found");
+    expect(create).not.toHaveBeenCalled();
+
+    stub();
+    const taken = foundryCombat();
+    taken.flags = {
+      [MODULE_ID]: { combatSync: { schemaVersion: 1, combatId: "another" } },
+    };
+    expect(await rpcCode(apply(adoption(taken)))).toBe("binding_conflict");
+    expect(taken.updates).toEqual([]);
+  });
+
+  it("deletes the adopted Combat when the app ends it before it was keyed", async () => {
+    stub();
+    const combat = foundryCombat();
+    const result = await apply(
+      adoption(combat, { state: "ended", activeKey: null, combatants: [] }),
+    );
+    expect(combat.deleted).toBe(true);
+    expect(result).toMatchObject({
+      outcome: "deleted",
+      resultDocId: combat.id,
+    });
+  });
+
+  it("validates the adoption fields and leaves an old-shape request's digest alone", async () => {
+    const bad = request({ foundryCombatId: "short" });
+    expect(() => validateCombatSyncV1(bad)).toThrow(RpcError);
+    const entry = {
+      ...request().combatants[0],
+      foundryCombatantId: "x".repeat(17),
+    };
+    expect(() =>
+      validateCombatSyncV1(request({ combatants: [entry] })),
+    ).toThrow(RpcError);
+    expect("foundryCombatId" in validateCombatSyncV1(request())).toBe(false);
+    expect(
+      "foundryCombatantId" in validateCombatSyncV1(request()).combatants[0],
+    ).toBe(false);
+  });
+});
+
+describe("combat.state.v1 after the mirror wrote (echo)", () => {
+  it("names the app combat, the applied sequence and the entry keys of its own Combat", async () => {
+    stub();
+    await apply(request());
+    await apply(request({ sequence: 2, activeKey: "hero" }));
+    const combat = combats[0];
+    const [state] = combatStateV1Snapshot().combats;
+    expect(state).toMatchObject({
+      id: combat.id,
+      round: 1,
+      appCombatId: request().combatId,
+      appliedSequence: 2,
+    });
+    // Foundry's order, the active one by id, every entry keyed.
+    expect(state.combatants.map((c) => c.appKey)).toEqual([
+      "hero",
+      "dragon",
+      "goblin",
+    ]);
+    expect(state.activeCombatantId).toBe(
+      combat.list.find((c) => keyOf(c) === "hero")!.id,
+    );
+  });
+
+  it("names the app combat from the create itself, before any combatant", async () => {
+    stub();
+    let seen: unknown;
+    vi.stubGlobal("Combat", {
+      implementation: {
+        create: async (data: Dict) => {
+          const made = await (
+            create as unknown as (d: Dict) => Promise<FakeCombat>
+          )(data);
+          seen = combatStateV1Snapshot().combats[0];
+          return made;
+        },
+      },
+    });
+    await apply(request());
+    expect(seen).toMatchObject({
+      round: 0,
+      appCombatId: request().combatId,
+      appliedSequence: null,
+      combatants: [],
+    });
   });
 });

@@ -211,6 +211,11 @@ type ApplicationV2Class = new (options?: unknown) => {
 export interface CombatantLike {
   id?: string;
   _id?: string;
+  name?: string;
+  actorId?: string | null;
+  tokenId?: string | null;
+  initiative?: number | null;
+  hidden?: boolean;
   flags?: Dict;
   getFlag?(namespace: string, key: string): unknown;
 }
@@ -224,6 +229,10 @@ export interface CombatLike {
   combatants?: { contents?: CombatantLike[] } | Iterable<CombatantLike>;
   turns?: CombatantLike[];
   turn?: number | null;
+  round?: number;
+  active?: boolean;
+  /** The combatant whose turn it is (`turns[turn]`). */
+  combatant?: CombatantLike | null;
   getFlag?(namespace: string, key: string): unknown;
   setupTurns?(): CombatantLike[];
   update(changes: Dict, options?: Dict): Promise<unknown>;
@@ -250,6 +259,7 @@ export interface SceneLike {
 /** `game.combats`: exposes `contents`, is iterable, or both. */
 interface CombatsLike {
   contents?: CombatLike[];
+  get?(id: string): CombatLike | undefined;
   [Symbol.iterator]?(): Iterator<CombatLike>;
 }
 

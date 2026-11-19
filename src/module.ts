@@ -13,6 +13,7 @@ import {
 } from "./foundry/runtime.js";
 import { registerBuiltinProcedures } from "./procedures/index.js";
 import { scheduleCompendiumWarmup } from "./procedures/compendium.js";
+import { startCombatStateWatcher } from "./procedures/combatSyncState.js";
 import { startDisplayListener } from "./procedures/display.js";
 import { stripDuplicatedBinding } from "./procedures/upsertShared.js";
 import { Channel } from "./rpc/channel.js";
@@ -173,6 +174,9 @@ Hooks.once("ready", () => {
   // for GM election and for procedures that touch documents.
   channel?.start();
   if (channel) startPresenceWatcher(channel);
+  // GM clients: the Combats of the world pushed to the backend on each change
+  // (only the elected responder ever sends).
+  if (channel && game.user?.isGM) startCombatStateWatcher(channel);
   // Every client listens for player-facing projector broadcasts (the responder
   // renders locally and rebroadcasts; peers render here). Inert until a display is
   // pushed — no-op on standalone tables and tables that never use the feature.
