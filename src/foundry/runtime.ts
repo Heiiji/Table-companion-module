@@ -273,11 +273,29 @@ interface CombatFactoryLike {
   create(data: Dict, options?: Dict): Promise<unknown>;
 }
 
+export interface JournalPageLike {
+  id: string;
+  name: string;
+  type: string;
+  src?: string | null;
+  text?: { content?: string; format?: number };
+  image?: { caption?: string };
+  _stats?: { modifiedTime?: number | null; createdTime?: number | null };
+  getFlag(scope: string, key: string): unknown;
+  update(data: Dict): Promise<unknown>;
+}
+export interface JournalEntryLike {
+  id: string;
+  pages: { get(id: string): JournalPageLike | undefined };
+  _stats?: JournalPageLike["_stats"];
+}
+
 /** The slice of `game` this module reads. */
 interface GameLike {
   user?: UserLike;
   users?: UsersLike;
   actors?: ActorsLike;
+  journal?: { get(id: string): JournalEntryLike | undefined };
   combats?: CombatsLike;
   scenes?: { viewed?: SceneLike | null };
   packs?: CompendiumPacksLike;
@@ -309,6 +327,7 @@ export interface Pf2eConditionManagerLike {
 
 /** Foundry's FilePicker class, as far as saving a file into the user data. */
 export interface FilePickerLike {
+  browse?(source: string, target: string): Promise<{ files?: string[] }>;
   /** Resolves the server's response (`path` set on success), `false`,
    * `undefined` or `{}` on a failure (it does not throw). */
   upload(
@@ -330,6 +349,11 @@ interface FoundryGlobals {
   game?: GameLike;
   /** The rendered canvas; its `tokens` layer is a structural view per caller. */
   canvas?: { tokens?: unknown };
+  JournalEntry?: {
+    implementation?: {
+      create(data: Dict, options: Dict): Promise<JournalEntryLike | undefined>;
+    };
+  };
   Actor?: { implementation?: ActorFactoryLike };
   Combat?: { implementation?: CombatFactoryLike };
   ChatMessage?: { implementation?: ChatMessageFactoryLike };
@@ -418,6 +442,10 @@ export function worldId(): string {
 
 export function gameUsers(): UsersLike | undefined {
   return foundryGame()?.users;
+}
+
+export function journalImplementation() {
+  return globals().JournalEntry?.implementation;
 }
 
 export function gameActors(): ActorsLike | undefined {

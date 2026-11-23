@@ -7,6 +7,12 @@ import {
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 
+import {
+  decodeUploadChunk,
+  ensureUploadDirectory,
+  sha256Hex,
+} from "../util/fileUpload.js";
+
 /**
  * A character image sent from the app becomes a world Actor's `img`
  * (`actor.image.v1`). The backend relays the JPEG in chunks, each a signed
@@ -25,7 +31,6 @@ import type { Procedure } from "../rpc/registry.js";
  */
 
 const MAX_BYTES = 1_048_576;
-const MAX_CHUNK_BYTES = 30_720;
 /** Uploads held at once; a further `begin` drops the oldest. */
 const MAX_UPLOADS = 2;
 /** An upload is dropped this long after its last op. */
@@ -38,7 +43,6 @@ const DIRECTORY = "table-companion/portraits";
 const UPLOAD_ID = /^[A-Za-z0-9_-]{16,64}$/;
 const ACTOR_ID = /^[A-Za-z0-9]{16}$/;
 const SHA256_HEX = /^[0-9a-f]{64}$/;
-const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
 const MODES = ["set", "ifPlaceholder"] as const;
 type Mode = (typeof MODES)[number];
 
@@ -147,43 +151,6 @@ function held(uploadId: string): Upload {
   return u;
 }
 
-function decodeBase64(data: unknown): Uint8Array | undefined {
-  if (
-    typeof data !== "string" ||
-    data.length === 0 ||
-    data.length % 4 !== 0 ||
-    data.length > (MAX_CHUNK_BYTES / 3) * 4 ||
-    !BASE64.test(data)
-  )
-    return undefined;
-  try {
-    return Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-  } catch {
-    return undefined;
-  }
-}
-
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
-  return Array.from(new Uint8Array(digest), (b) =>
-    b.toString(16).padStart(2, "0"),
-  ).join("");
-}
-
-/** Create `dir` and its parent; an existing directory (or any refusal) is
- * left to the upload, which fails if the directory is really missing. */
-async function ensureDirectory(dir: string): Promise<void> {
-  const picker = filePickerClass();
-  const parent = dir.slice(0, dir.lastIndexOf("/"));
-  for (const target of [parent, dir]) {
-    try {
-      await picker?.createDirectory("data", target, {});
-    } catch {
-      // « already exists » is the common case
-    }
-  }
-}
-
 function begin(p: Record<string, unknown>, now: number) {
   fields(p, ["op", "uploadId", "actorId", "byteCount", "sha256", "mode"]);
   const uploadId = matching(p.uploadId, UPLOAD_ID, "uploadId");
@@ -218,7 +185,7 @@ function chunk(p: Record<string, unknown>, now: number) {
   fields(p, ["op", "uploadId", "index", "data"]);
   const uploadId = matching(p.uploadId, UPLOAD_ID, "uploadId");
   const u = held(uploadId);
-  const bytes = decodeBase64(p.data);
+  const bytes = decodeUploadChunk(p.data);
   if (
     p.index !== u.next ||
     !bytes ||
@@ -255,7 +222,7 @@ async function commit(p: Record<string, unknown>) {
   if (!world || !picker)
     refuse("upload_failed", "Foundry's file picker or world id is unavailable");
   const dir = `worlds/${world}/${DIRECTORY}`;
-  await ensureDirectory(dir);
+  await ensureUploadDirectory(dir);
   const name = `${u.actorId}-${u.sha256.slice(0, 16)}.jpg`;
   let result: unknown;
   try {

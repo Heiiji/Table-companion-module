@@ -19,6 +19,8 @@ import { dnd5eResourcesV1 } from "./dnd5eResources.js";
 import { pf2eActorUpsertV1 } from "./pf2eActorUpsert.js";
 import { pf2eActorCompleteV1 } from "./pf2eActorComplete.js";
 import { pf2eResourcesV1 } from "./pf2eResources.js";
+import { journalAssetV1 } from "./journalAsset.js";
+import { journalUpsertV1 } from "./journalUpsert.js";
 import { actorImageV1 } from "./actorImage.js";
 import { pf2eCheckV1, supportsPf2eCheckV1Runtime } from "./pf2eCheck.js";
 import { pf2eCardV1, supportsPf2eCardV1Runtime } from "./pf2eCard.js";
@@ -75,6 +77,14 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   // it opens a popout on connected browsers and writes no document.
   registry.register("display.show", displayShow, { kind: "clientState" });
   registry.register("display.clear", displayClear, { kind: "clientState" });
+  registry.register("journal.upsert.v1", journalUpsertV1, {
+    kind: "mutation",
+    signedOnly: true,
+  });
+  registry.register("journal.asset.v1", journalAssetV1, {
+    kind: "mutation",
+    signedOnly: true,
+  });
   // A character image sent from the app becomes the Actor's image: core
   // `Actor.img`, so every system. Signed-only like the other writes; it saves
   // a file in this world's folder.

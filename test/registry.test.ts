@@ -10,12 +10,14 @@ import {
 // These touch no system-specific schema (core Roll API, compendium passthrough,
 // a projector popout, the core Actor image), so there is nothing to verify per
 // system.
+const JOURNAL_MUTATIONS = ["journal.asset.v1", "journal.upsert.v1"];
 const BASE_CAPABILITIES = [
   "actor.image.v1",
   "compendium.get",
   "compendium.index",
   "display.clear",
   "display.show",
+  ...JOURNAL_MUTATIONS,
   "ping",
   "presence",
   "roll.execute",
@@ -77,6 +79,7 @@ const MUTATION_PROCEDURES = [
   "actor.resources.v1",
   "actor.upsert.v1",
   "combat.sync.v1",
+  ...JOURNAL_MUTATIONS,
   "knight.attack.v1",
   "knight.followup.v1",
   "knight.test.v1",
@@ -182,6 +185,7 @@ describe("ProcedureRegistry", () => {
       );
       expect(registry.mutations()).toEqual([
         "actor.image.v1",
+        ...JOURNAL_MUTATIONS,
         "pf2e.card.v1",
         "pf2e.resources.v1",
       ]);
@@ -272,7 +276,12 @@ describe("ProcedureRegistry", () => {
         true,
       );
       expect(registry.mutations(), version).toEqual(
-        ["actor.image.v1", "pf2e.card.v1", ...PF2E_LANES].sort(),
+        [
+          "actor.image.v1",
+          ...JOURNAL_MUTATIONS,
+          "pf2e.card.v1",
+          ...PF2E_LANES,
+        ].sort(),
       );
       expect(registry.unsupported(), version).toEqual({
         "combat.state.v1": "combat mirroring is not available on pf2e",
@@ -380,6 +389,7 @@ describe("ProcedureRegistry", () => {
         "actor.image.v1",
         "combat.sync.v1",
         "dnd5e.resources.v1",
+        ...JOURNAL_MUTATIONS,
       ]);
       expect(registry.unsupported(), version).toEqual({});
     }
@@ -510,6 +520,7 @@ describe("ProcedureRegistry", () => {
     registerBuiltinProcedures(pf2e);
     expect(pf2e.mutations()).toEqual([
       "actor.image.v1",
+      ...JOURNAL_MUTATIONS,
       "pf2e.actor.complete.v1",
       "pf2e.actor.upsert.v1",
       "pf2e.card.v1",
@@ -527,11 +538,15 @@ describe("ProcedureRegistry", () => {
       expect(other.mutations(), id).toEqual([
         "actor.image.v1",
         "combat.sync.v1",
+        ...JOURNAL_MUTATIONS,
       ]);
       vi.stubGlobal("game", { system: { id } });
       const unknown = new ProcedureRegistry();
       registerBuiltinProcedures(unknown);
-      expect(unknown.mutations(), id).toEqual(["actor.image.v1"]);
+      expect(unknown.mutations(), id).toEqual([
+        "actor.image.v1",
+        ...JOURNAL_MUTATIONS,
+      ]);
     }
   });
 
@@ -673,7 +688,10 @@ describe("ProcedureRegistry", () => {
       const registry = new ProcedureRegistry();
       registerBuiltinProcedures(registry);
       expect(registry.capabilities(), id).not.toContain("combat.sync.v1");
-      expect(registry.mutations(), id).toEqual(["actor.image.v1"]);
+      expect(registry.mutations(), id).toEqual([
+        "actor.image.v1",
+        ...JOURNAL_MUTATIONS,
+      ]);
       expect(registry.unsupported()["combat.sync.v1"], id).toBe(
         `combat mirroring is not available on ${id}`,
       );
