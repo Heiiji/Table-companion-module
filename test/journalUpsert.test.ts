@@ -52,6 +52,12 @@ beforeEach(() => {
       pages: new Map([[page.id, page]]),
       _stats: { modifiedTime: 10 },
     };
+    Object.assign(entry, {
+      update: vi.fn(async (change: Data) => {
+        Object.assign(entry, change);
+        entry._stats.modifiedTime++;
+      }),
+    });
     entries.set(d._id, entry);
     return entry;
   });
@@ -132,6 +138,32 @@ describe("companion journal", () => {
     await expect(
       send({ ...update, operationId: operations[2] }),
     ).rejects.toMatchObject({ code: "base_conflict" });
+  });
+  it("renames its single-page journal, and resumes an interrupted rename without overwriting native organization", async () => {
+    const r = await send(initial);
+    const entry = entries.get(r.entryId)!;
+    const req = {
+      ...initial,
+      operationId: operations[1],
+      title: "Later",
+      base: base(r),
+    };
+    entry.update.mockRejectedValueOnce(new Error("Interrupted"));
+    await expect(send(req)).rejects.toThrow("Interrupted");
+    expect(page.name).toBe("Later");
+    expect(entry.name).toBe(initial.title);
+    const receipt = await send(req);
+    expect(entry.name).toBe("Later");
+    entry.name = "World archive";
+    entry._stats.modifiedTime++;
+    await send({
+      ...req,
+      title: "New page title",
+      operationId: operations[2],
+      base: { ...base(receipt), entryModifiedTime: entry._stats.modifiedTime },
+    });
+    expect(entry.name).toBe("World archive");
+    expect(page.name).toBe("New page title");
   });
   it("protects a native rich-text edit during a retry or body replacement", async () => {
     const first = await send(initial);

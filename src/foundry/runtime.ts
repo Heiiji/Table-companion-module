@@ -286,7 +286,9 @@ export interface JournalPageLike {
 }
 export interface JournalEntryLike {
   id: string;
-  pages: { get(id: string): JournalPageLike | undefined };
+  name: string;
+  pages: { size: number; get(id: string): JournalPageLike | undefined };
+  update(data: Dict): Promise<unknown>;
   _stats?: JournalPageLike["_stats"];
 }
 

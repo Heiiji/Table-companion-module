@@ -10,6 +10,7 @@ import {
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import { pairedAgentUserId } from "../setup/identity.js";
+import { sha256Hex } from "../util/fileUpload.js";
 import { escapeHtml } from "../util/html.js";
 import {
   canonicalDigest,
@@ -98,13 +99,7 @@ type Request = ReturnType<typeof request>;
 
 // Stable document ids also make concurrent creates on two GM browsers safe.
 async function stableID(key: string) {
-  const hash = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(key),
-  );
-  return Array.from(new Uint8Array(hash).slice(0, 8), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
+  return (await sha256Hex(new TextEncoder().encode(key))).slice(0, 16);
 }
 
 function stamp(doc: JournalPageLike | JournalEntryLike) {
@@ -130,6 +125,25 @@ function receipt(
     pageModifiedTime: stamp(page),
     operationId,
   };
+}
+
+// Page and entry are separate Foundry documents. A stored rename intent lets a
+// retry finish the second write without reverting a label the GM chose in Foundry.
+async function finishRename(
+  entry: JournalEntryLike,
+  title: string,
+  priorTitleDigest: string | undefined,
+) {
+  if (!priorTitleDigest || entry.name === title || entry.pages.size !== 1)
+    return;
+  const seen = entry.name;
+  if (
+    (await canonicalDigest(seen)) === priorTitleDigest &&
+    entry.name === seen &&
+    entry.pages.size === 1
+  ) {
+    await entry.update({ name: title });
+  }
 }
 
 function conflict(): never {
@@ -194,6 +208,7 @@ async function upsert(p: Request, entryId: string, pageId: string) {
     kind: p.kind,
     digest,
     bodyDigest,
+    priorTitleDigest: "",
     contentDigest: await canonicalDigest(
       p.kind === "text" ? plainHTML(p.body) : p.body,
     ),
@@ -255,6 +270,7 @@ async function upsert(p: Request, entryId: string, pageId: string) {
       previous.contentDigest !== (await canonicalDigest(currentContent))
     )
       conflict();
+    await finishRename(entry, p.title, previous.priorTitleDigest);
     return receipt(entry, page, p.operationId);
   }
   if (
@@ -264,6 +280,13 @@ async function upsert(p: Request, entryId: string, pageId: string) {
     page.type !== type
   )
     conflict();
+  if (
+    entry.pages.size === 1 &&
+    entry.name === page.name &&
+    page.name !== p.title
+  ) {
+    flag.priorTitleDigest = await canonicalDigest(entry.name);
+  }
   const changes: Dict = {
     name: p.title,
     ["flags." + MODULE_ID + ".journalSync"]: flag,
@@ -297,6 +320,7 @@ async function upsert(p: Request, entryId: string, pageId: string) {
     )?.digest !== digest
   )
     conflict();
+  await finishRename(updated, p.title, flag.priorTitleDigest);
   return receipt(updated, updatedPage, p.operationId);
 }
 
