@@ -4,7 +4,7 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.34.1] - 2026-11-23
 
 ### Added
 - Combats started or changed in Foundry now reach the companion apps: the module tells the backend when Combats change, and the backend reads every Combat of the world (turn order, active combatant, initiatives) through the signed-only `combat.state.v1` read.
