@@ -13,8 +13,8 @@ unlocks richer, system-aware features over time.
 
 ## Synchronized journals
 
-When a Gamemaster deletes a document created in the app, the signed `journal.delete.v1`
-capability removes its linked page from Foundry if the journal and page still match the
+When a Gamemaster confirms deletion from Foundry for a document created in the app,
+the signed `journal.delete.v1` capability removes its linked page from Foundry if the journal and page still match the
 last revision read by the app. A newer Foundry edit is kept. The journal, its other pages,
 permissions and attachment files stay in the world. An original page created in Foundry
 can be removed from the companion table without deleting it from the world.
