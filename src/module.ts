@@ -27,6 +27,7 @@ import {
 import { appPresence } from "./setup/appPresence.js";
 import { startPresenceWatcher } from "./setup/presence.js";
 import { startChatMarks } from "./ui/chatMarks.js";
+import { registerWelcomeLantern, welcomeOnReady } from "./ui/welcomeLantern.js";
 import { startKnightRollCards } from "./ui/knightRollCard.js";
 import { startKnightAttackFollowUps } from "./procedures/knightAttackFollowUps.js";
 import { offerSetupIfNeeded, openSetupApp } from "./ui/SetupApp.js";
@@ -132,6 +133,7 @@ Hooks.once("init", () => {
   const mod = game.modules?.get(MODULE_ID);
   const version = (mod?.version as string | undefined) ?? "0.0.0";
   channel = new Channel(registry, version);
+  registerWelcomeLantern(channel);
 
   const openSetup = () => {
     if (channel) void openSetupApp(channel);
@@ -173,6 +175,7 @@ Hooks.once("ready", () => {
   // Socket is available from init, but we wait for `ready` so game state exists
   // for GM election and for procedures that touch documents.
   channel?.start();
+  welcomeOnReady();
   if (channel) startPresenceWatcher(channel);
   // GM clients: the Combats of the world pushed to the backend on each change
   // (only the elected responder ever sends).

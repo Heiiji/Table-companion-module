@@ -21,6 +21,7 @@ can be removed from the companion table without deleting it from the world.
 
 ## What it does
 
+- **The lantern** — a quiet first-visit chat card with a greeting for the current game system and a link to the mobile apps. Under **Settings → Configure Settings → Table Companion**, a Gamemaster can choose one shared card per world launch (posted when a GM joins), or turn the welcome off. The link badge opens setup for a GM.
 - **One-click setup** — creates the dedicated `Companion` user with a strong
   password and shows it once to paste into the app.
 - **Link status** — a panel showing whether the app is connected to your world

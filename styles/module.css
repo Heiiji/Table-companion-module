@@ -1,3 +1,48 @@
+.chat-message.tca-lantern {
+  border-inline-start: 3px solid #ba8b47;
+}
+.tca-lantern .message-header .message-metadata { flex: 0 0 auto; }
+.tca-lantern .message-header:has(.tca-lantern-status:not([hidden])) .message-timestamp {
+  display: none;
+}
+.tca-lantern .message-sender::before {
+  content: "";
+  display: inline-block;
+  vertical-align: -0.16em;
+  width: 1.15em;
+  height: 1.15em;
+  margin-inline-end: 0.4em;
+  background: url("./lantern.png") center / contain no-repeat;
+  border-radius: 3px;
+}
+.tca-lantern .whisper-to { display: none; }
+.tca-lantern .tca-lantern-greeting {
+  margin: 0.24rem 0;
+  font: 1.08rem/1.25 Georgia, serif;
+}
+.tca-lantern .message-content { display: flow-root; }
+.tca-lantern .tca-lantern-link, .tca-lantern .tca-lantern-status {
+  font-size: var(--font-size-12, 12px);
+  color: inherit;
+}
+.tca-lantern .tca-lantern-link { text-decoration: underline; text-underline-offset: 2px; }
+.tca-lantern .tca-lantern-status {
+  flex: 0 0 auto;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  margin: 0 0.4em;
+  padding: 0 0.15em;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  line-height: inherit;
+}
+.tca-lantern .tca-lantern-status[hidden] { display: none; }
+.tca-lantern-status::before { content: "●"; margin-inline-end: 0.3em; }
+.tca-lantern-status[data-state="active"]::before { color: var(--color-level-success, #478155); }
+.tca-lantern-status[data-state="check"]::before { color: var(--color-level-warning, #a16223); }
+
 .tca-setup .tca-hint,
 .tca-password .tca-warn {
   font-size: var(--font-size-12, 12px);

@@ -1,5 +1,20 @@
 {
   "table-companion": {
+    "welcome": {
+      "name": "La lanterne — accueil dans le chat",
+      "hint": "Un vœu de bonne partie et un lien discret vers l’app. À la première visite, chaque personne reçoit son propre message. À chaque ouverture, le premier MJ publie une carte commune.",
+      "first": "À la première visite de chaque personne",
+      "world": "À chaque ouverture du monde",
+      "off": "Désactivé",
+      "link": "L’app sur iOS et Android",
+      "greeting": {
+        "knight": "Que l’espoir vous accompagne, chevaliers.",
+        "dnd5e": "Que vos d20 vous sourient !",
+        "pf2e": "Je vous souhaite une réussite critique !",
+        "other": "Bonne partie à toute la table !"
+      },
+      "status": { "active": "Liaison active", "setup": "À configurer", "waiting": "En attente", "check": "À vérifier" }
+    },
     "common": {
       "yes": "Oui",
       "no": "Non",

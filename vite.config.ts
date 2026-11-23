@@ -67,6 +67,7 @@ export default defineConfig({
           );
         }
         copyFileSync("styles/module.css", "dist/module.css");
+        copyFileSync("styles/lantern.png", "dist/lantern.png");
 
         // The release zip is dist/: it must carry this module's licence and the
         // notices of what the bundle includes (qrcode-generator is MIT, and its

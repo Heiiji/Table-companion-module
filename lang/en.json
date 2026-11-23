@@ -1,5 +1,20 @@
 {
   "table-companion": {
+    "welcome": {
+      "name": "The lantern — chat welcome",
+      "hint": "A greeting and a quiet link to the app. On a first visit, each person gets a private message. On each world launch, the first GM posts one card for everyone.",
+      "first": "On each person’s first visit",
+      "world": "On each world launch",
+      "off": "Off",
+      "link": "The app on iOS and Android",
+      "greeting": {
+        "knight": "May hope ride with you, knights.",
+        "dnd5e": "May your d20s roll high!",
+        "pf2e": "Here’s to a critical success!",
+        "other": "Have a great game, everyone!"
+      },
+      "status": { "active": "Link active", "setup": "Set up", "waiting": "Waiting", "check": "Check link" }
+    },
     "common": {
       "yes": "Yes",
       "no": "No",

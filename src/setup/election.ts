@@ -8,20 +8,20 @@ import { isServiceUserId } from "./identity.js";
  * active human GMs using the same role and ID ordering. Every client still
  * *listens* for status display — election only gates who *responds*.
  */
-export function isResponder(): boolean {
-  const me = game.user;
-  if (!me?.isGM) return false;
+export function responderGM() {
   // Defense-in-depth: the Companion service user is created non-GM, but if a GM
   // ever elevated it, it must still never elect itself as the responder. By id,
   // never by name: a human GM may be called anything.
-  if (isServiceUserId(me.id)) return false;
-
   const users = game.users;
   const active = users?.activeGM;
-  if (active && !isServiceUserId(active.id)) return active.id === me.id;
+  if (active && !isServiceUserId(active.id)) return active;
 
-  const fallback = users?.getDesignatedUser(
+  return users?.getDesignatedUser(
     (user) => user.isGM && user.active && !isServiceUserId(user.id),
   );
-  return fallback != null && fallback.id === me.id;
+}
+
+export function isResponder(): boolean {
+  const me = game.user;
+  return !!me?.isGM && !isServiceUserId(me.id) && responderGM()?.id === me.id;
 }
