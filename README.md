@@ -156,7 +156,9 @@ Gamemaster can open setup from the console with
   by the Knight system itself (`knight.test.v1`): the native card with its successes and, when a
   difficulty is set, its verdict, and the dice sent back to the app. Costs are spent by the app.
 - **Combat mirror:** on Foundry 13 or later, the app's combat (combatants, initiative, current turn)
-  is mirrored one way into a Foundry Combat (`combat.sync.v1`). This is not available on Pathfinder
+  can be mirrored into a Foundry Combat (`combat.sync.v1`). A compatible backend can also read the
+  Foundry world's combat state through the signed `combat.state.v1` procedure and explicitly adopt
+  an existing Combat instead of creating a second one. Neither direction is available on Pathfinder
   2e or Cyberpunk RED.
 - **Languages:** English, Français
 - **Connection:** Foundry must be served over HTTPS (or opened on localhost): the module verifies the
