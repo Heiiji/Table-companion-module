@@ -20,7 +20,7 @@ import { pf2eActorUpsertV1 } from "./pf2eActorUpsert.js";
 import { pf2eActorCompleteV1 } from "./pf2eActorComplete.js";
 import { pf2eResourcesV1 } from "./pf2eResources.js";
 import { journalAssetV1 } from "./journalAsset.js";
-import { journalUpsertV1 } from "./journalUpsert.js";
+import { journalDeleteV1, journalUpsertV1 } from "./journalUpsert.js";
 import { actorImageV1 } from "./actorImage.js";
 import { pf2eCheckV1, supportsPf2eCheckV1Runtime } from "./pf2eCheck.js";
 import { pf2eCardV1, supportsPf2eCardV1Runtime } from "./pf2eCard.js";
@@ -78,6 +78,10 @@ export function registerBuiltinProcedures(registry: ProcedureRegistry): void {
   registry.register("display.show", displayShow, { kind: "clientState" });
   registry.register("display.clear", displayClear, { kind: "clientState" });
   registry.register("journal.upsert.v1", journalUpsertV1, {
+    kind: "mutation",
+    signedOnly: true,
+  });
+  registry.register("journal.delete.v1", journalDeleteV1, {
     kind: "mutation",
     signedOnly: true,
   });

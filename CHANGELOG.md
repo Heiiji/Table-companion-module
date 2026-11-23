@@ -7,7 +7,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
-- Gamemasters can sync private text, image, map and PDF journal pages from the companion app. Attached files use the world’s ordinary file storage.
+- Gamemasters can sync private text, image, map and PDF journal pages from the companion app. Attached files use the world’s ordinary file storage. Deleting a linked companion document also removes its bound page after checking its last known revision. The journal, sibling pages and files remain in the world.
 
 ## [0.34.1] - 2026-11-23
 

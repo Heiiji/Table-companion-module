@@ -37,6 +37,36 @@ function appID(value: unknown, label: string) {
   return id;
 }
 
+function baseRevision(value: unknown) {
+  const base =
+    value === undefined
+      ? undefined
+      : record(value, "base", [
+          "entryId",
+          "pageId",
+          "entryModifiedTime",
+          "pageModifiedTime",
+        ]);
+  return (
+    base && {
+      entryId: identifier(base.entryId, "entryId", documentId),
+      pageId: identifier(base.pageId, "pageId", documentId),
+      entryModifiedTime: integer(
+        base.entryModifiedTime,
+        "entryModifiedTime",
+        0,
+        Number.MAX_SAFE_INTEGER,
+      ),
+      pageModifiedTime: integer(
+        base.pageModifiedTime,
+        "pageModifiedTime",
+        0,
+        Number.MAX_SAFE_INTEGER,
+      ),
+    }
+  );
+}
+
 function request(payload: unknown) {
   const p = record(payload, "journal", [
     "schemaVersion",
@@ -51,15 +81,6 @@ function request(payload: unknown) {
   ]);
   integer(p.schemaVersion, "schemaVersion", 1, 1);
   const kind = oneOf(p.kind, "kind", ["text", "image", "map", "pdf"] as const);
-  const base =
-    p.base === undefined
-      ? undefined
-      : record(p.base, "base", [
-          "entryId",
-          "pageId",
-          "entryModifiedTime",
-          "pageModifiedTime",
-        ]);
   const asset =
     p.asset === undefined
       ? undefined
@@ -76,22 +97,7 @@ function request(payload: unknown) {
     kind,
     title: text(p.title, "title", 256, true),
     body: text(p.body, "body", 1024 * 1024),
-    base: base && {
-      entryId: identifier(base.entryId, "entryId", documentId),
-      pageId: identifier(base.pageId, "pageId", documentId),
-      entryModifiedTime: integer(
-        base.entryModifiedTime,
-        "entryModifiedTime",
-        0,
-        Number.MAX_SAFE_INTEGER,
-      ),
-      pageModifiedTime: integer(
-        base.pageModifiedTime,
-        "pageModifiedTime",
-        0,
-        Number.MAX_SAFE_INTEGER,
-      ),
-    },
+    base: baseRevision(p.base),
     path: asset ? journalAssetPath(asset.sha256, asset.mediaType) : undefined,
   };
 }
@@ -325,16 +331,21 @@ async function upsert(p: Request, entryId: string, pageId: string) {
 }
 
 const writes = new Map<string, Promise<unknown>>();
-async function writeJournal(payload: unknown) {
-  const p = request(payload);
-  const key = p.tableId + ":" + p.handoutId;
-  const [entryId, pageId] = await Promise.all([
-    stableID("journal-entry:" + key),
-    stableID("journal-page:" + key),
-  ]);
+async function onJournal<T>(
+  tableId: string,
+  handoutId: string,
+  action: (entryId: string, pageId: string) => Promise<T>,
+) {
+  const key = tableId + ":" + handoutId;
   const write = (writes.get(key) ?? Promise.resolve())
     .catch(() => {})
-    .then(() => upsert(p, entryId, pageId));
+    .then(async () => {
+      const [entryId, pageId] = await Promise.all([
+        stableID("journal-entry:" + key),
+        stableID("journal-page:" + key),
+      ]);
+      return action(entryId, pageId);
+    });
   writes.set(key, write);
   try {
     return await write;
@@ -342,6 +353,55 @@ async function writeJournal(payload: unknown) {
     if (writes.get(key) === write) writes.delete(key);
   }
 }
+
+function writeJournal(payload: unknown) {
+  const p = request(payload);
+  return onJournal(p.tableId, p.handoutId, (entryId, pageId) =>
+    upsert(p, entryId, pageId),
+  );
+}
+
+export const journalDeleteV1: Procedure = async (payload) => {
+  const p = record(payload, "journal", [
+    "schemaVersion",
+    "tableId",
+    "handoutId",
+    "operationId",
+    "base",
+  ]);
+  integer(p.schemaVersion, "schemaVersion", 1, 1);
+  const tableId = appID(p.tableId, "tableId");
+  const handoutId = appID(p.handoutId, "handoutId");
+  const operationId = appID(p.operationId, "operationId");
+  const base = baseRevision(p.base);
+  if (!base) return invalid("a journal base is required");
+  return onJournal(tableId, handoutId, async (entryId, pageId) => {
+    const game = foundryGame();
+    if (!game?.user?.isGM)
+      throw new RpcError("permission_denied", "A Gamemaster must be present");
+    if (!game.journal)
+      throw new RpcError(
+        "unsupported_runtime",
+        "Journal documents are unavailable",
+      );
+    if (base.entryId !== entryId || base.pageId !== pageId) conflict();
+    const entry = game.journal.get(entryId);
+    const page = entry?.pages.get(pageId);
+    if (entry && page) {
+      const flag = page.getFlag(MODULE_ID, "journalSync") as Dict | null;
+      if (
+        flag?.tableId !== tableId ||
+        flag.handoutId !== handoutId ||
+        stamp(entry) !== base.entryModifiedTime ||
+        stamp(page) !== base.pageModifiedTime
+      )
+        conflict();
+      await page.delete();
+      if (game.journal.get(entryId)?.pages.get(pageId)) conflict();
+    }
+    return { schemaVersion: 1, operationId, entryId, pageId, deleted: true };
+  });
+};
 
 const receiveText = journalUpload(
   1024 * 1024,

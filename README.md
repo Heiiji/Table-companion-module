@@ -11,6 +11,14 @@ unlocks richer, system-aware features over time.
 > "Let's Role"); those providers have no equivalent module, and this module sits
 > outside that provider abstraction. It is never required for a table to work.
 
+## Synchronized journals
+
+When a Gamemaster deletes a document created in the app, the signed `journal.delete.v1`
+capability removes its linked page from Foundry if the journal and page still match the
+last revision read by the app. A newer Foundry edit is kept. The journal, its other pages,
+permissions and attachment files stay in the world. An original page created in Foundry
+can be removed from the companion table without deleting it from the world.
+
 ## What it does
 
 - **One-click setup** — creates the dedicated `Companion` user with a strong

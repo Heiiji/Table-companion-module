@@ -274,6 +274,7 @@ interface CombatFactoryLike {
 }
 
 export interface JournalPageLike {
+  delete(): Promise<unknown>;
   id: string;
   name: string;
   type: string;

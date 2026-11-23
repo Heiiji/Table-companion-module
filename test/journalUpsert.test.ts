@@ -1,5 +1,8 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { journalUpsertV1 } from "../src/procedures/journalUpsert.js";
+import {
+  journalDeleteV1,
+  journalUpsertV1,
+} from "../src/procedures/journalUpsert.js";
 import type { RpcContext } from "../src/rpc/registry.js";
 
 type Data = Record<string, any>;
@@ -58,6 +61,7 @@ beforeEach(() => {
         entry._stats.modifiedTime++;
       }),
     });
+    page.delete = vi.fn(async () => entry.pages.delete(page.id));
     entries.set(d._id, entry);
     return entry;
   });
@@ -233,5 +237,89 @@ describe("companion journal", () => {
     await send(pdf);
     expect(page.src).toBe(path);
     expect(page.image.caption).toBe("Appendix");
+  });
+});
+
+const remove = (p: Data) =>
+  journalDeleteV1(p, {} as RpcContext) as Promise<Data>;
+
+describe("removing a bound page", () => {
+  const deletion = (r: Data) => ({
+    schemaVersion: 1,
+    tableId,
+    handoutId,
+    operationId: operations[1],
+    base: base(r),
+  });
+  it("deletes only the bound page and accepts retries even after its parent is gone", async () => {
+    const r = await send(initial);
+    const entry = entries.get(r.entryId)!;
+    const permissions = { ...entry.ownership };
+    entry.pages.set("sibling", { name: "Other page" });
+    const req = deletion(r);
+    const receipt = {
+      schemaVersion: 1,
+      operationId: operations[1],
+      entryId: r.entryId,
+      pageId: r.pageId,
+      deleted: true,
+    };
+    expect(await remove(req)).toEqual(receipt);
+    expect(entries.get(r.entryId)).toBe(entry);
+    expect(entry.pages.size).toBe(1);
+    expect(entry.pages.get("sibling")).toEqual({ name: "Other page" });
+    expect(entry.ownership).toEqual(permissions);
+    expect(await remove(req)).toEqual(receipt);
+    entries.clear();
+    expect(await remove(req)).toEqual(receipt);
+    expect(page.delete).toHaveBeenCalledTimes(1);
+    await expect(
+      remove({ ...req, base: { ...req.base, pageId: "A".repeat(16) } }),
+    ).rejects.toMatchObject({ code: "base_conflict" });
+    vi.stubGlobal("game", { user: { isGM: false }, journal: entries });
+    await expect(remove(req)).rejects.toMatchObject({
+      code: "permission_denied",
+    });
+  });
+  it("leaves an empty parent and refuses an unbound, stale or differently bound page", async () => {
+    const r = await send(initial);
+    const request = deletion(r);
+    for (const key of ["entryModifiedTime", "pageModifiedTime"])
+      await expect(
+        remove({ ...request, base: { ...request.base, [key]: 0 } }),
+      ).rejects.toMatchObject({ code: "base_conflict" });
+    const getFlag = page.getFlag;
+    for (const flag of [
+      null,
+      { tableId, handoutId: operations[1] },
+      { tableId: operations[2], handoutId },
+    ]) {
+      page.getFlag = () => flag;
+      await expect(remove(request)).rejects.toMatchObject({
+        code: "base_conflict",
+      });
+    }
+    expect(page.delete).not.toHaveBeenCalled();
+    page.getFlag = getFlag;
+    await remove(request);
+    expect(entries.get(r.entryId)?.pages.size).toBe(0);
+    await expect(remove({ ...request, base: undefined })).rejects.toMatchObject(
+      { code: "invalid_args" },
+    );
+  });
+  it("serializes an edit with a pending deletion of the same page", async () => {
+    const r = await send(initial);
+    const edit = send({
+      ...initial,
+      base: base(r),
+      operationId: operations[2],
+      body: "New version",
+    });
+    const deletionResult = remove(deletion(r));
+    await expect(edit).resolves.toMatchObject({ pageId: r.pageId });
+    await expect(deletionResult).rejects.toMatchObject({
+      code: "base_conflict",
+    });
+    expect(entries.get(r.entryId)?.pages.size).toBe(1);
   });
 });

@@ -10,7 +10,11 @@ import {
 // These touch no system-specific schema (core Roll API, compendium passthrough,
 // a projector popout, the core Actor image), so there is nothing to verify per
 // system.
-const JOURNAL_MUTATIONS = ["journal.asset.v1", "journal.upsert.v1"];
+const JOURNAL_MUTATIONS = [
+  "journal.asset.v1",
+  "journal.delete.v1",
+  "journal.upsert.v1",
+];
 const BASE_CAPABILITIES = [
   "actor.image.v1",
   "compendium.get",
