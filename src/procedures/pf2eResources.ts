@@ -225,6 +225,8 @@ export interface Pf2eActorResourcesV1 extends LiveHeaderV1<ActorType> {
   conditions?: Record<string, number>;
   /** Desired quantity of each mirrored item by Foundry id; 0 deletes. */
   items?: Record<string, number>;
+  /** Uses left in the active unit of a consumable stack. */
+  itemUses?: Record<string, number>;
   /** Catalog items born in the app, idempotent by `key`. */
   adds?: Pf2eResourcesAddV1[];
   coins?: Pf2eCoinsV1;
@@ -244,6 +246,7 @@ const COUNTER_KEYS = [
   "heroPoints",
   "conditions",
   "items",
+  "itemUses",
   "coins",
   "spellcasting",
 ] as const;
@@ -299,6 +302,17 @@ function parseCounters(p: Dict, at: string): Pf2eCountersV1 {
       (k) => documentId.test(k),
       MAX_QUANTITY,
     );
+  if (p.itemUses !== undefined) {
+    out.itemUses = map(
+      p.itemUses,
+      `${at}itemUses`,
+      MAX_ITEMS,
+      (k) => documentId.test(k),
+      MAX_QUANTITY,
+    );
+    if (Object.keys(out.itemUses).length === 0)
+      invalid(`${at}itemUses needs at least one value`);
+  }
   if (p.coins !== undefined) out.coins = parseCoins(p.coins, `${at}coins`);
   if (p.spellcasting !== undefined)
     out.spellcasting = parseSpellcasting(p.spellcasting, `${at}spellcasting`);
@@ -427,6 +441,7 @@ export function validatePf2eActorResourcesV1(
     "heroPoints",
     "conditions",
     "items",
+    "itemUses",
     "adds",
     "coins",
     "customAdds",
@@ -493,6 +508,7 @@ export function validatePf2eActorResourcesV1(
     req.heroPoints === undefined &&
     req.conditions === undefined &&
     req.items === undefined &&
+    req.itemUses === undefined &&
     req.adds === undefined &&
     req.coins === undefined &&
     req.customAdds === undefined &&
@@ -612,6 +628,12 @@ function currentValue(actor: ActorLike, field: string): unknown {
     return !item || !PHYSICAL_TYPES.has(String(item.type)) || isCoin(item)
       ? undefined
       : valueAt(item.system, "quantity");
+  }
+  if (group === "itemUses") {
+    const item = itemsOf(actor).find((i) => docId(i) === key);
+    return item?.type === "consumable"
+      ? valueAt(item.system, "uses.value")
+      : undefined;
   }
   if (group === "coins") {
     const { totals, addressable } = purseOf(actor);
@@ -763,11 +785,14 @@ function purseOf(actor: ActorLike): {
 function itemWrites(
   actor: ActorLike,
   wanted: Record<string, number>,
+  uses: Record<string, number>,
   warnings: string[],
 ): Write[] {
   const writes: Write[] = [];
   const items = itemsOf(actor);
-  for (const id of Object.keys(wanted).sort()) {
+  for (const id of [
+    ...new Set([...Object.keys(wanted), ...Object.keys(uses)]),
+  ].sort()) {
     const quantity = wanted[id];
     const item = items.find((i) => docId(i) === id);
     if (!item || !PHYSICAL_TYPES.has(String(item.type)) || isCoin(item)) {
@@ -785,9 +810,33 @@ function itemWrites(
       writes.push(async () => {
         await actor.deleteEmbeddedDocuments!("Item", [id]);
       });
-    } else if (valueAt(item.system, "quantity") !== quantity) {
+    } else {
+      const update: Dict = {};
+      if (
+        quantity !== undefined &&
+        valueAt(item.system, "quantity") !== quantity
+      )
+        update["system.quantity"] = quantity;
+      if (
+        uses[id] !== undefined &&
+        valueAt(item.system, "uses.value") !== uses[id]
+      ) {
+        const max = valueAt(item.system, "uses.max");
+        if (
+          item.type !== "consumable" ||
+          typeof max !== "number" ||
+          uses[id] > max
+        ) {
+          throw new RpcError(
+            "invalid_args",
+            "itemUses does not name an available consumable counter",
+          );
+        }
+        update["system.uses.value"] = uses[id];
+      }
+      if (Object.keys(update).length === 0) continue;
       writes.push(async () => {
-        await item.update!({ "system.quantity": quantity });
+        await item.update!(update);
       });
     }
   }
@@ -1165,7 +1214,7 @@ export const pf2eResourcesV1: Procedure = async (payload) => {
     ...(req.conditions
       ? conditionWrites(actor, req.conditions, refusedBefore, warnings)
       : []),
-    ...(req.items ? itemWrites(actor, req.items, warnings) : []),
+    ...itemWrites(actor, req.items ?? {}, req.itemUses ?? {}, warnings),
     ...(req.coins ? coinWrites(actor, req.coins, warnings) : []),
     ...(req.spellcasting ? spellWrites(actor, req.spellcasting, warnings) : []),
   ];

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pf2eCardV1, validatePf2eCardV1 } from "../src/procedures/pf2eCard.js";
+import { pf2eFollowupV1 } from "../src/procedures/pf2eFollowup.js";
 import { MODULE_ID, SETTING_AGENT_USER } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
 
@@ -153,6 +154,9 @@ describe("pf2e.card.v1 payload", () => {
     expect(validatePf2eCardV1(item({ visibility: "gm" }))).toEqual(
       item({ visibility: "gm" }),
     );
+    expect(
+      validatePf2eCardV1(item({ kind: "consumable", remainingUses: 6 })),
+    ).toEqual(item({ kind: "consumable", remainingUses: 6 }));
   });
 
   it.each([
@@ -162,6 +166,14 @@ describe("pf2e.card.v1 payload", () => {
     ["a rank of 0", { castRank: 0 }],
     ["a rank of 11", { castRank: 11 }],
     ["a cast rank on an item", { kind: "item", castRank: 1 }],
+    [
+      "a remaining use on a preview",
+      { kind: "item", castRank: null, remainingUses: 6 },
+    ],
+    [
+      "a negative remaining use",
+      { kind: "consumable", castRank: null, remainingUses: -1 },
+    ],
     ["a malformed item id", { itemId: "potion" }],
     ["a blind card", { visibility: "blind" }],
     ["a non-UUID eventId", { eventId: "event-1" }],
@@ -240,6 +252,67 @@ describe("pf2e.card.v1", () => {
     expect(created).toHaveLength(1);
     expect(created[0].data.content).toBe("<div>Healing Potion</div>");
     expect(created[0].data.flags[MODULE_ID]).not.toHaveProperty("effect");
+    nothingSpent();
+  });
+
+  it("posts the used dose as one message, including the recorded uses remaining", async () => {
+    Object.assign(actor.potion, {
+      name: "Rations",
+      uses: { value: 7, max: 7 },
+    });
+    world.i18n = {
+      format: (key: string, data: Dict) =>
+        `${key}: ${data.name}, ${data.current}`,
+    };
+    const request = item({
+      kind: "consumable",
+      remainingUses: 4,
+      origin: "player",
+    });
+    const result = await call(request);
+    expect(await call(request)).toEqual({ ...result, alreadyPosted: true });
+    expect(created).toHaveLength(1);
+    expect(created[0].data.content).toBe(
+      "PF2E.ConsumableMessage.UseMulti: Rations, 4",
+    );
+    expect(created[0].data.author).toBe(PLAYER);
+    expect(actor.potion.toMessage).not.toHaveBeenCalled();
+    nothingSpent();
+  });
+
+  it("returns the originally posted healing roll through the follow-up without posting again", async () => {
+    world.pf2e = { Check: {} };
+    class DamageRoll {
+      async toMessage(data: Dict) {
+        return {
+          ...data,
+          rolls: [{ formula: "1d6", total: 5, kinds: ["healing"] }],
+        };
+      }
+    }
+    vi.stubGlobal("CONFIG", { Dice: { rolls: [DamageRoll] } });
+    Object.assign(actor.potion, {
+      name: "Elixir",
+      system: { damage: { formula: "1d6", type: "vitality", kind: "healing" } },
+    });
+    const result = await call(item({ kind: "consumable" }));
+    const effect = await pf2eFollowupV1(
+      {
+        eventId: EVENT.replace(/.$/, "0"),
+        sourceEventId: EVENT,
+        origin: "app",
+        actorId: PC,
+        kind: "damage",
+      },
+      {} as never,
+    );
+    expect(effect).toMatchObject({
+      messageId: result.messageId,
+      total: 5,
+      kind: "healing",
+      alreadyRolled: true,
+    });
+    expect(created).toHaveLength(1);
     nothingSpent();
   });
 

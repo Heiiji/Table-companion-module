@@ -1,5 +1,10 @@
 import { MODULE_ID } from "../constants.js";
-import { foundryGame, type Dict } from "../foundry/runtime.js";
+import {
+  chatMessageImplementation,
+  foundryGame,
+  type ActorLike,
+  type Dict,
+} from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import {
@@ -45,6 +50,7 @@ import {
 
 export const PROCEDURE = "pf2e.card.v1";
 export const CARD_LANE = "pf2e.card";
+export const CONSUMABLE_USE_CAPABILITY = "pf2eConsumableUseV1";
 
 const PAYLOAD_KEYS = [
   "eventId",
@@ -57,7 +63,7 @@ const PAYLOAD_KEYS = [
 ] as const;
 
 const ORIGINS = ["app", "player"] as const;
-const KINDS = ["spell", "item"] as const;
+const KINDS = ["spell", "item", "consumable"] as const;
 const VISIBILITIES = ["public", "gm"] as const;
 /** The Item types whose card the app can ask for (pf2e's sheet posts each). */
 const ITEM_TYPES = [
@@ -81,6 +87,7 @@ export interface Pf2eCardV1 {
   itemId: string;
   castRank: number | null;
   visibility: (typeof VISIBILITIES)[number];
+  remainingUses?: number;
 }
 
 export interface Pf2eCardResultV1 {
@@ -90,6 +97,12 @@ export interface Pf2eCardResultV1 {
 
 interface CardItem {
   type?: string;
+  name?: string;
+  uuid?: string;
+  sourceId?: string | null;
+  uses?: { value?: number; max?: number };
+  system?: { spell?: unknown };
+  getRollData?(): Dict;
   /** A spell's rank as pf2e prepares it (a focus spell or a cantrip is
    * heightened by itself). */
   rank?: number;
@@ -102,12 +115,14 @@ interface CardItem {
 /** The strict payload: every key required, unknown keys refused; only a
  * spell carries a cast rank. */
 export function validatePf2eCardV1(payload: unknown): Pf2eCardV1 {
-  const p = record(payload, "payload", PAYLOAD_KEYS);
+  const p = record(payload, "payload", [...PAYLOAD_KEYS, "remainingUses"]);
   for (const key of PAYLOAD_KEYS)
     if (!(key in p)) invalid(`payload.${key} is required`);
   const kind = oneOf(p.kind, "kind", KINDS);
-  if (kind === "item" && p.castRank !== null)
+  if (kind !== "spell" && p.castRank !== null)
     invalid("castRank must be null for an item");
+  if ("remainingUses" in p && kind !== "consumable")
+    invalid("remainingUses is only for a consumable");
   return {
     eventId: identifier(p.eventId, "eventId", uuid),
     origin: oneOf(p.origin, "origin", ORIGINS),
@@ -117,6 +132,9 @@ export function validatePf2eCardV1(payload: unknown): Pf2eCardV1 {
     castRank:
       p.castRank === null ? null : integer(p.castRank, "castRank", 1, 10),
     visibility: oneOf(p.visibility, "visibility", VISIBILITIES),
+    ...("remainingUses" in p
+      ? { remainingUses: integer(p.remainingUses, "remainingUses", 0, 999999) }
+      : {}),
   };
 }
 
@@ -163,6 +181,64 @@ export function supportsPf2eCardV1Runtime(): boolean {
   return supportsPf2eResourcesV1Runtime();
 }
 
+interface ConsumableDamageRoll {
+  toMessage(data: Dict, options: { create: false }): Promise<Dict>;
+}
+
+/** Builds the same message as the pf2e inventory's Use button (8.7), leaving
+ * the spend to the table. Embedded spell consumables have their own casting workflow. */
+async function consumableMessage(
+  actor: ActorLike,
+  item: CardItem,
+  remainingUses?: number,
+): Promise<Dict> {
+  if (item.type !== "consumable" || item.system?.spell)
+    throw new RpcError("item_not_found", `${PROCEDURE}: no simple consumable`);
+  const chat = chatMessageImplementation() as
+    { getSpeaker?(data: { actor: ActorLike }): Dict } | undefined;
+  const speaker = chat?.getSpeaker?.({ actor }) ?? {
+    actor: actor.id,
+    alias: actor.name,
+  };
+  const { value = 1, max = 1 } = item.uses ?? {};
+  const remaining = remainingUses ?? Math.max(value - 1, 0);
+  const key =
+    max > 1 ? (remaining === 0 ? "UseExhausted" : "UseMulti") : "UseSingle";
+  const i18n = foundryGame()?.i18n as
+    { format?(key: string, data: Dict): string } | undefined;
+  const name = item.name ?? "";
+  const use =
+    i18n?.format?.(`PF2E.ConsumableMessage.${key}`, {
+      name,
+      current: remaining,
+    }) ?? name;
+  const flags = {
+    pf2e: {
+      origin: {
+        sourceId: item.sourceId ?? null,
+        uuid: item.uuid ?? null,
+        type: "consumable",
+      },
+    },
+  };
+  const effect = consumableEffect(item);
+  if (!effect) return { speaker, content: use, flags };
+  const rolls = (globalThis as { CONFIG?: { Dice?: { rolls?: unknown[] } } })
+    .CONFIG?.Dice?.rolls;
+  const DamageRoll = rolls?.find(
+    (roll) => typeof roll === "function" && roll.name === "DamageRoll",
+  ) as (new (formula: string, data: Dict) => ConsumableDamageRoll) | undefined;
+  if (!DamageRoll)
+    throw new RpcError(
+      "unsupported_runtime",
+      `${PROCEDURE}: pf2e's DamageRoll is unavailable`,
+    );
+  return new DamageRoll(
+    `(${effect.formula})[${effect.type},${effect.kind}]`,
+    item.getRollData?.() ?? {},
+  ).toMessage({ speaker, flavor: use, flags }, { create: false });
+}
+
 async function post(req: Pf2eCardV1): Promise<Pf2eCardResultV1> {
   const actor = actorCollection().get(req.actorId);
   if (!actor)
@@ -179,20 +255,23 @@ async function post(req: Pf2eCardV1): Promise<Pf2eCardResultV1> {
       req.kind === "spell" ? "spell_not_found" : "item_not_found",
       `${PROCEDURE}: the Actor has no such ${req.kind}`,
     );
-  if (!item || !fits || typeof item.toMessage !== "function") throw missing();
-
-  // A rank under the spell's own is no cast pf2e knows: its toMessage then
-  // recurses without end. The spell's own rank stands.
-  const heightened =
-    req.castRank !== null && req.castRank > (item.rank ?? 0)
-      ? { castRank: req.castRank }
-      : {};
-  const message = await item.toMessage(null, {
-    create: false,
-    mode: req.visibility,
-    ...(isSpell ? { actualCast: true, data: heightened } : {}),
-  });
-  const source = message?.toObject?.();
+  if (!item || !fits) throw missing();
+  let source: Dict | undefined;
+  if (req.kind === "consumable") {
+    source = await consumableMessage(actor, item, req.remainingUses);
+  } else {
+    // A rank below the spell's own makes pf2e recurse; leave its own rank in place.
+    const heightened =
+      req.castRank !== null && req.castRank > (item.rank ?? 0)
+        ? { castRank: req.castRank }
+        : {};
+    const message = await item.toMessage?.(null, {
+      create: false,
+      mode: req.visibility,
+      ...(isSpell ? { actualCast: true, data: heightened } : {}),
+    });
+    source = message?.toObject?.();
+  }
   if (!source) throw missing();
 
   const messageId = newDocumentId();
@@ -215,7 +294,11 @@ async function post(req: Pf2eCardV1): Promise<Pf2eCardResultV1> {
         origin: req.origin,
         lane: CARD_LANE,
         result,
-        ...(effect ? { effect } : {}),
+        ...(req.kind === "consumable"
+          ? { consumableUse: true }
+          : effect
+            ? { effect }
+            : {}),
       },
     },
   });

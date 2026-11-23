@@ -12,7 +12,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The combat mirror (`combat.sync.v1`) can take over a Combat started in Foundry and its combatants instead of creating a second one; an app entry without an Actor no longer clears a combatant's Actor or token, and an initiative the app only rounded keeps Foundry's value.
 
 ### Changed
+- Pathfinder 2e consumables used from a companion sheet can post the native use message, including a healing roll or the remaining uses, and sync the consumable's charges.
 - Knight weapons added from the app are copied from the Knight Compendium whenever it holds them, keeping their image, every one-/two-hand or ammunition mode, effects, rarity and cost; only values the copy lacks (empty dice, effects or description) come from the app, and a built weapon now carries its effects, rarity, cost and description (capability `actorItemsWeaponDetailsV1`).
+
+### Fixed
+- An accidentally elevated Companion service user no longer blocks human Gamemasters from
+  answering requests, even when Foundry selects it as the active GM.
 
 ## [0.34.0] - 2026-11-16
 

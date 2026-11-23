@@ -27,6 +27,7 @@ import {
   SETTING_AGENT_KEY,
 } from "../constants.js";
 import { CAP_TABLE_GATE, MODULE_ID } from "../constants.js";
+import { CONSUMABLE_USE_CAPABILITY } from "../procedures/pf2eCard.js";
 import {
   setAgentTableGate,
   supportsPf2eSheetWritesV1Runtime,
@@ -291,6 +292,7 @@ export class Channel {
     // The npc actor type rides the same lane on its own runtime gate: an npc
     // uses the character APIs, never the currency ones.
     if (caps.includes("pf2e.resources.v1")) caps.push(CAP_PF2E_NPC_WRITES);
+    if (caps.includes("pf2e.card.v1")) caps.push(CONSUMABLE_USE_CAPABILITY);
     return caps.sort();
   }
 

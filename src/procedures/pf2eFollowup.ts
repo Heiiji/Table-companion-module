@@ -265,9 +265,17 @@ async function followup(req: Pf2eFollowupV1): Promise<Pf2eFollowupResultV1> {
       "source_not_found",
       `${PROCEDURE}: no card of that actor carries sourceEventId`,
     );
-  const plan = planFor(req, source);
   const critical = req.kind === "critical";
   const messageMode = modeOf(source);
+  if (laneFlags(source)?.consumableUse === true) {
+    if (critical || !source.id || !source.rolls?.[0])
+      throw refused("the item has no effect roll");
+    return {
+      ...followupResult(source.rolls[0], source.id, false, messageMode),
+      alreadyRolled: true,
+    };
+  }
+  const plan = planFor(req, source);
   const author = source._source?.author;
   const whisper = [...(source._source?.whisper ?? source.whisper ?? [])];
   const blind = source._source?.blind ?? source.blind ?? false;
