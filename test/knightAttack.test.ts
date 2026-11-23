@@ -11,7 +11,11 @@ import {
 import { stampFollowUp } from "../src/procedures/knightAttackFollowUps.js";
 import { registerBuiltinProcedures } from "../src/procedures/index.js";
 import { ProcedureRegistry } from "../src/rpc/registry.js";
-import { MODULE_ID, SETTING_AGENT_USER } from "../src/constants.js";
+import {
+  MODULE_ID,
+  REQUEST_TIMEOUT_MS,
+  SETTING_AGENT_USER,
+} from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
 
 type Dict = Record<string, any>;
@@ -27,6 +31,7 @@ const FIXTURE = JSON.parse(
 
 const EVENT = "6f1c2a7e-4b1d-4c8e-9a51-2f0d7c3b9e10";
 const ENTRY = "0b7d5c1e-9f3a-4e2b-8c6d-1a2b3c4d5e6f";
+const SECOND_ENTRY = "11111111-1111-4111-8111-111111111111";
 const PC = "kQx3Lr9ZpT2mWv8A";
 const NOCTE = "Nf7cH2kLm9QwE4rT";
 const GARDE_TOKEN = "T0k3nZ9y8X7w6V5u";
@@ -136,7 +141,16 @@ class FakeRollKnight {
     };
   }
   prepareWpnDistance(item: Dict) {
-    return { ...this.prepareWpnContact(item), type: "distance" };
+    const weapon: Dict = { ...this.prepareWpnContact(item), type: "distance" };
+    // Like Knight 3.58.38: ranged preparation defaults a barrage option ON.
+    const raw = [
+      ...(weapon.effets?.raw ?? []),
+      ...(weapon.structurelles?.raw ?? []),
+      ...(weapon.ornementales?.raw ?? []),
+    ];
+    if (!weapon.options && raw.some((e: string) => e.startsWith("barrage ")))
+      weapon.options = [{ value: "barrage", active: true }];
+    return weapon;
   }
   async doRoll(updates: Dict) {
     rollCalls.push({
@@ -320,6 +334,23 @@ describe("knight.attack.v1 payload", () => {
     expect(validateKnightAttackV1(payload())).toEqual(payload());
   });
 
+  it("accepts the optional itemId", () => {
+    const p = payload({ itemId: "bornInFoundry001" });
+    expect(validateKnightAttackV1(p)).toEqual(p);
+  });
+
+  it.each([
+    ["a 15-char itemId", "bornInFoundry00"],
+    ["an itemId with a dash", "bornInFoundry-01"],
+    ["an empty itemId", ""],
+    ["a null itemId", null],
+    ["a numeric itemId", 1234567890123456],
+  ])("a malformed itemId is invalid_args: %s", (_, itemId) => {
+    expect(() => validateKnightAttackV1(payload({ itemId }))).toThrow(
+      expect.objectContaining({ code: "invalid_args" }),
+    );
+  });
+
   it.each([
     ["an unknown key", { extra: 1 }],
     ["a missing key", { visibility: undefined }],
@@ -447,13 +478,33 @@ describe("knight.attack.v1 roll", () => {
     await knightAttackV1(payload({ visibility: "blind" }), {} as never);
     const card = world.messages.contents[0] as Message;
     expect(card.author).toBeUndefined();
-    expect(card.whisper).toEqual([GM]);
+    // A blind roll reaches the service user too, so the backend can still
+    // read its result when the reply was lost.
+    expect(card.whisper).toEqual([GM, COMPANION]);
     expect(card.blind).toBe(true);
   });
 
-  it("whispers a self roll to its author only", async () => {
+  it("whispers a self roll to its author and the service user", async () => {
     await knightAttackV1(payload({ visibility: "self" }), {} as never);
-    expect((world.messages.contents[0] as Message).whisper).toEqual([PLAYER]);
+    expect((world.messages.contents[0] as Message).whisper).toEqual([
+      PLAYER,
+      COMPANION,
+    ]);
+  });
+
+  it("adds a renamed service user to a self roll by id, and whispers a public roll to no one", async () => {
+    world.users.contents[2].name = "Table app";
+    world.users.contents[1].name = "Companion";
+    await knightAttackV1(payload({ visibility: "self" }), {} as never);
+    expect((world.messages.contents[0] as Message).whisper).toEqual([
+      PLAYER,
+      COMPANION,
+    ]);
+    await knightAttackV1(
+      payload({ eventId: "00000000-0000-4000-8000-000000000005" }),
+      {} as never,
+    );
+    expect((world.messages.contents[1] as Message).whisper).toEqual([]);
   });
 
   it("never makes the app's service user the author", async () => {
@@ -470,13 +521,34 @@ describe("knight.attack.v1 roll", () => {
     // The real service user was renamed; a player took the default name.
     world.users.contents[2].name = "Table app";
     world.users.contents[1].name = "Companion";
-    await knightAttackV1(payload({ visibility: "gm" }), {} as never);
+    await knightAttackV1(
+      payload({ visibility: "gm", origin: "player" }),
+      {} as never,
+    );
     const card = world.messages.contents[0] as Message;
     expect(card.author).toBe(PLAYER);
     expect(card.whisper).toEqual([GM, COMPANION]);
   });
 
-  it("refuses a barrage weapon before rolling", async () => {
+  it("authors the app's GM roll as the GM, not the PC's player", async () => {
+    await knightAttackV1(payload({ visibility: "gm" }), {} as never);
+    const card = world.messages.contents[0] as Message;
+    expect(card.author).toBeUndefined();
+    expect(card.whisper).toEqual([GM, COMPANION]);
+    expect(card.blind).toBe(false);
+  });
+
+  it("rolls a ranged barrage weapon as an attack, with the option off", async () => {
+    world.actors.get(PC).items.contents[0].system.type = "distance";
+    scenario.weaponRaw = ["barrage 2"];
+    await knightAttackV1(payload(), {} as never);
+    expect(rollCalls).toHaveLength(1);
+    expect((rollCalls[0]!.data.weapon as Dict).options).toEqual([
+      { value: "barrage", active: false },
+    ]);
+  });
+
+  it("refuses a barrage weapon with no barrage option to turn off", async () => {
     scenario.weaponRaw = ["barrage 2"];
     expect(
       await rejection(knightAttackV1(payload(), {} as never)),
@@ -671,6 +743,41 @@ describe("knight.attack.v1 roll", () => {
     expect(unstamped!.flags[MODULE_ID]).toBeUndefined();
   });
 
+  it("keeps a newer roll's hook when an older attack's roller fails late", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    world.knight.RollKnight = class extends FakeRollKnight {
+      override doRoll(updates: Dict): Promise<number> {
+        if (calls++ > 0) return super.doRoll(updates);
+        return new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("late")),
+            REQUEST_TIMEOUT_MS + 1_000,
+          ),
+        );
+      }
+    };
+    const first = rejection(knightAttackV1(payload(), {} as never));
+    // The queue lets go of the stuck roll; a newer attack of the same actor
+    // arms its hook, and its card comes after the older roller fails.
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 200);
+    scenario.createAfterMs = 3_000;
+    const second = knightAttackV1(
+      payload({ eventId: "00000000-0000-4000-8000-000000000002" }),
+      {} as never,
+    );
+    await vi.advanceTimersByTimeAsync(200);
+    expect(hooks.get("preCreateChatMessage")?.size).toBe(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect((await first).message).toBe("late");
+    expect(hooks.get("preCreateChatMessage")?.size).toBe(1);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(await second).toMatchObject({ alreadyRolled: false });
+    expect(
+      (world.messages.contents[0] as Message).flags[MODULE_ID].eventId,
+    ).toBe("00000000-0000-4000-8000-000000000002");
+  });
+
   it.each([
     ["actor_not_found", () => payload({ actorId: "missing000000001" })],
     [
@@ -681,6 +788,73 @@ describe("knight.attack.v1 roll", () => {
     expect(await rejection(knightAttackV1(p(), {} as never))).toMatchObject({
       code,
     });
+    expect(rollCalls).toEqual([]);
+  });
+
+  const UNBOUND = "11111111-2222-4333-8444-555555555555";
+  const BORN = "bornInFoundry001";
+  /** A weapon created in Foundry: no Table Companion flag. */
+  const bornItem = (over: Dict = {}) => ({
+    id: BORN,
+    name: "Fusil d'assaut",
+    type: "arme",
+    system: { type: "contact" },
+    flags: {},
+    ...over,
+  });
+
+  it("rolls a Foundry-born weapon named by itemId", async () => {
+    world.actors.get(PC).items.contents.push(bornItem());
+    await knightAttackV1(
+      payload({ entryId: UNBOUND, itemId: BORN }),
+      {} as never,
+    );
+    expect(rollCalls).toHaveLength(1);
+    expect((rollCalls[0]!.data.weapon as Dict).label).toBe("Fusil d'assaut");
+  });
+
+  it("prefers the entryId flag over itemId", async () => {
+    world.actors.get(PC).items.contents.push(bornItem());
+    await knightAttackV1(payload({ itemId: BORN }), {} as never);
+    expect((rollCalls[0]!.data.weapon as Dict).label).toBe("Épée bâtarde");
+  });
+
+  it("an itemId of another type or actor is weapon_not_found", async () => {
+    const OTHER = "otherActor000001";
+    const other = { id: OTHER, items: { contents: [bornItem()] } };
+    const actors = world.actors;
+    world.actors = {
+      get: (id: string) => (id === OTHER ? other : actors.get(id)),
+    };
+    // On another actor only.
+    expect(
+      await rejection(
+        knightAttackV1(
+          payload({ entryId: UNBOUND, itemId: BORN }),
+          {} as never,
+        ),
+      ),
+    ).toMatchObject({
+      code: "weapon_not_found",
+      message: "knight.attack.v1: no weapon bound to that entry",
+    });
+    // On this actor, but an armour.
+    world.actors
+      .get(PC)
+      .items.contents.push(bornItem({ type: "armure", name: "Épée bâtarde" }));
+    expect(
+      await rejection(
+        knightAttackV1(
+          payload({ entryId: UNBOUND, itemId: BORN }),
+          {} as never,
+        ),
+      ),
+    ).toMatchObject({ code: "weapon_not_found" });
+    // Never by name: an unflagged weapon named like the label, no itemId.
+    world.actors.get(PC).items.contents[0].flags = {};
+    expect(
+      await rejection(knightAttackV1(payload(), {} as never)),
+    ).toMatchObject({ code: "weapon_not_found" });
     expect(rollCalls).toEqual([]);
   });
 
@@ -855,6 +1029,128 @@ describe("knight.attack.v1 follow-ups", () => {
     world.users.activeGM = { id: "otherGm000000001" };
     expect(await stampFollowUp(followUp(attack))).toBe(false);
     expect(await stampFollowUp(attack)).toBe(false);
+  });
+});
+
+describe("Akimbo's second weapon", () => {
+  it("validates Precise and prepares its two-handed copy without editing the Item", async () => {
+    const req = payload({
+      style: "precis",
+      preciseCharacteristic: "masque_dexterite",
+    });
+    expect(validateKnightAttackV1(req).preciseCharacteristic).toBe(
+      "masque_dexterite",
+    );
+    for (const invalid of [
+      payload({ preciseCharacteristic: "masque_dexterite" }),
+      payload({ style: "precis", preciseCharacteristic: "chair_force" }),
+      payload({ style: "precis", preciseCharacteristic: null }),
+    ])
+      expect(() => validateKnightAttackV1(invalid)).toThrow();
+    const item = world.actors
+      .get(PC)
+      .items.contents.find((i: Dict) => i.type === "arme");
+    item.system = {
+      type: "contact",
+      options2mains: { has: true, actuel: "1main" },
+    };
+    const before = JSON.stringify(item);
+    const prepare = vi.spyOn(FakeRollKnight.prototype, "prepareWpnContact");
+    scenario.weaponRaw = ["deuxmains"];
+    await knightAttackV1(req, {} as never);
+    expect(prepare.mock.calls[0][0].system.options2mains.actuel).toBe("2main");
+    expect(JSON.stringify(item)).toBe(before);
+    prepare.mockRestore();
+  });
+  it("validates and forwards the powerful style's bounded dice choice", async () => {
+    const choice = { type: "degats", value: 3 };
+    expect(
+      validateKnightAttackV1(payload({ style: "puissant", dataStyle: choice }))
+        .dataStyle,
+    ).toEqual(choice);
+    for (const dataStyle of [
+      null,
+      {},
+      { type: "damage", value: 3 },
+      { type: "degats", value: 7 },
+      { type: "degats", value: -1 },
+      { type: "degats", value: 1, extra: true },
+    ]) {
+      expect(() =>
+        validateKnightAttackV1(payload({ style: "puissant", dataStyle })),
+      ).toThrow();
+    }
+    expect(() =>
+      validateKnightAttackV1(payload({ dataStyle: choice })),
+    ).toThrow();
+    await expect(
+      knightAttackV1(
+        payload({ style: "puissant", dataStyle: choice }),
+        {} as never,
+      ),
+    ).rejects.toMatchObject({ code: "weapon_unsupported" });
+    expect(rollCalls).toHaveLength(0);
+    scenario.weapon = { effets: { raw: ["lourd"] } };
+    await knightAttackV1(
+      payload({ style: "puissant", dataStyle: choice }),
+      {} as never,
+    );
+    expect(rollCalls[0].data.dataStyle).toEqual(choice);
+  });
+  const akimbo = (over: Dict = {}) =>
+    payload({
+      style: "akimbo",
+      secondaryEntryId: SECOND_ENTRY,
+      secondaryAttackId: "a1",
+      ...over,
+    });
+  it("validates the optional pair without changing old requests", () => {
+    expect(validateKnightAttackV1(akimbo())).toEqual(akimbo());
+    for (const req of [
+      akimbo({ style: "standard" }),
+      akimbo({ secondaryEntryId: ENTRY }),
+      akimbo({ secondaryAttackId: "" }),
+      payload({ secondaryItemId: "item000000000002" }),
+      akimbo({ secondaryItemId: "short" }),
+    ])
+      expect(() => validateKnightAttackV1(req)).toThrow();
+    const incomplete = akimbo();
+    delete incomplete.secondaryAttackId;
+    expect(() => validateKnightAttackV1(incomplete)).toThrow();
+  });
+  it("passes a distinct prepared second weapon into Knight's card", async () => {
+    const actor = world.actors.get(PC);
+    actor.items.contents.push({
+      id: "item000000000002",
+      name: "Second sword",
+      type: "arme",
+      system: {
+        type: "contact",
+        options2mains: { has: true, actuel: "2main" },
+      },
+      flags: { [MODULE_ID]: { entryId: SECOND_ENTRY } },
+    });
+    const before = JSON.stringify(actor.items.contents);
+    await knightAttackV1(akimbo(), {} as never);
+    expect(rollCalls[0].data.addFlags.secondWpn.label).toBe("Second sword");
+    expect(JSON.stringify(actor.items.contents)).toBe(before);
+  });
+  it("refuses an absent second weapon and a two-handed weapon before rolling", async () => {
+    await expect(knightAttackV1(akimbo(), {} as never)).rejects.toMatchObject({
+      code: "weapon_not_found",
+    });
+    world.actors.get(PC).items.contents.push({
+      id: "item000000000002",
+      name: "Second sword",
+      type: "arme",
+      system: { type: "contact" },
+      flags: { [MODULE_ID]: { entryId: SECOND_ENTRY } },
+    });
+    scenario.weaponRaw = ["deuxmains"];
+    await expect(knightAttackV1(akimbo(), {} as never)).rejects.toMatchObject({
+      code: "weapon_unsupported",
+    });
+    expect(rollCalls).toHaveLength(0);
   });
 });
 

@@ -10,9 +10,273 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - An accidentally elevated Companion service user no longer blocks human Gamemasters from
   answering requests, even when Foundry selects it as the active GM.
 
+## [0.34.0] - 2026-11-16
+
+### Added
+- Knight attacks accept a second weapon, a Powerful dice choice and a Precise characteristic, using prepared weapon copies without editing Items.
+- Companion clients can roll damage and violence from a Knight attack card through the system's own roller, preserving its audience and preventing duplicate follow-ups.
+
+## [0.33.0] - 2026-11-14
+
+### Fixed
+- A Knight Actor no longer ends with two armour Items when a companion app adds the armour
+  (`actor.items.v1`) before the character's approval runs `actor.upsert.v1`. The approval's
+  equipment step now treats any `armure` Item of the Actor as the armour slot: the same armour
+  (by either lane's flag, or for an Item made by hand, the compendium document Foundry recorded
+  it was copied from) is adopted, keeping every flag it has; another armour is replaced in place
+  (`equipment_armour_replaced:<id>`), unless it holds applied evolutions, archives or an active
+  capacity (`equipment_armour_guarded:<id>`, nothing deleted). An `actor.items.v1` armour add
+  likewise adopts the equipment step's armour instead of replacing it.
+- An Actor that already holds two armour Items made by this module for the same armour, with the
+  same data, is repaired by the next approval or armour add: the one carrying the app's entry id
+  (else the oldest) is kept with both sets of flags, the copy is deleted
+  (`armour_twins_merged:<kept>:<deleted>`). Any other set of several armours is left untouched and
+  reported (`equipment_armour_conflict:<ids>`; the armour add still answers `item_conflict`).
+
+## [0.32.0] - 2026-11-14
+
+### Fixed
+- A copy of a linked Actor made with Foundry's « Duplicate » no longer blocks every write for its
+  character with `binding_collision`. A request that names its Actor (`expectedActorId`) is served
+  on that Actor when it is one of those carrying the link; a request that names none is served on
+  the original when Foundry recorded the copy's source (`_stats.duplicateSource`), and is still
+  refused otherwise.
+- A new Actor created carrying a link another Actor already holds — a « Duplicate », or an import
+  of a linked Actor — loses this module's flags before it is saved (one warning in the browser
+  console). The original is never touched, and the module's own Actor creation is unaffected.
+- A copy made before this version, which still carries its original's link, no longer refuses
+  every write for the new character it is used for (`binding_conflict`). When a live write
+  (`actor.resources.v1`, `actor.items.v1`, `dnd5e.resources.v1`, `pf2e.resources.v1`) names that
+  copy for another character of the same table, and Foundry recorded it as a duplicate of an Actor
+  that still carries the same link, the copy's Table Companion flags are removed (one warning in
+  the browser console) and the write is served as for any unlinked Actor. The original is never
+  touched; any other case, including another table's link, is answered as before.
+
+## [0.31.0] - 2026-11-13
+
+### Changed
+- Taking a Knight Actor back (`reclaim: true` on `actor.resources.v1`) takes the binding back and
+  writes no value: the reclaiming table then reads Foundry's current values, so nothing the other
+  table played is overwritten. A reclaim row may now carry no value; the values or name an older
+  app still sends with one are ignored and the result warns `reclaim_values_ignored`. Advertised
+  as `bindingReclaimV2`, beside `bindingTakeoverV1`.
+
+## [0.30.0] - 2026-11-12
+
+### Added
+- A chat card the companion apps cancelled (undone, rerolled or removed by the GM) stays in the
+  chat, greyed under a « Cancelled », « Rerolled » or « Removed by the GM » banner.
+- The Knight `sheet` group of `actor.resources.v1` takes the unspent Glory (`gloryCurrent`,
+  advertised as `knightSheetGloryV1`). It is written as one « other expense » line named
+  « Table Companion » in the character's Glory table, whose cost moves with each change (a refund
+  lowers it); the Glory total and the Items' prices are left alone. A line renamed in Foundry is
+  kept, a deleted one is created again at the next change, and a change Foundry does not show is
+  put back and reported as `stat_clamped:gloryCurrent`.
+- The Knight write lanes (`actor.resources.v1`, `actor.items.v1`, `actor.upsert.v1`) take over an
+  Actor another table holds, advertised as `bindingTakeoverV1`: the binding records the tables it
+  was taken from (`previous`, the 16 latest), the other table's records of those lanes are
+  dropped, and the result warns `binding_taken_over`. A table that lost an Actor is answered the
+  new error `binding_lost` on every Knight lane (and `actor.upsert.v1` / `npc.upsert.v1` no longer
+  create a second Actor for it) until it takes the Actor back with `reclaim: true` on
+  `actor.resources.v1`. Another character of the same table, and the other systems' lanes, still
+  answer `binding_conflict`.
+
+## [0.29.0] - 2026-11-12
+
+### Added
+- A Hero Point reroll of a Pathfinder 2e check Foundry rolled (`pf2e.reroll.v1`, signed-only, on the
+  check lane's releases with pf2e's `Check.rerollFromMessage`) is now rerolled by Foundry: its card is
+  replaced by the system's own reroll card, with the same author and visibility, and Foundry spends no
+  Hero Point (the app spends it).
+- The damage or critical damage of a Pathfinder 2e Strike, the damage of a spell and a consumable's
+  effect that follow a card Foundry rolled or posted for the app (`pf2e.followup.v1`, signed-only, on
+  the check lane's releases) are now rolled by pf2e itself, with its own damage card, which keeps the
+  original card's author and visibility. Dialogs never open and nothing is spent: no ammunition, slot
+  or item (a consumable's use card is built without taking one from its quantity). An item card of a
+  consumable keeps its effect in the card's stamp, so the effect can still be rolled once the item is
+  gone.
+- A Pathfinder 2e check (`pf2e.check.v1`) takes an optional `dcVisible`: `false` hides the app's DC
+  from players on Foundry's card (the Gamemaster still reads the DC and the margin).
+- The replies of a Pathfinder 2e check (`pf2e.check.v1`) and of its Hero Point reroll
+  (`pf2e.reroll.v1`) now tell the Gamemaster's device the DC or AC pf2e judged the roll against
+  (`dcValue`, null when there is none), read from the card pf2e keeps; the module's own stamp on the
+  card does not copy it.
+
+## [0.28.0] - 2026-11-12
+
+### Added
+- The live resources write of a Knight character (`actor.resources.v1`) takes an optional `sheet`
+  group, advertised as `knightSheetWritesV1` with the prepared statistics read: aspects and
+  characteristics in Foundry's prepared values (the stored base is solved from Knight's own
+  formula, so wounds and experience purchases count once), unspent experience (written on the
+  experience total), Glory total, age, nickname and major motivation, each guarded by `base.sheet`.
+  A value Foundry cannot prepare at its target is put back and reported as `stat_clamped`; an
+  overridden or unreadable one is skipped and reported.
+
+### Fixed
+- The live resources write now checks that its update landed: when Foundry refuses the update (which it
+  does without an error), the write answers `procedure_failed` and records nothing, instead of
+  reporting values that never landed.
+
+## [0.27.0] - 2026-11-12
+
+### Added
+- The prepared statistics read (`pf2e.statistics.v1`) carries the actor's maximum Hit Points as
+  Foundry computes them (feats and effects included), as an optional `hp.max`.
+
+### Fixed
+- A Gamemaster-only roll or card posted for a player's character is no longer readable by that
+  player in Foundry's chat: the Gamemaster now authors it. A player's own private Gamemaster roll
+  still shows to that player, as in Foundry.
+- A spell card asked at a rank below the spell's own rank (a focus spell or a cantrip) no longer
+  hangs the Gamemaster's browser: the card is posted at the spell's rank.
+
+## [0.26.1] - 2026-11-11
+
+### Fixed
+- A Knight character written from the app no longer gets the app's free-text origin in its
+  `system.origin`, which the Knight system reads as the being's nature (`humain`, `anatheme`,
+  `autre`); a character an earlier version had written this way gets `humain` back at its next
+  approved revision, unless its origin was changed in Foundry since.
+- An approved Knight character update now really keeps the fields the Gamemaster changed in Foundry
+  since the app's last write, and the NPC and resources writes again accept a base read before
+  their own last write landed: the record of what was written is read the way Foundry stores it. A
+  `dnd5e.resources.v1` replay no longer answers an effective hit-point maximum the Actor no longer has.
+
+## [0.26.0] - 2026-11-11
+
+### Added
+- Knight attacks (`knight.attack.v1`) take an optional `itemId`, the weapon's Foundry Item id, so a
+  weapon created in Foundry can be rolled when no Item carries the app's `entryId`; advertised by the
+  capability token `knightAttackItemIdV1`.
+
+### Fixed
+- Unlinking a world in the app and linking it again no longer duplicates its NPCs nor blocks writes to its
+  characters: an Actor is bound to its character by table and character, whatever the world link's id, and a
+  re-send of an already applied revision under the new link replays instead of conflicting.
+- On Foundry 14, the Knight character, Knight NPC and Pathfinder 2e character upserts (`actor.upsert.v1`,
+  `npc.upsert.v1`, `pf2e.actor.upsert.v1`) no longer lose their whole update to Foundry refusing the
+  ownership change: the ownership map is now replaced with Foundry 14's `ForcedReplacement`, and a lane
+  answers `procedure_failed` instead of success when Foundry still did not apply its update.
+- A Knight Warrior armour whose « type » is active (in or out of conflict) is now guarded against an
+  unconfirmed replacement (`armour_guarded`).
+- A Knight character created by `actor.upsert.v1` now has a linked prototype token, so damage dealt to
+  its token on a scene lands on the character itself.
+- Knight attacks (`knight.attack.v1`) now roll a ranged weapon with the « barrage » effect as a normal
+  attack, the barrage option off as in the sheet's roll dialog, instead of refusing it.
+
+## [0.25.0] - 2026-11-11
+
+### Added
+- Pathfinder 2e checks (`pf2e.check.v1`) answer the degree of a Strike or spell attack that pf2e
+  read from its target when the app sent no DC, with two new reply keys: `degreeSource` (`dc`,
+  `target` or null) and `resultsShown` (pf2e's « Show Check Outcomes » world setting). The target's
+  AC never leaves Foundry.
+- Pathfinder 2e checks (`pf2e.check.v1`) roll a player's Strike or spell attack against that player's
+  own target, or against none, never the Gamemaster's; a Gamemaster's own roll from the app still
+  uses the Gamemaster's targets. The Gamemaster's target selection is left as it was.
+- Knight armour from the app (`actor.items.v1`, new `armour` kind, advertised by the new
+  `actorItemsArmourV1` capability): an armour picked in the app replaces the character's armour in
+  Foundry, copied from Knight Compendium 14.0.1 (now covering all 17 armours) or built from the app's
+  fields. Modules and weapons are kept. An armour carrying applied evolutions, archived data or an
+  active capacity is refused (`armour_guarded`) unless the Gamemaster confirms the replacement
+  (`force`, reported as `armour_replaced_guarded`).
+- Knight armour deploy and fold from the app (`actor.resources.v1` `wear` / `previousWear`, advertised
+  by the new `actorResourcesWearV1` capability): a compare-and-set on the wear Foundry shows
+  (`wear_conflict` when it moved first, a capacity holds the ascension, or there is no armour);
+  a generation 4 armour stays worn (`wear_forced`).
+
+### Changed
+- Fifth Edition live counters (`dnd5e.resources.v1`) now run on dnd5e 6.0.0 or a later 6.x on
+  Foundry 14 or later (previously 6.1.0, a release that is not published), checked against dnd5e
+  6.0.6. An exhaustion change is recorded as written even before dnd5e's exhaustion effect catches
+  up, so a following change is no longer refused as a conflict.
+
+## [0.24.0] - 2026-11-11
+
+### Added
+- Knight tests from the app (`knight.test.v1`, signed-only): a test with no weapon is rolled by the
+  Knight system itself, so the native card shows its successes, Exploit or critical failure and, with a
+  difficulty, its verdict; the dice go back to the app. Nothing is spent in Foundry.
+- Knight prepared statistics (`knight.statistics.v1`, signed-only read): the app reads, for up to 32
+  Actors at once, the aspects, characteristics and overdrives, pools, force field, defense, reaction
+  and initiative as the Knight system prepared them, so it shows Foundry's own numbers. Nothing is
+  written or rolled in Foundry.
+- Knight live counters (`actor.resources.v1`) also write non-player Actors (`pnj`, `creature`, `bande`,
+  `vehicule`), advertised by the new `knightNpcResourcesV1` capability: health, armour and energy on
+  the Actor's own pools, clamped to their prepared maximum; `npc.upsert.v1` pools may leave out
+  `current` so a stat edit keeps damage dealt in Foundry, NPCs it creates have linked tokens, the
+  backend's Companion user keeps Observer on them (players unchanged), and « Share » also covers
+  hidden NPCs the app created.
+
+### Fixed
+- Knight attacks from the app (`knight.attack.v1`): a card posted as a self or blind roll is now also
+  whispered to the backend's Companion user, so the app can still read its result when the reply was
+  lost.
+- Knight character provisioning (`actor.upsert.v1`): an approved character written onto an Actor
+  already created for it keeps each field the Gamemaster changed in Foundry since the module last
+  wrote it, and reports how many with one `foundry_kept:<n>` warning.
+
+## [0.23.0] - 2026-11-11
+
+### Added
+- Pathfinder 2e checks run by Foundry (`pf2e.check.v1`, signed-only, pf2e 8.5.1 or a later 8.x on
+  Foundry 14): a Perception, save, skill or lore check, a character's Strike at any multiple-attack
+  step, or a spell attack started in the app is rolled by pf2e itself in the Gamemaster's browser, so
+  Foundry posts its own card (modifier breakdown, roll options, degree of success, damage buttons) and
+  the dice, total and degree go back to the app. No dialog opens and no ammunition is spent; a retry
+  never rolls twice. An NPC's Strike stays on the app's engine.
+- Pathfinder 2e spell and item cards (`pf2e.card.v1`, signed-only, same releases): the card of a spell
+  cast or an item used in the app, as pf2e posts it from the sheet (heightened to the cast rank). It
+  spends nothing in Foundry: the app updates the slot, focus point or quantity itself, once.
+
+## [0.22.1] - 2026-11-11
+
+### Fixed
+- Character images from the app (`actor.image.v1`): on a Knight world, the icon the Knight system
+  gives a new Actor is now recognised as a placeholder, so an image chosen in the app replaces it
+  instead of being set aside.
+
+## [0.22.0] - 2026-11-10
+
+### Added
+- Character images from the app (`actor.image.v1`, every game system, signed-only): a Gamemaster's
+  browser now saves a character image sent from the app (a JPEG of at most 1 MiB, received in chunks
+  and checked against its length, SHA-256 and JPEG signature) into the world's
+  `table-companion/portraits` folder, named after the Actor and the image's hash, and sets it as that
+  Actor's image; it can also reset the image to the system's default artwork. Only a world Actor's
+  `img` is written (never its prototype token), and no other folder or file name can be requested.
+
+## [0.21.0] - 2026-11-09
+
+### Added
+- Pathfinder 2e live counters (`pf2e.resources.v1`) also write an imported NPC (`actorType: "npc"`),
+  advertised by the new `pf2eNpcWritesV1` capability: hit points, temporary hit points, conditions,
+  item quantities and spellcasting (slots, prepared spells, the NPC's stored focus pool, innate uses).
+  Hero points, the coin purse and item adds are refused for an NPC.
+- Pathfinder 2e live counters (`pf2e.resources.v1`) take three optional groups, advertised by the
+  new `pf2eSheetWritesV1` capability: the coin purse (`coins`, a target total per denomination,
+  written through pf2e's own currency functions and skipped with `coins_unaddressable` when a coin
+  stack is not plain), custom items created in the app without a compendium entry (`customAdds`,
+  idempotent by their key), and spellcasting (`spellcasting`: slot values and prepared spells per
+  entry and rank, focus points, innate uses, each clamped to its maximum with a warning). `base`
+  takes `coins` and `spellcasting`. An older module refuses the new keys; apps send them only when
+  the capability is advertised.
+- Pathfinder 2e prepared statistics (`pf2e.statistics.v1`, a signed read on pf2e 8.5.1 or a later
+  8.x on Foundry 14): a character's or NPC's armor class, perception, saves, skills and lores, class DC,
+  spellcasting attack and DC, and strikes with their three multiple-attack-penalty modifiers and
+  damage formulas, as pf2e prepared them, so the app rolls with Foundry's own numbers. It never
+  writes, rolls or posts to chat.
+
 ### Changed
 - Release builds now enforce the same formatting, coverage and runtime-dependency audit gates as
   CI before publishing the module.
+
+### Fixed
+- Pathfinder 2e live counters: prepared spell slots are compared and written in pf2e's own order
+  (prepared spells first, empty slots last), so a retry after a write that failed part-way no
+  longer reports its own earlier slot write as a `base_conflict`; a change made in Foundry in
+  between is still refused.
 
 ### Security
 - Projector portraits reject control-character-obfuscated URLs and mixed-slash network paths,

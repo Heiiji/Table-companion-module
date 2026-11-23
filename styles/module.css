@@ -166,3 +166,23 @@
 .tca-projector-board .tca-field-value {
   font-variant-numeric: tabular-nums;
 }
+
+/* A chat card the companion apps cancelled: greyed, still readable and
+ * selectable, under a banner. */
+.chat-message.tca-marked .message-content {
+  opacity: 0.55;
+}
+
+/* The banner takes the card's own text colour: a game system may draw its
+ * chat cards light in Foundry's dark theme (or the reverse), where a theme
+ * colour is unreadable. */
+.chat-message .tca-mark {
+  margin: 0.25rem 0;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  color: inherit;
+  font-size: var(--font-size-12, 12px);
+  font-weight: bold;
+  text-transform: uppercase;
+}

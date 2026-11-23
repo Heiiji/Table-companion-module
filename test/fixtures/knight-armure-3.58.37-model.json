@@ -1,0 +1,75 @@
+{
+  "knightSystemVersion": "3.58.37",
+  "source": "Shape only: armure Items built from the system's armour data model, not captured from a live world. Names and texts are placeholders; capacity and evolution bodies are trimmed to the keys the module reads.",
+  "fresh": {
+    "_id": "armurefresh00001",
+    "name": "Sanitized armour",
+    "type": "armure",
+    "system": {
+      "description": "",
+      "generation": 1,
+      "armure": { "base": 100 },
+      "champDeForce": { "base": 8 },
+      "energie": { "base": 40 },
+      "espoir": { "bonus": false, "value": 0, "remplaceEnergie": false, "cout": 2 },
+      "capacites": {
+        "actuel": "personnalise",
+        "liste": {},
+        "selected": { "ghost": { "label": "Placeholder", "active": null } }
+      },
+      "special": { "selected": {} },
+      "slots": {
+        "tete": { "value": 5, "bonus": {}, "malus": {} },
+        "torse": { "value": 8, "bonus": {}, "malus": {} },
+        "brasGauche": { "value": 5, "bonus": {}, "malus": {} },
+        "brasDroit": { "value": 5, "bonus": {}, "malus": {} },
+        "jambeGauche": { "value": 5, "bonus": {}, "malus": {} },
+        "jambeDroite": { "value": 5, "bonus": {}, "malus": {} }
+      },
+      "overdrives": {
+        "chair": { "liste": { "deplacement": { "value": 0 }, "force": { "value": 0 }, "endurance": { "value": 0 } } },
+        "bete": { "liste": { "hargne": { "value": 0 }, "combat": { "value": 0 }, "instinct": { "value": 0 } } },
+        "machine": { "liste": { "tir": { "value": 0 }, "savoir": { "value": 0 }, "technique": { "value": 0 } } },
+        "dame": { "liste": { "aura": { "value": 0 }, "parole": { "value": 0 }, "sangFroid": { "value": 0 } } },
+        "masque": { "liste": { "discretion": { "value": 0 }, "dexterite": { "value": 0 }, "perception": { "value": 0 } } }
+      },
+      "evolutions": {
+        "paliers": 3,
+        "liste": {
+          "0": { "value": 150, "description": "", "capacites": {}, "special": {} },
+          "1": { "value": 200, "description": "", "capacites": {}, "special": {} }
+        },
+        "special": {}
+      },
+      "archivage": { "liste": {}, "longbow": {} }
+    }
+  },
+  "evolved": {
+    "evolutions": {
+      "paliers": 3,
+      "liste": {
+        "0": { "applied": true, "value": 150, "description": "", "addOrder": 1 },
+        "1": { "value": 200, "description": "", "capacites": {}, "special": {} }
+      },
+      "special": {}
+    },
+    "archivage": { "liste": { "150": "placeholder-compressed-snapshot" } }
+  },
+  "longbowEvolved": {
+    "evolutions": {
+      "paliers": 0,
+      "liste": {},
+      "special": { "longbow": { "1": { "applied": true, "addOrder": 1 } } }
+    }
+  },
+  "archived": {
+    "archivage": { "liste": {}, "longbow": { "1": ["placeholder"] } }
+  },
+  "activeCapacity": {
+    "capacites": {
+      "actuel": "personnalise",
+      "liste": {},
+      "selected": { "ghost": { "label": "Placeholder", "active": { "conflit": false, "horsconflit": true } } }
+    }
+  }
+}

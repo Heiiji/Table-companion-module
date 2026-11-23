@@ -14,6 +14,7 @@ import {
 import { registerBuiltinProcedures } from "./procedures/index.js";
 import { scheduleCompendiumWarmup } from "./procedures/compendium.js";
 import { startDisplayListener } from "./procedures/display.js";
+import { stripDuplicatedBinding } from "./procedures/upsertShared.js";
 import { Channel } from "./rpc/channel.js";
 import { ProcedureRegistry } from "./rpc/registry.js";
 import { checkSignatureSupport } from "./rpc/signatureSupport.js";
@@ -24,6 +25,7 @@ import {
 } from "./rpc/responseSigning.js";
 import { appPresence } from "./setup/appPresence.js";
 import { startPresenceWatcher } from "./setup/presence.js";
+import { startChatMarks } from "./ui/chatMarks.js";
 import { startKnightRollCards } from "./ui/knightRollCard.js";
 import { startKnightAttackFollowUps } from "./procedures/knightAttackFollowUps.js";
 import { offerSetupIfNeeded, openSetupApp } from "./ui/SetupApp.js";
@@ -141,6 +143,14 @@ Hooks.once("init", () => {
 
   // Every client: app rolls on a Knight world drawn as the system's roll card.
   startKnightRollCards();
+  // Every client: an Actor created carrying another Actor's Table Companion
+  // link (a « Duplicate ») loses it before it is saved. The hook runs only on
+  // the creating client, so no Gamemaster needs to be connected.
+  Hooks.on("preCreateActor", (doc, data, options) =>
+    stripDuplicatedBinding(doc as never, data, options as never),
+  );
+  // Every client: a card the companion apps cancelled is greyed under a banner.
+  startChatMarks();
   // Knight: damage / violence cards rolled from an app attack card are tagged
   // with that attack (the elected responder stamps them).
   startKnightAttackFollowUps();

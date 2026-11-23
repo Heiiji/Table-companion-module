@@ -2,6 +2,7 @@ import { MODULE_ID } from "../constants.js";
 import {
   actorImplementation,
   deletionEntry,
+  forcedReplacement,
   foundryGame,
   foundryGeneration,
   gameActors,
@@ -16,6 +17,7 @@ import {
 import { RpcError } from "../rpc/errors.js";
 import { pairedAgentUserId } from "../setup/identity.js";
 import { canonicalize } from "../util/canonicalJson.js";
+import { log } from "../util/log.js";
 
 /**
  * Shared plumbing for the durable actor-provisioning procedures
@@ -49,6 +51,39 @@ export interface BindingV1 {
   worldId: string;
   tableId: string;
   characterId: string;
+  /** The tables this Actor was taken from, oldest first (Knight lanes). */
+  previous?: PreviousHolderV1[];
+}
+
+/** A table + character that held the Actor before, and when it lost it. */
+export interface PreviousHolderV1 {
+  tableId: string;
+  characterId: string;
+  at: string;
+}
+
+/** How many previous holders a binding keeps. */
+const MAX_PREVIOUS = 16;
+
+/** The history of a stored binding; a malformed one reads as empty. */
+function previousOf(value: unknown): PreviousHolderV1[] {
+  if (
+    !Array.isArray(value) ||
+    !value.every(
+      (e) =>
+        typeof e === "object" &&
+        e !== null &&
+        typeof e.tableId === "string" &&
+        typeof e.characterId === "string" &&
+        typeof e.at === "string",
+    )
+  )
+    return [];
+  return value.map(({ tableId, characterId, at }) => ({
+    tableId,
+    characterId,
+    at,
+  }));
 }
 
 /** Foundry document ownership levels used by the provisioning lanes. */
@@ -254,7 +289,7 @@ export function parseAspectScores(value: unknown): AspectScoresV1 {
  *
  * - `knight`: every Knight lane (PC and pnj provisioning, live resources,
  *   items, attacks), from the PC and pnj fixtures captured on 3.58.33.
- * - `dnd5e`: the Fifth Edition live-resources lane, derived from 6.1.0.
+ * - `dnd5e`: the Fifth Edition live-resources lane, derived from 6.0.6.
  * - `pf2e`: Pathfinder 2e character draft and completion, derived from 8.6.1
  *   (source-derived, never confirmed against a live world).
  * - `pf2eResources`: Pathfinder 2e live resources, whose APIs and paths also
@@ -262,7 +297,7 @@ export function parseAspectScores(value: unknown): AspectScoresV1 {
  */
 export const VERIFIED_SYSTEM_VERSIONS = {
   knight: { floor: "3.58.33", major: 3 },
-  dnd5e: { floor: "6.1.0", major: 6 },
+  dnd5e: { floor: "6.0.0", major: 6 },
   pf2e: { floor: "8.6.1", major: 8 },
   pf2eResources: { floor: "8.5.1", major: 8 },
 } as const;
@@ -385,6 +420,28 @@ export function supportsPf2eResourcesV1Runtime(): boolean {
   );
 }
 
+/** pf2e's currency APIs on an Actor's prepared inventory (source-derived,
+ * pf2e 8.5.1 and 8.6.1 `actor/inventory/index.ts:94-133` addCurrency,
+ * `:135-250` removeCurrency; the inventory is built in `actor/base.ts`
+ * prepareBaseData). */
+export function hasPf2eCurrencyApis(actor: ActorLike): boolean {
+  return (
+    typeof actor.inventory?.addCurrency === "function" &&
+    typeof actor.inventory?.removeCurrency === "function"
+  );
+}
+
+/** Gate of the `pf2eSheetWritesV1` token: the resources lane's runtime, with
+ * pf2e's currency APIs. They live on each Actor's prepared inventory, so a
+ * character of the world answers; a world without one answers by the lane's
+ * verified range, and the handler probes the written Actor again before
+ * touching it. */
+export function supportsPf2eSheetWritesV1Runtime(): boolean {
+  if (!supportsPf2eResourcesV1Runtime()) return false;
+  const pc = contentsOf(gameActors()).find((a) => a.type === "character");
+  return pc === undefined || hasPf2eCurrencyApis(pc);
+}
+
 /** Every world-writing procedure runs only in a GM responder's browser. */
 export function assertGMResponder(procedure: string): void {
   if (!foundryGame()?.user?.isGM)
@@ -481,6 +538,7 @@ export const FLAG_KEYS = {
   equipmentCatalogVariant: "equipmentCatalogVariantV1",
   equipmentCatalogSource: "equipmentCatalogSourceV1",
   entryId: "entryId",
+  armourCatalogId: "armourCatalogId",
   combatSync: "combatSync",
   combatantKey: "key",
 } as const;
@@ -526,13 +584,20 @@ export function bindingOf(actor: ActorLike): BindingV1 | null {
     worldId: p.worldId as string,
     tableId: p.tableId as string,
     characterId: p.characterId as string,
+    ...(p.previous === undefined ? {} : { previous: previousOf(p.previous) }),
   };
 }
 
-function exactBinding(binding: BindingV1 | null, expected: BindingV1): boolean {
+/** True when `binding` names the same character as `expected`: the table and
+ * character ids, which the app keeps for good. The world id is the backend's
+ * id of the world link and changes when the world is unlinked and linked
+ * again, so it is not part of the identity. */
+export function sameCharacter(
+  binding: BindingV1 | null,
+  expected: { tableId: string; characterId: string },
+): boolean {
   return (
     binding?.schemaVersion === 1 &&
-    binding.worldId === expected.worldId &&
     binding.tableId === expected.tableId &&
     binding.characterId === expected.characterId
   );
@@ -552,29 +617,195 @@ export function bindingFor(req: {
   };
 }
 
-/** The one Actor carrying exactly this binding, or undefined when none does.
- * Two carriers means the world was hand-edited into an ambiguous state, so the
- * upsert refuses rather than guess which one is the character. */
+/** The one Actor bound to this character, or undefined when none is. The one
+ * carrying the binding's world id too wins: an older Actor bound under a
+ * previous link of the world is ignored. Two candidates at the same rank
+ * (typically a copy made by Foundry's « Duplicate », which keeps the flags)
+ * are resolved without guessing: to the Actor the request names, when it is
+ * one of them; without one, to the only candidate that is not a recorded
+ * duplicate of another (Foundry stores the source's uuid in
+ * `_stats.duplicateSource`). Otherwise the upsert refuses. */
 export function uniqueBoundActor(
   collection: ActorsLike,
   binding: BindingV1,
+  expectedActorId?: string,
 ): ActorLike | undefined {
-  const matches = contentsOf(collection).filter((actor) =>
-    exactBinding(bindingOf(actor), binding),
+  const same = contentsOf(collection).filter((actor) =>
+    sameCharacter(bindingOf(actor), binding),
   );
-  if (matches.length > 1)
-    throw new RpcError(
-      "binding_collision",
-      "multiple Actors carry this Table Companion binding",
-    );
-  return matches[0];
+  const exact = same.filter(
+    (actor) => bindingOf(actor)?.worldId === binding.worldId,
+  );
+  if (exact.length === 1) return exact[0];
+  const candidates = exact.length > 1 ? exact : same;
+  if (candidates.length <= 1) return candidates[0];
+  const served =
+    expectedActorId === undefined
+      ? onlyOriginal(candidates)
+      : candidates.find((actor) => docId(actor) === expectedActorId);
+  if (served) return served;
+  throw new RpcError(
+    "binding_collision",
+    "multiple Actors carry this Table Companion binding",
+  );
+}
+
+/** The one candidate no other candidate is a recorded copy of: an Actor whose
+ * `_stats.duplicateSource` names another candidate is a copy. Undefined when
+ * that leaves more than one (a source not recorded, as before Foundry kept
+ * it, after a compendium round trip, or for a clone made without it). */
+function onlyOriginal(candidates: ActorLike[]): ActorLike | undefined {
+  const uuids = new Set(candidates.map((actor) => `Actor.${docId(actor)}`));
+  const originals = candidates.filter(
+    (actor) => !uuids.has(String(actor._stats?.duplicateSource)),
+  );
+  return originals.length === 1 ? originals[0] : undefined;
+}
+
+/** The creation option the module's own Actor creation carries, so the
+ * `preCreateActor` hook never strips a binding the module stamps on purpose. */
+export const PROVISIONING_OPTION = "tableCompanionProvisioning";
+
+/**
+ * `preCreateActor` hook (it runs on the client that creates the Actor): a new
+ * Actor that arrives carrying this module's binding while another Actor of the
+ * world already carries the same table and character — a copy made by
+ * Foundry's « Duplicate », or a re-import — loses this module's flags before
+ * it is saved, so it becomes an ordinary unbound Actor and the original keeps
+ * its link. The module's own creation (`PROVISIONING_OPTION`) is left alone.
+ */
+export function stripDuplicatedBinding(
+  doc: ActorLike & { updateSource?(changes: Dict): unknown },
+  _data: unknown,
+  options: Dict | undefined,
+): void {
+  if (options?.[PROVISIONING_OPTION]) return;
+  const binding = bindingOf(doc);
+  if (!binding) return;
+  const held = contentsOf(gameActors()).some(
+    (actor) => actor !== doc && sameCharacter(bindingOf(actor), binding),
+  );
+  if (!held || typeof doc.updateSource !== "function") return;
+  const [key, value] = deletionEntry(MODULE_ID);
+  doc.updateSource({ flags: { [key]: value } });
+  log.warn(
+    `removed the Table Companion link from the new Actor "${doc.name ?? ""}": another Actor already carries it (table ${binding.tableId}, character ${binding.characterId})`,
+  );
+}
+
+/** The digests a stored result of `actor` may carry for `req` at the same
+ * revision: the request's own, and, when the Actor is still bound under a
+ * previous world id, the digest of the same request under that id (a re-send
+ * after the world was linked again carries the same content). */
+export async function replayDigests(
+  req: { worldId: string },
+  actor: ActorLike,
+  digest: string,
+): Promise<string[]> {
+  const bound = bindingOf(actor)?.worldId;
+  if (bound === undefined || bound === req.worldId) return [digest];
+  return [digest, await canonicalDigest({ ...req, worldId: bound })];
+}
+
+/** The lane records another table leaves on an Actor (stored results with
+ * their revision, digest and `written` values), dropped when the Actor is
+ * taken over. */
+const LANE_RECORDS = [
+  FLAG_KEYS.actorResources,
+  FLAG_KEYS.actorUpsert,
+  FLAG_KEYS.npcUpsert,
+] as const;
+
+/** Options of the Knight lanes, which take over an Actor another table holds
+ * (the other systems' lanes never do). `reclaim`: a table that lost the Actor
+ * takes it back. */
+export interface TakeoverOptions {
+  takeover: true;
+  reclaim?: boolean;
+}
+
+/** May the request take over `bound`, an Actor bound to another character?
+ * Never within one table (two characters on one Actor is a defect); never
+ * automatically for a table that lost it (`binding_lost`) unless it reclaims
+ * it. Without the option the binding is a conflict, as on every other lane. */
+export function assertTakeover(
+  bound: BindingV1,
+  req: { tableId: string; characterId: string },
+  conflict: string,
+  options?: TakeoverOptions,
+): void {
+  if (!options?.takeover || bound.tableId === req.tableId)
+    throw new RpcError("binding_conflict", conflict);
+  if (!options.reclaim && lostBy(bound, req))
+    throw new RpcError("binding_lost", "another table took this Actor over");
+}
+
+function lostBy(
+  bound: BindingV1 | null,
+  req: { tableId: string; characterId: string },
+): boolean {
+  return (bound?.previous ?? []).some(
+    (e) => e.tableId === req.tableId && e.characterId === req.characterId,
+  );
+}
+
+/** Refuse `binding_lost` when another table took over this character's Actor:
+ * a lane about to create one (or to answer `deleted_link`) would otherwise
+ * make a second Actor of the same character. */
+export function assertNotLost(
+  collection: ActorsLike,
+  req: { tableId: string; characterId: string },
+): void {
+  if (contentsOf(collection).some((actor) => lostBy(bindingOf(actor), req)))
+    throw new RpcError("binding_lost", "another table took this Actor over");
+}
+
+/**
+ * The update entries that hand `actor` to the request's table and character
+ * when another table holds it, or undefined when it is unbound or already
+ * the request's. The binding is replaced (the request's ids, and the holder
+ * it is taken from appended to `previous` at the current time: unique per
+ * table and character, the 16 latest kept, the request's own entry removed on
+ * a reclaim), and the other table's lane records are deleted.
+ */
+export function takeoverPatch(
+  actor: ActorLike,
+  req: { worldId: string; tableId: string; characterId: string },
+): Dict | undefined {
+  const old = bindingOf(actor);
+  if (!old || sameCharacter(old, req)) return undefined;
+  const same = (
+    a: PreviousHolderV1,
+    b: { tableId: string; characterId: string },
+  ) => a.tableId === b.tableId && a.characterId === b.characterId;
+  const previous = [
+    ...(old.previous ?? []).filter((e) => !same(e, req) && !same(e, old)),
+    {
+      tableId: old.tableId,
+      characterId: old.characterId,
+      at: new Date().toISOString(),
+    },
+  ].slice(-MAX_PREVIOUS);
+  const binding: BindingV1 = { ...bindingFor(req), previous };
+  return {
+    ...Object.fromEntries(
+      LANE_RECORDS.map((key) => {
+        const [k, v] = deletionEntry(key);
+        return [`flags.${MODULE_ID}.${k}`, v];
+      }),
+    ),
+    [`flags.${MODULE_ID}.${FLAG_KEYS.binding}`]:
+      forcedReplacement(binding) ?? binding,
+  };
 }
 
 /** The PC a live lane writes: the Actor bound to the character (which must be
  * the one the app expects) or, for a character imported from Foundry, the
  * unbound Actor of `actorType` the app names. Never created, bound or matched
- * by name. */
-export function linkedActor(
+ * by name. With `options` (the Knight lanes), the Actor the app names may be
+ * bound to another table: `assertTakeover` decides, and the lane writes
+ * `takeoverPatch` with its update. */
+export async function linkedActor(
   req: {
     worldId: string;
     tableId: string;
@@ -582,9 +813,14 @@ export function linkedActor(
     expectedActorId: string;
   },
   actorType: string,
-): ActorLike {
+  options?: TakeoverOptions,
+): Promise<ActorLike> {
   const collection = actorCollection();
-  let actor = uniqueBoundActor(collection, bindingFor(req));
+  let actor = uniqueBoundActor(
+    collection,
+    bindingFor(req),
+    req.expectedActorId,
+  );
   if (!actor) {
     // A character imported from Foundry carries no binding: the app names the
     // Actor it was imported from. Only an unbound Actor qualifies, so a binding
@@ -592,10 +828,21 @@ export function linkedActor(
     actor = collection.get(req.expectedActorId);
     if (!actor)
       throw new RpcError("deleted_link", "the linked Actor no longer exists");
-    if (bindingOf(actor))
-      throw new RpcError(
-        "binding_conflict",
+    let bound = bindingOf(actor);
+    if (
+      bound &&
+      actor.type === actorType &&
+      staleCopy(collection, actor, req)
+    ) {
+      await stripModuleFlags(actor, bound);
+      bound = null;
+    }
+    if (bound)
+      assertTakeover(
+        bound,
+        req,
         "the Actor is bound to another character",
+        options,
       );
   }
   if (actor.type !== actorType || docId(actor) !== req.expectedActorId)
@@ -604,6 +851,47 @@ export function linkedActor(
       "the binding points at a different Actor",
     );
   return actor;
+}
+
+/** True when `actor` — named by a request of `req`'s table for a character
+ * it is not bound to — is a recorded copy left with its source's link:
+ * bound to another character of the SAME table, its `_stats.duplicateSource`
+ * names another Actor of the world, and that Actor carries the same binding.
+ * Only the recorded source counts (a chain is never walked). Another table's
+ * binding stays the take-over path. */
+function staleCopy(
+  collection: ActorsLike,
+  actor: ActorLike,
+  req: { tableId: string; characterId: string },
+): boolean {
+  const bound = bindingOf(actor);
+  if (!bound || bound.tableId !== req.tableId || sameCharacter(bound, req))
+    return false;
+  const source = actor._stats?.duplicateSource;
+  if (typeof source !== "string" || !source.startsWith("Actor.")) return false;
+  const original = collection.get(source.slice("Actor.".length));
+  return (
+    original !== undefined &&
+    original !== actor &&
+    docId(original) !== docId(actor) &&
+    sameCharacter(bindingOf(original), bound)
+  );
+}
+
+/** Delete this module's whole flag namespace from `actor` (its binding and
+ * the lane records it copied), checked by reading the binding back: Foundry
+ * drops a refused update without an error. */
+async function stripModuleFlags(
+  actor: ActorLike,
+  bound: BindingV1,
+): Promise<void> {
+  const [key, value] = deletionEntry(MODULE_ID);
+  await actor.update({ [`flags.${key}`]: value });
+  if (bindingOf(actor))
+    throw new RpcError("procedure_failed", "Foundry did not apply the update");
+  log.warn(
+    `removed the Table Companion link that the Actor "${actor.name ?? ""}" (${docId(actor)}) kept from the Actor it was duplicated from (table ${bound.tableId}, character ${bound.characterId})`,
+  );
 }
 
 /** The result fields both lanes store on the Actor after an apply. */
@@ -661,12 +949,14 @@ export function parseStoredResult(
  * same revision with different content is a conflict; the same revision with
  * the same content returns true, and the caller replays the stored result
  * without writing anything. False means the request must be applied.
- * `revisionKind` names the lane's revision in the error messages.
+ * `digest` may list several digests that all carry the request's content
+ * (`replayDigests`). `revisionKind` names the lane's revision in the error
+ * messages.
  */
 export function alreadyApplied(
   previous: { appliedRevision: number; appliedDigest: string } | null,
   revision: number,
-  digest: string,
+  digest: string | readonly string[],
   revisionKind: "approved" | "content" | "sequence" | "draft",
 ): boolean {
   if (!previous) return false;
@@ -677,7 +967,7 @@ export function alreadyApplied(
     );
   }
   if (previous.appliedRevision !== revision) return false;
-  if (previous.appliedDigest !== digest) {
+  if (![digest].flat().includes(previous.appliedDigest)) {
     throw new RpcError(
       "revision_conflict",
       `the same ${revisionKind} revision carries different content`,
@@ -695,6 +985,23 @@ export function fieldsOf(value: object, prefix = ""): Dict {
     if (typeof v === "object" && v !== null && !Array.isArray(v))
       Object.assign(out, fieldsOf(v as object, `${prefix}${key}.`));
     else out[prefix + key] = Array.isArray(v) ? [...v].sort() : v;
+  }
+  return out;
+}
+
+/** A lane's stored record as `path → value`. Foundry expands the dotted keys
+ * of update data at every depth, so a record written as `{"system.age": …}`
+ * is stored nested (`{system: {age: …}}`): nested objects flatten back to
+ * dotted keys, arrays and primitives are values (left unsorted), and a key
+ * still dotted (an older fake or a hand-written flag) reads the same. */
+export function recordedFields(value: unknown, prefix = ""): Dict {
+  const out: Dict = {};
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return out;
+  for (const [key, v] of Object.entries(value)) {
+    if (typeof v === "object" && v !== null && !Array.isArray(v))
+      Object.assign(out, recordedFields(v, `${prefix}${key}.`));
+    else out[prefix + key] = v;
   }
   return out;
 }
@@ -719,8 +1026,7 @@ export function assertBase(
 ): void {
   if (!base) return;
   const wanted = fieldsOf(req);
-  const last =
-    typeof written === "object" && written !== null ? (written as Dict) : {};
+  const last = recordedFields(written);
   const same = (a: unknown, b: unknown) => canonicalize(a) === canonicalize(b);
   const moved = Object.entries(fieldsOf(base))
     .filter(([field, was]) => {
@@ -765,7 +1071,10 @@ export async function createActorDocument(data: Dict): Promise<ActorLike> {
       "unsupported_runtime",
       "Actor.implementation.create is unavailable",
     );
-  const created = await factory.create(data, { renderSheet: false });
+  const created = await factory.create(data, {
+    renderSheet: false,
+    [PROVISIONING_OPTION]: true,
+  });
   const actor = Array.isArray(created) ? created[0] : created;
   if (
     typeof actor !== "object" ||
@@ -779,23 +1088,20 @@ export async function createActorDocument(data: Dict): Promise<ActorLike> {
 
 /**
  * An `ownership` update that REPLACES the Actor's whole ownership map with
- * `default` plus, when given, one OWNER grant. Foundry merges object updates
- * recursively, so sending only the desired map would leave stale grants behind;
- * every other explicit key therefore gets a deletion entry (`deletionEntry`).
+ * `ownership`. Foundry 14 refuses any deletion inside the ownership field (and
+ * then drops the whole update without throwing), so there the update is a
+ * `ForcedReplacement`. Before 14 Foundry merges object updates recursively, so
+ * every other explicit key gets a `-=key` deletion entry.
  */
 export function ownershipReplacement(
   actor: ActorLike,
-  defaultLevel: number,
-  owner?: string,
-): Dict {
-  const update: Dict = { default: defaultLevel };
-  for (const key of Object.keys(actor.ownership ?? {})) {
-    if (key !== "default" && key !== owner) {
-      const [k, v] = deletionEntry(key);
-      update[k] = v;
-    }
-  }
-  if (owner) update[owner] = OWNERSHIP_OWNER;
+  ownership: Dict,
+): unknown {
+  const replacement = forcedReplacement(ownership);
+  if (replacement !== undefined) return replacement;
+  const update: Dict = { ...ownership };
+  for (const key of Object.keys(actor.ownership ?? {}))
+    if (!(key in ownership)) update[`-=${key}`] = null;
   return update;
 }
 
@@ -806,11 +1112,14 @@ function companionUserId(foundryUserId: string | undefined): string {
   return id && id !== foundryUserId ? id : "";
 }
 
-/** The ownership map a provisioning lane creates an Actor with: default NONE,
- * the player OWNER when given, the Companion user OBSERVER (without it the
- * backend never sees the Actor). */
-export function normalizedOwnership(foundryUserId: string | undefined): Dict {
-  const ownership: Dict = { default: OWNERSHIP_NONE };
+/** The ownership map a provisioning lane creates an Actor with: default NONE
+ * (or `defaultLevel`), the player OWNER when given, the Companion user OBSERVER
+ * (without it the backend never sees the Actor). */
+export function normalizedOwnership(
+  foundryUserId: string | undefined,
+  defaultLevel = OWNERSHIP_NONE,
+): Dict {
+  const ownership: Dict = { default: defaultLevel };
   if (foundryUserId) ownership[foundryUserId] = OWNERSHIP_OWNER;
   const companion = companionUserId(foundryUserId);
   if (companion) ownership[companion] = OWNERSHIP_OBSERVER;
@@ -818,27 +1127,41 @@ export function normalizedOwnership(foundryUserId: string | undefined): Dict {
 }
 
 // Actor.create receives the plain normalized map; Actor.update receives the
-// merge-safe replacement, which ends with exactly default:NONE, one OWNER when
-// supplied, and the Companion user at its existing level but at least OBSERVER
-// — whatever other grants an adopted or bound Actor carried. The Companion
+// replacement, which ends with exactly the default, one OWNER when supplied,
+// and the Companion user at its existing level but at least OBSERVER —
+// whatever other grants an adopted or bound Actor carried. The Companion
 // grant is never deleted or lowered, so setup's « Share » survives a revision.
 export function normalizedOwnershipUpdate(
   actor: ActorLike,
   foundryUserId: string | undefined,
-): Dict {
-  const update = ownershipReplacement(actor, OWNERSHIP_NONE, foundryUserId);
+  defaultLevel = OWNERSHIP_NONE,
+): unknown {
+  const ownership = normalizedOwnership(foundryUserId, defaultLevel);
   const companion = companionUserId(foundryUserId);
   if (companion) {
-    // Drop the companion's deletion entry (under Foundry 14's operator the
-    // key is the user id itself, which the grant below overwrites anyway).
-    delete update[deletionEntry(companion)[0]];
     const current = Number(actor.ownership?.[companion]);
-    update[companion] = Math.max(
+    ownership[companion] = Math.max(
       OWNERSHIP_OBSERVER,
       Number.isFinite(current) ? current : OWNERSHIP_NONE,
     );
   }
-  return update;
+  return ownershipReplacement(actor, ownership);
+}
+
+/** Foundry resolves a refused update without throwing and writes nothing, so a
+ * lane checks its ownership replacement landed: any explicit grant beyond the
+ * default, the player and the Companion user means the update was dropped. */
+export function assertOwnershipApplied(
+  actor: ActorLike,
+  foundryUserId: string | undefined,
+  lane: string,
+): void {
+  const kept = ["default", foundryUserId, companionUserId(foundryUserId)];
+  if (Object.keys(actor.ownership ?? {}).some((key) => !kept.includes(key)))
+    throw new RpcError(
+      "procedure_failed",
+      `${lane}: Foundry did not apply the update`,
+    );
 }
 
 export async function canonicalDigest(value: unknown): Promise<string> {

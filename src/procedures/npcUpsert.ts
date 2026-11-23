@@ -5,11 +5,15 @@ import {
   ASPECT_KEYS,
   OWNERSHIP_LIMITED,
   OWNERSHIP_NONE,
+  normalizedOwnership,
+  normalizedOwnershipUpdate,
   SCHEMA_VERSION,
   actorCollection,
   docId,
   alreadyApplied,
+  replayDigests,
   assertBase,
+  assertOwnershipApplied,
   assertKnightUpsertAuthority,
   bindingFor,
   bindingId,
@@ -19,12 +23,12 @@ import {
   identifier,
   integer,
   invalid,
-  ownershipReplacement,
   parseAspectScores,
   parseStoredResult,
   record,
   text,
   uniqueBoundActor,
+  assertNotLost,
   writtenFields,
   type ActorLike,
   type AspectScoresV1,
@@ -63,9 +67,11 @@ type Visibility = "hidden" | "visible";
 /** pnj aspect values are direct scores (not bases), in the shared 0-20 range. */
 type NpcAspectsV1 = AspectScoresV1;
 
+/** A pool sent without `current` leaves Foundry's current alone on an update
+ * (damage dealt there survives a stat edit) and starts full on create. */
 interface NpcPoolV1 {
   max: number;
-  current: number;
+  current?: number;
 }
 
 interface NpcResourcesV1 {
@@ -109,10 +115,10 @@ export type NpcUpsertResultV1 = StoredResultV1;
 
 function parsePool(value: unknown, path: string): NpcPoolV1 {
   const p = record(value, path, ["max", "current"]);
-  return {
-    max: integer(p.max, `${path}.max`, 0, 100_000),
-    current: integer(p.current, `${path}.current`, 0, 100_000),
-  };
+  const max = integer(p.max, `${path}.max`, 0, 100_000);
+  return p.current === undefined
+    ? { max }
+    : { max, current: integer(p.current, `${path}.current`, 0, 100_000) };
 }
 
 function parseResources(value: unknown): NpcResourcesV1 {
@@ -232,12 +238,17 @@ function tokenDisposition(visibility: Visibility): number {
   return visibility === "visible" ? DISPOSITION_NEUTRAL : DISPOSITION_SECRET;
 }
 
-// NPC actors never receive per-user grants (owner delegation in the app does
+// NPC actors never receive player grants (owner delegation in the app does
 // not become Foundry OWNER): every apply replaces the whole map with the
-// visibility default, which keeps a Masqué NPC unreadable however the app-side
-// roster changes.
-function npcOwnershipUpdate(actor: ActorLike, visibility: Visibility): Dict {
-  return ownershipReplacement(actor, ownershipDefault(visibility));
+// visibility default, which keeps a Masqué NPC unreadable to players however
+// the app-side roster changes. The paired Companion user alone keeps at least
+// OBSERVER: the backend reads the world as that user.
+function npcOwnershipUpdate(actor: ActorLike, visibility: Visibility): unknown {
+  return normalizedOwnershipUpdate(
+    actor,
+    undefined,
+    ownershipDefault(visibility),
+  );
 }
 
 function npcSyncOf(actor: ActorLike): NpcUpsertResultV1 | null {
@@ -252,8 +263,13 @@ function createNpcActor(
     name: req.name,
     type: NPC_ACTOR_TYPE,
     flags: { [MODULE_ID]: { [FLAG_KEYS.binding]: binding } },
-    ownership: { default: ownershipDefault(req.visibility) },
-    prototypeToken: { disposition: tokenDisposition(req.visibility) },
+    ownership: normalizedOwnership(undefined, ownershipDefault(req.visibility)),
+    // Linked: an app NPC is one individual, so damage dealt to its token on
+    // the scene lands on this Actor. Set at creation only, then the GM's.
+    prototypeToken: {
+      disposition: tokenDisposition(req.visibility),
+      actorLink: true,
+    },
   });
 }
 
@@ -274,6 +290,7 @@ function authoredNpcPatch(
   req: KnightNpcUpsertV1,
   binding: BindingV1,
   warnings: string[],
+  created: boolean,
 ): Dict {
   const patch: Dict = {
     name: req.name,
@@ -290,6 +307,10 @@ function authoredNpcPatch(
     const pool = resources?.[key];
     if (!pool) continue;
     patch[`system.${field}.base`] = pool.max;
+    if (pool.current === undefined) {
+      if (created) patch[`system.${field}.value`] = pool.max;
+      continue;
+    }
     patch[`system.${field}.value`] = Math.min(pool.current, pool.max);
     if (pool.current > pool.max) warnings.push(`resource_clamped:${key}`);
   }
@@ -360,6 +381,8 @@ export const npcUpsertV1: Procedure = async (payload) => {
     );
   }
   if (!actor) {
+    // Another table took this NPC over: never a second Actor of it.
+    assertNotLost(actorCollection(), req);
     actor = await createNpcActor(req, binding);
     outcome = "created";
   }
@@ -370,7 +393,12 @@ export const npcUpsertV1: Procedure = async (payload) => {
   const previous = npcSyncOf(actor);
   if (
     previous &&
-    alreadyApplied(previous, req.contentRevision, digest, "content")
+    alreadyApplied(
+      previous,
+      req.contentRevision,
+      await replayDigests(req, actor, digest),
+      "content",
+    )
   ) {
     return {
       schemaVersion: 1,
@@ -394,7 +422,10 @@ export const npcUpsertV1: Procedure = async (payload) => {
   const warnings: string[] = [];
   // Two updates on purpose: the result flag records what Foundry holds once
   // the patch is prepared (`written`), which only a read after it can see.
-  await actor.update(authoredNpcPatch(actor, req, binding, warnings));
+  await actor.update(
+    authoredNpcPatch(actor, req, binding, warnings, outcome === "created"),
+  );
+  assertOwnershipApplied(actor, undefined, "npc.upsert.v1");
   const result: NpcUpsertResultV1 = {
     schemaVersion: 1,
     resultDocId: id,

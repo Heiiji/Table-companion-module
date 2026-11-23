@@ -10,6 +10,7 @@ import type { Procedure } from "../rpc/registry.js";
 import {
   actorCollection,
   alreadyApplied,
+  replayDigests,
   assertLaneAuthority,
   bindingFor,
   bindingId,
@@ -17,6 +18,7 @@ import {
   canonicalDigest,
   contentsOf,
   createActorDocument,
+  assertOwnershipApplied,
   docId,
   FLAG_KEYS,
   flagValue,
@@ -267,7 +269,7 @@ export const pf2eActorUpsertV1: Procedure = async (payload) => {
   const digest = await canonicalDigest(req);
   const binding = bindingFor(req);
   const collection = actorCollection();
-  let actor = uniqueBoundActor(collection, binding);
+  let actor = uniqueBoundActor(collection, binding, req.expectedActorId);
   let outcome: Outcome = "updated";
   if (req.expectedActorId) {
     if (!actor)
@@ -324,7 +326,12 @@ export const pf2eActorUpsertV1: Procedure = async (payload) => {
   const previous = storedResult(actor);
   if (
     previous &&
-    alreadyApplied(previous, req.approvedRevision, digest, "draft")
+    alreadyApplied(
+      previous,
+      req.approvedRevision,
+      await replayDigests(req, actor, digest),
+      "draft",
+    )
   )
     return { ...previous, warnings: [...previous.warnings] };
   // A re-send after a failed first apply on an Actor this lane created.
@@ -338,6 +345,7 @@ export const pf2eActorUpsertV1: Procedure = async (payload) => {
     ownership: normalizedOwnershipUpdate(actor, req.foundryUserId),
     [`flags.${MODULE_ID}.${FLAG_KEYS.binding}`]: binding,
   });
+  assertOwnershipApplied(actor, req.foundryUserId, "pf2e.actor.upsert.v1");
 
   let equipmentCompleteness: EquipmentCompleteness = "not_requested";
   const warnings = req.foundryUserId ? [] : ["assign_foundry_user"];

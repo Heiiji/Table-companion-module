@@ -6,11 +6,11 @@ import {
 } from "../src/procedures/dnd5eResources.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
-import { hasFixturePath } from "./support/actorUpsertHarness.js";
-import FIXTURE from "./fixtures/dnd5e-6.1.0-character.json";
+import { applyUpdate, hasFixturePath } from "./support/actorUpsertHarness.js";
+import FIXTURE from "./fixtures/dnd5e-6.0.6-character.json";
 
 // SYNTHETIC, shape-only: a prepared dnd5e `character` (the fixture) and its
-// condition effects as the dnd5e 6.1.0 source describes them (source-derived,
+// condition effects as the dnd5e 6.0.6 source describes them (source-derived,
 // not a capture). Status effects carry dnd5e's static ids; a condition effect has
 // `type: "condition"`, its primary id in `system.type`, and its implied ids
 // in `statuses`.
@@ -43,14 +43,6 @@ function conditionEffect(id: string, level: number | null = null): FakeEffect {
   };
 }
 
-function setPath(root: Record<string, unknown>, path: string, value: unknown) {
-  const keys = path.split(".");
-  let at = root;
-  for (const key of keys.slice(0, -1))
-    at = (at[key] ??= {}) as Record<string, unknown>;
-  at[keys[keys.length - 1]] = value;
-}
-
 function fakeCharacter(effects: FakeEffect[] = []) {
   const actor = {
     id: ACTOR_ID,
@@ -76,8 +68,7 @@ function fakeCharacter(effects: FakeEffect[] = []) {
     },
     update: vi.fn(async (changes: Record<string, unknown>) => {
       actor.updates.push(changes);
-      for (const [key, value] of Object.entries(changes))
-        setPath(actor as unknown as Record<string, unknown>, key, value);
+      applyUpdate(actor as unknown as Record<string, unknown>, changes);
     }),
     // Core toggleStatusEffect over static ids, with dnd5e's override for a
     // levelled condition (exhaustion): it ignores `active` and adds a level.
@@ -110,7 +101,7 @@ function stubWorld(
   actors: FakeCharacter[],
   {
     id = "dnd5e",
-    version = "6.1.0",
+    version = "6.0.6",
     generation = 14,
     isGM = true,
     rulesVersion = "modern",
@@ -241,8 +232,8 @@ describe("dnd5e.resources.v1 validation", () => {
 
 describe("dnd5e.resources.v1 runtime gate", () => {
   it.each([
-    ["dnd5e below the floor", { version: "6.0.9" }],
-    ["a non-strict version", { version: "6.1.0-beta" }],
+    ["dnd5e below the floor", { version: "5.9.9" }],
+    ["a non-strict version", { version: "6.0.6-beta" }],
     ["Foundry 13", { generation: 13 }],
     ["another system", { id: "knight" }],
   ])("refuses %s as unsupported_runtime", async (_label, world) => {
@@ -273,6 +264,61 @@ describe("dnd5e.resources.v1 actor resolution", () => {
     expect(actor.updates[0]["system.attributes.hp.value"]).toBe(5);
   });
 
+  it("writes the named Actor when a duplicate carries the same binding", async () => {
+    const original = fakeCharacter();
+    const copy = fakeCharacter();
+    copy.id = "dnd5eActorCopy01";
+    stubWorld([original, copy]);
+    await dnd5eResourcesV1(
+      request({ hp: 5, expectedActorId: "dnd5eActorCopy01" }),
+      {} as never,
+    );
+    expect(copy.updates[0]["system.attributes.hp.value"]).toBe(5);
+    expect(original.updates).toHaveLength(0);
+    await rejects(
+      dnd5eResourcesV1(
+        request({ hp: 5, expectedActorId: "dnd5eActorOther1" }),
+        {} as never,
+      ),
+      "binding_collision",
+    );
+  });
+
+  it("writes a recorded copy still bound to another character as an unbound Actor, never touching the original", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const original = fakeCharacter();
+    const before = structuredClone(original.flags);
+    const copy = Object.assign(fakeCharacter(), {
+      _stats: { duplicateSource: `Actor.${ACTOR_ID}` },
+    });
+    copy.id = "dnd5eActorCopy01";
+    stubWorld([original, copy]);
+    const req = request({
+      hp: 5,
+      characterId: "character-2",
+      expectedActorId: "dnd5eActorCopy01",
+    });
+    await dnd5eResourcesV1(req, {} as never);
+    expect(copy.flags[MODULE_ID]).toMatchObject({});
+    expect(
+      (copy.flags[MODULE_ID] as Record<string, unknown>).binding,
+    ).toBeUndefined();
+    expect(
+      copy.updates.some((u) => u["system.attributes.hp.value"] === 5),
+    ).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(original.flags).toEqual(before);
+    expect(original.updates).toHaveLength(0);
+    warn.mockRestore();
+
+    // Not a recorded copy: today's refusal, nothing stripped.
+    const unrecorded = fakeCharacter();
+    unrecorded.id = "dnd5eActorCopy01";
+    stubWorld([fakeCharacter(), unrecorded]);
+    await rejects(dnd5eResourcesV1(req, {} as never), "binding_conflict");
+    expect(unrecorded.updates).toHaveLength(0);
+  });
+
   it("refuses a missing Actor, another binding, or a non-character", async () => {
     const gone = fakeCharacter();
     gone.flags = {};
@@ -287,6 +333,14 @@ describe("dnd5e.resources.v1 actor resolution", () => {
       "binding"
     ].characterId = "someone-else";
     await rejects(run(other, request({ hp: 5 })), "binding_conflict");
+
+    // Another table's Actor is never taken over on this lane.
+    const elsewhere = fakeCharacter();
+    (elsewhere.flags[MODULE_ID] as Record<string, Record<string, unknown>>)[
+      "binding"
+    ].tableId = "another-table";
+    await rejects(run(elsewhere, request({ hp: 5 })), "binding_conflict");
+    expect(elsewhere.updates).toHaveLength(0);
 
     const npc = fakeCharacter();
     npc.type = "npc";
@@ -432,6 +486,34 @@ describe("dnd5e.resources.v1 rules version", () => {
     });
     expect(actor.updates[0]).toEqual({ "system.attributes.exhaustion": 3 });
     expect((result as { warnings: string[] }).warnings).toEqual([]);
+  });
+
+  it("records the written exhaustion, though dnd5e prepares it from an effect that lands later", async () => {
+    // dnd5e 6.0.x prepares `attributes.exhaustion` from the exhaustion
+    // effect's level, and moves that effect from an update hook it does not
+    // await: right after the update the prepared value is still the old one.
+    const actor = fakeCharacter();
+    const write = actor.update.getMockImplementation()!;
+    actor.update.mockImplementation(async (changes) => {
+      await write(changes);
+      if ("system.attributes.exhaustion" in changes)
+        (actor.system.attributes as Record<string, unknown>).exhaustion = 0;
+    });
+    await run(actor, request({ sequence: 3, exhaustion: 3 }));
+    const flag = (
+      actor.flags[MODULE_ID] as Record<string, Record<string, unknown>>
+    ).dnd5eResourcesV1;
+    expect(flag.written).toEqual({ exhaustion: 3 });
+
+    // The effect lands; a later write on a base from before the first one is
+    // not a conflict: Foundry holds what this lane wrote.
+    (actor.system.attributes as Record<string, unknown>).exhaustion = 3;
+    actor.update.mockImplementation(write);
+    await run(
+      actor,
+      request({ sequence: 4, exhaustion: 5, base: { exhaustion: 0 } }),
+    );
+    expect(actor.updates.at(-2)).toEqual({ "system.attributes.exhaustion": 5 });
   });
 });
 
@@ -800,7 +882,7 @@ describe("dnd5e.resources.v1 base (compare-and-set)", () => {
   });
 });
 
-describe("dnd5e.resources.v1 on the sanitized dnd5e 6.1.0 character", () => {
+describe("dnd5e.resources.v1 on the sanitized dnd5e 6.0.6 character", () => {
   it("writes only paths the character's data model has", async () => {
     const actor = fakeCharacter(
       structuredClone(FIXTURE.actor.effects) as FakeEffect[],

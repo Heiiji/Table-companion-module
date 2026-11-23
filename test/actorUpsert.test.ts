@@ -7,7 +7,12 @@ import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
 import { ownershipReplacement } from "../src/procedures/upsertShared.js";
 import {
+  AUTHORED_PATHS,
+  authoredPatch,
+} from "../src/procedures/actorUpsert.patch.js";
+import {
   ACTOR_ID,
+  ForcedReplacement,
   KNIGHT_SCHEMA_FIXTURES,
   USER_ID,
   approved,
@@ -15,6 +20,7 @@ import {
   fakeActor,
   hasFixturePath,
   pairCompanion,
+  stubOperators,
   stubFoundry,
   wearingArmour,
   type FakeActor,
@@ -246,7 +252,8 @@ describe("actor.upsert.v1", () => {
       binding: {
         schemaVersion: 1,
         worldId: "other",
-        tableId: "other",
+        // The same table, another character: never taken over.
+        tableId: "table-1",
         characterId: "other",
       },
     };
@@ -694,21 +701,22 @@ describe("actor.upsert.v1", () => {
   });
 });
 
-describe("ownership deletion entries", () => {
+describe("ownership replacement", () => {
   const actor = { ownership: { default: 2, stale: 3 }, update: vi.fn() };
 
-  it("uses Foundry 14's ForcedDeletion operator when the runtime has it", () => {
-    class ForcedDeletion {}
-    vi.stubGlobal("foundry", { data: { operators: { ForcedDeletion } } });
-    const update = ownershipReplacement(actor, 0, USER_ID);
-    expect(update.stale).toBeInstanceOf(ForcedDeletion);
-    expect(update).not.toHaveProperty("-=stale");
-    expect(update[USER_ID]).toBe(3);
+  it("uses Foundry 14's ForcedReplacement operator when the runtime has it", () => {
+    stubOperators();
+    const update = ownershipReplacement(actor, { default: 0, [USER_ID]: 3 });
+    expect(update).toBeInstanceOf(ForcedReplacement);
+    expect((update as ForcedReplacement).value).toEqual({
+      default: 0,
+      [USER_ID]: 3,
+    });
   });
 
   it("falls back to the -=key syntax without it", () => {
     vi.stubGlobal("foundry", { data: {} });
-    expect(ownershipReplacement(actor, 0)).toEqual({
+    expect(ownershipReplacement(actor, { default: 0 })).toEqual({
       default: 0,
       "-=stale": null,
     });
@@ -828,5 +836,336 @@ describe("actor.upsert.v1 revisions", () => {
     )) as ActorUpsertResultV1;
     expect(result.appliedRevision).toBe(2);
     expect(actor.updates).toHaveLength(writes);
+  });
+});
+
+describe("actor.upsert.v1 keeps what the Gamemaster changed in Foundry", () => {
+  const CHAIR = "system.aspects.chair.base";
+  const draft = () => approved({ state: "draft", approvedRevision: 0 });
+
+  /** A world where the draft creates a Knight-shaped Actor (the fixture's
+   * defaults), as Foundry would. */
+  function world(): FakeActor[] {
+    const actors: FakeActor[] = [];
+    stubFoundry(
+      actors,
+      vi.fn(async () => {
+        const actor = fakeActor();
+        actor.system = structuredClone(KNIGHT_SCHEMA_FIXTURES[1].actor.system);
+        actors.push(actor);
+        return actor;
+      }),
+    );
+    return actors;
+  }
+
+  const upsert = async (req: unknown) =>
+    (await actorUpsertV1(req as never, {} as never)) as ActorUpsertResultV1;
+  const written = (actor: FakeActor) =>
+    actor.updates.flatMap((update) => Object.keys(update));
+  const flagOf = (actor: FakeActor) =>
+    (actor.flags[MODULE_ID] as Record<string, any>).actorUpsertV1;
+
+  it("names exactly the paths an approved patch writes", () => {
+    const req = approved();
+    const keys = Object.keys(
+      authoredPatch(fakeActor() as never, req, {
+        schemaVersion: 1,
+        worldId: req.worldId,
+        tableId: req.tableId,
+        characterId: req.characterId,
+      }),
+    ).filter((key) => key.startsWith("system."));
+    expect([...AUTHORED_PATHS].sort()).toEqual(keys.sort());
+  });
+
+  it("records what Foundry holds after the draft", async () => {
+    const actors = world();
+    await upsert(draft());
+    // Foundry expands the record's dotted keys: it is stored nested.
+    const fields = flagOf(actors[0]).written.fields;
+    expect(fields.system.aspects.chair.base).toBe(0);
+    expect(fields.system.description).toBe("");
+  });
+
+  it("keeps a field the Gamemaster moved since the draft and writes the rest", async () => {
+    const actors = world();
+    await upsert(draft());
+    const actor = actors[0];
+    (actor.system.aspects as any).chair.base = 9;
+    const before = actor.updates.length;
+    const result = await upsert(approved({ equipment: undefined }));
+    expect(result.outcome).toBe("updated");
+    expect(result.warnings).toContain("foundry_kept:1");
+    expect((actor.system.aspects as any).chair.base).toBe(9);
+    const now = actor.updates.slice(before).flatMap((u) => Object.keys(u));
+    expect(now).not.toContain(CHAIR);
+    expect(now).toContain("system.aspects.bete.base");
+    expect(now).toContain("system.description");
+    expect((actor.system.aspects as any).bete.base).toBe(2);
+    // A replay of the same revision answers the stored result, unwritten.
+    const writes = actor.updates.length;
+    expect(await upsert(approved({ equipment: undefined }))).toEqual(result);
+    expect(actor.updates).toHaveLength(writes);
+  });
+
+  it("still keeps that field at the next approved revision", async () => {
+    const actors = world();
+    await upsert(draft());
+    const actor = actors[0];
+    (actor.system.aspects as any).chair.base = 9;
+    await upsert(approved({ equipment: undefined }));
+    const later = await upsert(
+      approved({ approvedRevision: 2, equipment: undefined, name: "Perceval" }),
+    );
+    expect(later.outcome).toBe("updated");
+    expect(later.warnings).toContain("foundry_kept:1");
+    expect((actor.system.aspects as any).chair.base).toBe(9);
+  });
+
+  it("keeps the age and nickname the Gamemaster changed after an approved create, revision after revision", async () => {
+    const actors = world();
+    await upsert(approved({ equipment: undefined }));
+    const actor = actors[0];
+    expect(flagOf(actor).written.fields.system.age).toBe("32");
+    actor.system.age = "40";
+    actor.system.surnom = "Le Vieux";
+    for (const approvedRevision of [2, 3]) {
+      const result = await upsert(
+        approved({ approvedRevision, equipment: undefined }),
+      );
+      expect(result.warnings).toContain("foundry_kept:2");
+      expect(actor.system.age).toBe("40");
+      expect(actor.system.surnom).toBe("Le Vieux");
+      // The record keeps the lane's own last value, so the next revision
+      // still reads Foundry's as the Gamemaster's.
+      expect(flagOf(actor).written.fields.system.age).toBe("32");
+      expect(flagOf(actor).written.fields.system.surnom).toBe("Sol");
+    }
+  });
+
+  it("writes everything when nothing moved", async () => {
+    const actors = world();
+    await upsert(draft());
+    const result = await upsert(approved({ equipment: undefined }));
+    expect(result.warnings.some((w) => w.startsWith("foundry_kept"))).toBe(
+      false,
+    );
+    expect(written(actors[0])).toContain(CHAIR);
+    expect((actors[0].system.aspects as any).chair.base).toBe(3);
+  });
+
+  it("writes everything over an Actor drafted without the record", async () => {
+    const actors = world();
+    await upsert(draft());
+    delete flagOf(actors[0]).written.fields;
+    (actors[0].system.aspects as any).chair.base = 9;
+    const result = await upsert(approved({ equipment: undefined }));
+    expect(result.warnings.some((w) => w.startsWith("foundry_kept"))).toBe(
+      false,
+    );
+    expect((actors[0].system.aspects as any).chair.base).toBe(3);
+  });
+
+  it("never keeps on create: the approved pass writes everything", async () => {
+    const actors = world();
+    const result = await upsert(approved({ equipment: undefined }));
+    expect(result.outcome).toBe("created");
+    expect(result.warnings.some((w) => w.startsWith("foundry_kept"))).toBe(
+      false,
+    );
+    expect((actors[0].system.aspects as any).chair.base).toBe(3);
+  });
+});
+
+// Knight's `system.origin` is the being's nature (`humain`, `anatheme`,
+// `autre`), which the system's own code branches on: the app's free-text
+// origin is not written there.
+describe("actor.upsert.v1 leaves the Knight origin to the system", () => {
+  const ORIGIN = "system.origin";
+  function world(): FakeActor[] {
+    const actors: FakeActor[] = [];
+    stubFoundry(
+      actors,
+      vi.fn(async () => {
+        const actor = fakeActor();
+        actor.system = structuredClone(KNIGHT_SCHEMA_FIXTURES[1].actor.system);
+        actor.system.origin = "humain";
+        actors.push(actor);
+        return actor;
+      }),
+    );
+    return actors;
+  }
+  const upsert = async (req: unknown) =>
+    (await actorUpsertV1(req as never, {} as never)) as ActorUpsertResultV1;
+  const flagOf = (actor: FakeActor) =>
+    (actor.flags[MODULE_ID] as Record<string, any>).actorUpsertV1;
+  /** Records `origin` as the lane's last write, the way Foundry stores it. */
+  const record = (actor: FakeActor, origin: string) =>
+    actor.update({
+      [`flags.${MODULE_ID}.actorUpsertV1.written.fields`]: {
+        [ORIGIN]: origin,
+      },
+    });
+  /** An Actor an earlier build provisioned: it wrote « Europe » and recorded it. */
+  async function provisionedWithEurope(): Promise<FakeActor> {
+    const actors = world();
+    await upsert(approved({ equipment: undefined }));
+    const actor = actors[0];
+    actor.system.origin = "Europe";
+    await record(actor, "Europe");
+    expect(flagOf(actor).written.fields.system.origin).toBe("Europe");
+    return actor;
+  }
+  const originWrites = (actor: FakeActor, from = 0) =>
+    actor.updates.slice(from).filter((u) => ORIGIN in u);
+  const next = () =>
+    upsert(approved({ approvedRevision: 2, equipment: undefined }));
+
+  it("accepts a profile origin and creates the character with the system's own origin", async () => {
+    const actors = world();
+    const req = approved({ equipment: undefined });
+    expect(req.profile!.origin).toBe("Europe");
+    expect((await upsert(req)).outcome).toBe("created");
+    const keys = actors[0].updates.flatMap((u) => Object.keys(u));
+    expect(keys).not.toContain(ORIGIN);
+    expect(actors[0].system.origin).toBe("humain");
+    expect(flagOf(actors[0]).written.fields).not.toHaveProperty(ORIGIN);
+  });
+
+  it("gives an Actor the lane provisioned with a free-text origin `humain` back, once", async () => {
+    const actor = await provisionedWithEurope();
+    const result = await next();
+    expect(result.outcome).toBe("updated");
+    expect(actor.system.origin).toBe("humain");
+    // Once: the next revision finds `humain`, not the recorded free text.
+    const before = actor.updates.length;
+    await upsert(approved({ approvedRevision: 3, equipment: undefined }));
+    expect(originWrites(actor, before)).toHaveLength(0);
+    expect(result.warnings.some((w) => w.startsWith("foundry_kept"))).toBe(
+      false,
+    );
+  });
+
+  it("leaves alone an origin the Gamemaster set after the lane wrote one", async () => {
+    const actor = await provisionedWithEurope();
+    actor.system.origin = "anatheme";
+    await next();
+    expect(actor.system.origin).toBe("anatheme");
+    expect(originWrites(actor)).toHaveLength(0);
+  });
+
+  it("leaves alone a system origin the record only observed", async () => {
+    const actor = await provisionedWithEurope();
+    actor.system.origin = "anatheme";
+    await record(actor, "anatheme");
+    await next();
+    expect(actor.system.origin).toBe("anatheme");
+  });
+});
+
+describe("actor.upsert.v1 on Foundry 14", () => {
+  const COMPANION = "companion0000001";
+
+  // Foundry adds the creating Gamemaster as OWNER, so the authored update
+  // must replace a map holding a grant the lane removes.
+  function gmCreating(actors: FakeActor[]) {
+    const create = vi.fn(async (data: Record<string, unknown>) => {
+      const actor = fakeActor();
+      actor.ownership = { ...(data.ownership as object), gm: 3 };
+      actors.push(actor);
+      return actor;
+    });
+    stubFoundry(actors, create, 14);
+    stubOperators();
+    pairCompanion(COMPANION);
+    return create;
+  }
+
+  it("creates with the authored values written and exactly the lane's ownership", async () => {
+    const actors: FakeActor[] = [];
+    gmCreating(actors);
+    const result = (await actorUpsertV1(
+      approved({ equipment: undefined }),
+      {} as never,
+    )) as ActorUpsertResultV1;
+    expect(result.outcome).toBe("created");
+    const actor = actors[0];
+    expect(actor.name).toBe("Lancelot");
+    expect((actor.system.aspects as any).machine.base).toBe(4);
+    expect(actor.ownership).toEqual({
+      default: 0,
+      [USER_ID]: 3,
+      [COMPANION]: 2,
+    });
+  });
+
+  it("answers procedure_failed when Foundry drops the authored update", async () => {
+    const actors: FakeActor[] = [];
+    const create = gmCreating(actors);
+    const made = create.getMockImplementation()!;
+    create.mockImplementation(async (data: Record<string, unknown>) => {
+      const actor = await made(data);
+      actor.update = async (changes) => {
+        actor.updates.push(changes);
+      };
+      return actor;
+    });
+    await expect(
+      actorUpsertV1(approved({ equipment: undefined }), {} as never),
+    ).rejects.toMatchObject({ code: "procedure_failed" });
+  });
+
+  it("creates the character with a linked prototype token", async () => {
+    const actors: FakeActor[] = [];
+    const create = gmCreating(actors);
+    await actorUpsertV1(approved({ equipment: undefined }), {} as never);
+    expect(create.mock.calls[0][0].prototypeToken).toEqual({ actorLink: true });
+  });
+});
+
+describe("actor.upsert.v1 after the world is linked again", () => {
+  // The backend mints a new world id when the world is unlinked and linked
+  // again; the table and character ids stay the same.
+  it("replays the same revision under the new world id without writing or creating", async () => {
+    const actor = fakeActor();
+    binding(actor, approved());
+    const create = vi.fn();
+    stubFoundry([actor], create);
+    const first = await actorUpsertV1(approved(), {} as never);
+    const writes = actor.updates.length;
+
+    const replay = await actorUpsertV1(
+      approved({ worldId: "world-2" }),
+      {} as never,
+    );
+    expect(replay).toEqual(first);
+    expect(actor.updates).toHaveLength(writes);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("updates the bound Actor named by expectedActorId on a higher revision and rebinds it", async () => {
+    const actor = fakeActor();
+    binding(actor, approved());
+    const create = vi.fn();
+    stubFoundry([actor], create);
+    await actorUpsertV1(approved(), {} as never);
+
+    const result = (await actorUpsertV1(
+      approved({
+        worldId: "world-2",
+        approvedRevision: 2,
+        expectedActorId: ACTOR_ID,
+      }),
+      {} as never,
+    )) as ActorUpsertResultV1;
+    expect(result.outcome).toBe("updated");
+    expect(result.resultDocId).toBe(ACTOR_ID);
+    expect(create).not.toHaveBeenCalled();
+    expect(
+      (actor.flags[MODULE_ID] as { binding: { worldId: string } }).binding
+        .worldId,
+    ).toBe("world-2");
   });
 });

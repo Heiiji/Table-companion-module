@@ -12,6 +12,7 @@ import {
   type Dict,
 } from "./upsertShared.js";
 import {
+  CHARACTERISTIC_KEYS,
   UPSERT_RESOURCE_KEYS,
   type CurrentResourcesV1,
   type ResourceKey,
@@ -56,10 +57,11 @@ export function authoredPatch(
   Object.assign(patch, {
     // The three biography fields are Knight HTML editors: the app's plain
     // text is escaped into paragraphs; the other fields are plain strings.
+    // The app's free-text origin is not written: Knight's `system.origin` is
+    // the being's nature, which the system's own rules branch on.
     "system.description": paragraphsHtml(p.description),
     "system.descriptionLimitee": paragraphsHtml(p.limitedDescription),
     "system.histoire": paragraphsHtml(p.history),
-    "system.origin": p.origin,
     "system.age": p.age,
     "system.archetype": p.archetype,
     "system.metaarmure": p.metaArmour,
@@ -87,6 +89,33 @@ export function authoredPatch(
   return patch;
 }
 
+/** Every `system.` path an approved `authoredPatch` may write (the AI paths
+ * only when the request carries an AI). */
+export const AUTHORED_PATHS: readonly string[] = [
+  ...[
+    "description",
+    "descriptionLimitee",
+    "histoire",
+    "age",
+    "archetype",
+    "metaarmure",
+    "blason",
+    "surnom",
+    "section",
+    "hautFait",
+    "motivations.majeure",
+    "equipements.ia.code",
+    "equipements.ia.surnom",
+    "equipements.ia.caractere",
+  ].map((path) => `system.${path}`),
+  ...ASPECT_KEYS.flatMap((aspect) => [
+    `system.aspects.${aspect}.base`,
+    ...CHARACTERISTIC_KEYS[aspect].map(
+      (c) => `system.aspects.${aspect}.caracteristiques.${c}.base`,
+    ),
+  ]),
+];
+
 /** The gear subtree Foundry reads the worn armour and energy from:
  * `system.equipements.<system.wear>`. As the Knight system prepares a PC, the
  * first embedded `armure` Item of generation 4 or later is always worn,
@@ -94,7 +123,7 @@ export function authoredPatch(
  * `ascension` reads as `tenueCivile` (the system's `whatWear`), so writes go
  * where Foundry reads. An absent or malformed selector reads as the schema's
  * initial `tenueCivile`. */
-function wornGear(actor: ActorLike): string {
+export function wornGear(actor: ActorLike): string {
   const armour = contentsOf(actor.items).find((item) => item.type === "armure");
   const generation = Number((armour?.system as Dict | undefined)?.generation);
   if (generation >= 4) return "armure";

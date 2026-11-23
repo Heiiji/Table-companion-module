@@ -1,0 +1,17 @@
+{
+  "messageId": "Qm3xV7bN1cZ5aK9p",
+  "alreadyRolled": false,
+  "faces": [
+    14,
+    6
+  ],
+  "kept": 14,
+  "modifier": 13,
+  "total": 27,
+  "degree": "success",
+  "unadjustedDegree": "success",
+  "degreeSource": "target",
+  "resultsShown": true,
+  "messageMode": "public",
+  "dcValue": 18
+}

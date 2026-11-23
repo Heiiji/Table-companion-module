@@ -1,0 +1,713 @@
+{
+  "cases": [
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "nothing-moved",
+      "request": null
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "before-first-observation",
+      "request": null
+    },
+    {
+      "capabilities": [],
+      "foundrySource": {},
+      "id": "v1-item-quantity",
+      "request": {
+        "items": {
+          "eqpTorch00000001": 2
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "v1-item-quantity-with-base",
+      "request": {
+        "base": {
+          "items": {
+            "eqpTorch00000001": 5
+          }
+        },
+        "items": {
+          "eqpTorch00000001": 2
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "v1-catalog-add",
+      "request": {
+        "adds": [
+          {
+            "key": "6f1e2d3c-4b5a-4968-8776-655443322110",
+            "quantity": 1,
+            "slug": "rope"
+          }
+        ]
+      }
+    },
+    {
+      "capabilities": [
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "coins-held-without-token",
+      "request": null
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1"
+      ],
+      "foundrySource": {},
+      "id": "coins-with-token",
+      "request": {
+        "coins": {
+          "cp": 3,
+          "gp": 18,
+          "sp": 9
+        }
+      }
+    },
+    {
+      "capabilities": [],
+      "foundrySource": {},
+      "id": "custom-held-without-token",
+      "request": {
+        "adds": [
+          {
+            "key": "6f1e2d3c-4b5a-4968-8776-655443322110",
+            "quantity": 1,
+            "slug": "rope"
+          }
+        ]
+      }
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1"
+      ],
+      "foundrySource": {
+        "6f1e2d3c-4b5a-4968-8776-655443322111": {
+          "flags": {
+            "table-companion": {
+              "appInstanceId": "6f1e2d3c-4b5a-4968-8776-655443322111"
+            }
+          },
+          "name": "Grandmother's Locket",
+          "system": {
+            "bulk": {
+              "value": 0
+            },
+            "description": {
+              "value": "<p>Engraved with a heron.</p>"
+            },
+            "level": {
+              "value": 0
+            },
+            "price": {
+              "value": {
+                "gp": 2,
+                "sp": 5
+              }
+            },
+            "quantity": 1,
+            "traits": {
+              "rarity": "uncommon"
+            }
+          },
+          "type": "equipment"
+        },
+        "6f1e2d3c-4b5a-4968-8776-655443322112": {
+          "flags": {
+            "table-companion": {
+              "appInstanceId": "6f1e2d3c-4b5a-4968-8776-655443322112"
+            }
+          },
+          "name": "Oilskin Cloak",
+          "system": {
+            "bulk": {
+              "value": 1.5
+            },
+            "description": {
+              "value": "<p>Bought from a river trader.</p><p>Smells of &lt;tar&gt; &amp; &quot;salt&quot;;<br>it&#39;s waterproof.</p>"
+            },
+            "level": {
+              "value": 3
+            },
+            "price": {
+              "value": {
+                "cp": 5,
+                "gp": 123,
+                "sp": 4
+              }
+            },
+            "quantity": 2,
+            "traits": {
+              "rarity": "rare"
+            }
+          },
+          "type": "backpack"
+        }
+      },
+      "id": "custom-adds-with-token",
+      "request": {
+        "customAdds": [
+          {
+            "bulkTenths": 0,
+            "itemType": "equipment",
+            "key": "6f1e2d3c-4b5a-4968-8776-655443322111",
+            "level": 0,
+            "name": "Grandmother's Locket",
+            "notes": "Engraved with a heron.",
+            "priceCopper": 250,
+            "quantity": 1,
+            "rarity": "uncommon"
+          },
+          {
+            "bulkTenths": 15,
+            "itemType": "backpack",
+            "key": "6f1e2d3c-4b5a-4968-8776-655443322112",
+            "level": 3,
+            "name": "Oilskin Cloak",
+            "notes": "Bought from a river trader.\r\n\r\nSmells of <tar> & \"salt\";\nit's waterproof.\n\n\n",
+            "priceCopper": 12345,
+            "quantity": 2,
+            "rarity": "rare"
+          }
+        ]
+      }
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "prepared-rank-whole",
+      "request": {
+        "base": {
+          "spellcasting": {
+            "entries": {
+              "entPrepArcane001": {
+                "1": {
+                  "prepared": [
+                    {
+                      "expended": true,
+                      "id": "splMagicMissle01"
+                    },
+                    {
+                      "expended": false,
+                      "id": null
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "spellcasting": {
+          "entries": {
+            "entPrepArcane001": {
+              "1": {
+                "prepared": [
+                  {
+                    "expended": true,
+                    "id": "splMagicMissle01"
+                  },
+                  {
+                    "expended": false,
+                    "id": "splMagicMissle01"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "spells-held-without-token",
+      "request": null
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1"
+      ],
+      "foundrySource": {},
+      "id": "spells-with-token",
+      "request": {
+        "spellcasting": {
+          "entries": {
+            "entSpontDivine01": {
+              "1": {
+                "value": 1
+              }
+            }
+          },
+          "focus": 0,
+          "innateUses": {
+            "splFaerieGlow001": 0
+          }
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {
+        "6f1e2d3c-4b5a-4968-8776-655443322111": {
+          "flags": {
+            "table-companion": {
+              "appInstanceId": "6f1e2d3c-4b5a-4968-8776-655443322111"
+            }
+          },
+          "name": "Grandmother's Locket",
+          "system": {
+            "bulk": {
+              "value": 0
+            },
+            "description": {
+              "value": "<p>Engraved with a heron.</p>"
+            },
+            "level": {
+              "value": 0
+            },
+            "price": {
+              "value": {
+                "gp": 2,
+                "sp": 5
+              }
+            },
+            "quantity": 1,
+            "traits": {
+              "rarity": "uncommon"
+            }
+          },
+          "type": "equipment"
+        },
+        "6f1e2d3c-4b5a-4968-8776-655443322112": {
+          "flags": {
+            "table-companion": {
+              "appInstanceId": "6f1e2d3c-4b5a-4968-8776-655443322112"
+            }
+          },
+          "name": "Oilskin Cloak",
+          "system": {
+            "bulk": {
+              "value": 1.5
+            },
+            "description": {
+              "value": "<p>Bought from a river trader.</p><p>Smells of &lt;tar&gt; &amp; &quot;salt&quot;;<br>it&#39;s waterproof.</p>"
+            },
+            "level": {
+              "value": 3
+            },
+            "price": {
+              "value": {
+                "cp": 5,
+                "gp": 123,
+                "sp": 4
+              }
+            },
+            "quantity": 2,
+            "traits": {
+              "rarity": "rare"
+            }
+          },
+          "type": "backpack"
+        }
+      },
+      "id": "every-group-both-tokens",
+      "request": {
+        "adds": [
+          {
+            "key": "6f1e2d3c-4b5a-4968-8776-655443322110",
+            "quantity": 1,
+            "slug": "rope"
+          }
+        ],
+        "base": {
+          "coins": {
+            "cp": 0,
+            "gp": 20,
+            "sp": 4
+          },
+          "items": {
+            "eqpTorch00000001": 5
+          },
+          "spellcasting": {
+            "entries": {
+              "entPrepArcane001": {
+                "1": {
+                  "prepared": [
+                    {
+                      "expended": true,
+                      "id": "splMagicMissle01"
+                    },
+                    {
+                      "expended": false,
+                      "id": null
+                    }
+                  ]
+                }
+              },
+              "entSpontDivine01": {
+                "1": {
+                  "value": 2
+                }
+              }
+            },
+            "focus": 1,
+            "innateUses": {
+              "splFaerieGlow001": 1
+            }
+          }
+        },
+        "coins": {
+          "cp": 3,
+          "gp": 18,
+          "sp": 9
+        },
+        "customAdds": [
+          {
+            "bulkTenths": 0,
+            "itemType": "equipment",
+            "key": "6f1e2d3c-4b5a-4968-8776-655443322111",
+            "level": 0,
+            "name": "Grandmother's Locket",
+            "notes": "Engraved with a heron.",
+            "priceCopper": 250,
+            "quantity": 1,
+            "rarity": "uncommon"
+          },
+          {
+            "bulkTenths": 15,
+            "itemType": "backpack",
+            "key": "6f1e2d3c-4b5a-4968-8776-655443322112",
+            "level": 3,
+            "name": "Oilskin Cloak",
+            "notes": "Bought from a river trader.\r\n\r\nSmells of <tar> & \"salt\";\nit's waterproof.\n\n\n",
+            "priceCopper": 12345,
+            "quantity": 2,
+            "rarity": "rare"
+          }
+        ],
+        "items": {
+          "eqpTorch00000001": 2
+        },
+        "spellcasting": {
+          "entries": {
+            "entPrepArcane001": {
+              "1": {
+                "prepared": [
+                  {
+                    "expended": true,
+                    "id": "splMagicMissle01"
+                  },
+                  {
+                    "expended": false,
+                    "id": "splMagicMissle01"
+                  }
+                ]
+              }
+            },
+            "entSpontDivine01": {
+              "1": {
+                "value": 1
+              }
+            }
+          },
+          "focus": 0,
+          "innateUses": {
+            "splFaerieGlow001": 0
+          }
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "every-group-v1-only-module",
+      "request": {
+        "adds": [
+          {
+            "key": "6f1e2d3c-4b5a-4968-8776-655443322110",
+            "quantity": 1,
+            "slug": "rope"
+          }
+        ],
+        "base": {
+          "items": {
+            "eqpTorch00000001": 5
+          }
+        },
+        "items": {
+          "eqpTorch00000001": 2
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1"
+      ],
+      "foundrySource": {},
+      "id": "item-deleted-zero",
+      "request": {
+        "items": {
+          "eqpTorch00000001": 0
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "compensate-own-late-echo",
+      "request": {
+        "base": {
+          "spellcasting": {
+            "focus": 0
+          }
+        },
+        "spellcasting": {
+          "focus": 1
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "transfer-created-quantity",
+      "request": {
+        "base": {
+          "items": {
+            "eqpRopeBorn00001": 1
+          }
+        },
+        "items": {
+          "eqpRopeBorn00001": 4
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "unaddressable-coins-never-sent",
+      "request": null
+    },
+    {
+      "actorType": "npc",
+      "capabilities": [
+        "pf2eNpcWritesV1",
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "npc-nothing-moved",
+      "request": null
+    },
+    {
+      "actorType": "npc",
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "npc-held-without-token",
+      "request": null
+    },
+    {
+      "actorType": "npc",
+      "capabilities": [
+        "pf2eNpcWritesV1",
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "npc-every-allowed-group",
+      "request": {
+        "base": {
+          "items": {
+            "csmNpcCmdElixir1": 2
+          },
+          "spellcasting": {
+            "entries": {
+              "entNpcCmdPrep001": {
+                "1": {
+                  "prepared": [
+                    {
+                      "expended": false,
+                      "id": "splNpcCmdHarm001"
+                    },
+                    {
+                      "expended": false,
+                      "id": null
+                    }
+                  ]
+                }
+              },
+              "entNpcCmdSpont01": {
+                "1": {
+                  "value": 2
+                }
+              }
+            },
+            "focus": 1,
+            "innateUses": {
+              "splNpcCmdVeil001": 1
+            }
+          }
+        },
+        "items": {
+          "csmNpcCmdElixir1": 1
+        },
+        "spellcasting": {
+          "entries": {
+            "entNpcCmdPrep001": {
+              "1": {
+                "prepared": [
+                  {
+                    "expended": true,
+                    "id": "splNpcCmdHarm001"
+                  },
+                  {
+                    "expended": false,
+                    "id": null
+                  }
+                ]
+              }
+            },
+            "entNpcCmdSpont01": {
+              "1": {
+                "value": 1
+              }
+            }
+          },
+          "focus": 0,
+          "innateUses": {
+            "splNpcCmdVeil001": 0
+          }
+        }
+      }
+    },
+    {
+      "actorType": "npc",
+      "capabilities": [
+        "pf2eNpcWritesV1"
+      ],
+      "foundrySource": {},
+      "id": "npc-without-base",
+      "request": {
+        "items": {
+          "csmNpcCmdElixir1": 1
+        },
+        "spellcasting": {
+          "entries": {
+            "entNpcCmdPrep001": {
+              "1": {
+                "prepared": [
+                  {
+                    "expended": true,
+                    "id": "splNpcCmdHarm001"
+                  },
+                  {
+                    "expended": false,
+                    "id": null
+                  }
+                ]
+              }
+            },
+            "entNpcCmdSpont01": {
+              "1": {
+                "value": 1
+              }
+            }
+          },
+          "focus": 0,
+          "innateUses": {
+            "splNpcCmdVeil001": 0
+          }
+        }
+      }
+    },
+    {
+      "actorType": "npc",
+      "capabilities": [
+        "pf2eNpcWritesV1",
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "npc-purse-and-app-items-never-planned",
+      "request": {
+        "base": {
+          "items": {
+            "csmNpcCmdElixir1": 2
+          }
+        },
+        "items": {
+          "csmNpcCmdElixir1": 1
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "supplement-plans-nothing",
+      "request": null
+    },
+    {
+      "capabilities": [
+        "pf2eSheetWritesV1",
+        "writeBaseV1"
+      ],
+      "foundrySource": {},
+      "id": "local-rows-never-planned",
+      "request": {
+        "base": {
+          "items": {
+            "eqpTorch00000001": 5
+          }
+        },
+        "items": {
+          "eqpTorch00000001": 4
+        }
+      }
+    }
+  ],
+  "note": "SYNTHETIC, shape-only: the plan section of the shared Pathfinder 2e sheet-writes vectors (request bodies the apps send, and the exact Foundry source of each custom add). Derived, never edited by hand."
+}

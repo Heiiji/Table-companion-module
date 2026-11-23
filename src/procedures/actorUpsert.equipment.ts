@@ -16,6 +16,7 @@ import {
   isAdmittedKnightSystemVersion,
   docId,
   packDocuments,
+  valueAt,
   type ActorItemLike,
   type ActorLike,
   type Dict,
@@ -28,13 +29,14 @@ import {
   type EquipmentSelectionV1,
 } from "./actorUpsert.types.js";
 import { canonicalSlotAlternative } from "./actorUpsert.validate.js";
+import { armourGuarded, sameValue } from "./actorItems.read.js";
 
 /**
  * Equipment import for `actor.upsert.v1`, deliberately fail-closed. A catalog
  * selection maps through the pinned Knight Compendium 14.0.1 crosswalk to
  * compendium documents; each imported Item is stamped with the catalog identity
  * and variant it came from. Only Items carrying that stamp are ever replaced or
- * deleted; unmapped identities, a missing or different compendium, and data
+ * deleted — save the armour slot, below; unmapped identities, a missing or different compendium, and data
  * that does not match the fixture all report `partial` rather than guess.
  */
 
@@ -119,6 +121,120 @@ function itemCatalogSource(
     knightSystemVersion: p.knightSystemVersion as string,
   };
 }
+
+// ------------------------------------------------------------ the armour slot
+//
+// The Knight system reads one `armure` Item, the Actor's first. Two lanes of
+// this module make one: the items lane (`actor.items.v1`, flags `entryId` and
+// `armourCatalogId`) and this step (the equipment flags). So the armour is
+// looked up by type, never only by the step's flags: an Actor never gains a
+// second armour from either lane.
+
+function moduleFlags(item: ActorItemLike): Dict {
+  const flags = item.flags?.[MODULE_ID];
+  return typeof flags === "object" && flags !== null ? (flags as Dict) : {};
+}
+
+/** The armour catalog id this module stamped on an `armure` Item, by either
+ * lane's flag; "" when it carries none. */
+function armourCatalogOf(item: ActorItemLike): string {
+  const lane = flagValue(item, FLAG_KEYS.armourCatalogId);
+  return typeof lane === "string" && catalogId.test(lane)
+    ? lane
+    : itemCatalogID(item);
+}
+
+/** Whether an `armure` Item is the armour `catalog` names: by this module's
+ * flag when it carries one; else (an Item made by hand in Foundry) by the
+ * compendium document Foundry recorded it was copied from
+ * (`_stats.compendiumSource`). A hand-made armour with no recorded source is
+ * never taken for any armour. */
+export function isArmourOf(item: ActorItemLike, catalog: string): boolean {
+  const own = armourCatalogOf(item);
+  if (own !== "") return own === catalog;
+  const mapped = KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1[catalog];
+  return (
+    mapped?.length === 1 &&
+    valueAt(item, "_stats.compendiumSource") ===
+      `Compendium.${mapped[0].pack}.Item.${mapped[0].documentId}`
+  );
+}
+
+/** The stored `system` of an Item: its source when Foundry offers it. */
+function systemSource(item: ActorItemLike): unknown {
+  const doc = item as { toObject?(): unknown };
+  return typeof doc.toObject === "function"
+    ? (doc.toObject() as Dict | undefined)?.system
+    : item.system;
+}
+
+/**
+ * The Actor's `armure` Items, with module-made twins of one armour folded into
+ * one. They are twins when every one carries this module's armour flag, all
+ * name the same armour, at most one entry id is among them, and their stored
+ * `system` is deeply equal. Nothing else is compared: the name, `_stats` and
+ * the flags are what the two lanes write differently (the items lane keeps
+ * the app's name and Foundry's compendium source, the equipment step the
+ * document's name and no `_stats`); neither writes `system` beyond the
+ * compendium copy, so no `system` field is set aside.
+ *
+ * The one carrying the entry id is kept, else the oldest (Foundry keeps
+ * embedded Items in creation order); the flags of this module it lacks are
+ * merged onto it from the others, then the others are deleted and
+ * `armour_twins_merged:<kept>:<deleted>` is noted. Any other set of several
+ * armours is returned as found, nothing written.
+ */
+export async function foldArmourTwins(
+  actor: ActorLike,
+  warnings: string[],
+): Promise<ActorItemLike[]> {
+  const armours = contentsOf(actor.items).filter(
+    (item) => item.type === "armure",
+  );
+  if (armours.length < 2) return armours;
+  const catalog = armourCatalogOf(armours[0]);
+  const system = systemSource(armours[0]);
+  const entries = new Set(
+    armours
+      .map((item) => flagValue(item, FLAG_KEYS.entryId))
+      .filter((id) => id !== undefined),
+  );
+  if (
+    catalog === "" ||
+    entries.size > 1 ||
+    armours.some(
+      (item) =>
+        armourCatalogOf(item) !== catalog ||
+        !sameValue(systemSource(item), system) ||
+        !foundryId.test(docId(item)),
+    ) ||
+    typeof actor.updateEmbeddedDocuments !== "function" ||
+    typeof actor.deleteEmbeddedDocuments !== "function"
+  )
+    return armours;
+  const kept =
+    armours.find((item) => flagValue(item, FLAG_KEYS.entryId) !== undefined) ??
+    armours[0];
+  const twins = armours.filter((item) => item !== kept);
+  const own = moduleFlags(kept);
+  const patch: Dict = {};
+  for (const twin of twins)
+    for (const [key, value] of Object.entries(moduleFlags(twin)))
+      if (!(key in own)) patch[`flags.${MODULE_ID}.${key}`] ??= value;
+  if (Object.keys(patch).length > 0)
+    await actor.updateEmbeddedDocuments("Item", [
+      { _id: docId(kept), ...patch },
+    ]);
+  await actor.deleteEmbeddedDocuments("Item", twins.map(docId));
+  warnings.push(
+    `armour_twins_merged:${docId(kept)}:${twins.map(docId).join("+")}`,
+  );
+  return [kept];
+}
+
+/** Notes that report a repair, not a gap: they leave the import complete. */
+const REPAIRED =
+  /^(armour_twins_merged|equipment_armour_adopted|equipment_armour_replaced):/;
 
 async function deleteManagedEquipment(
   actor: ActorLike,
@@ -275,6 +391,35 @@ function managedEquipmentKey(item: ActorItemLike): string | null {
   ].join("|");
 }
 
+/** The equipment step's flags for one desired Item. */
+function equipmentFlags(item: DesiredEquipmentItem): Dict {
+  return {
+    [FLAG_KEYS.equipmentCatalogId]: item.catalogIds.at(-1)!,
+    [FLAG_KEYS.equipmentCatalogVariant]: {
+      schemaVersion: 1,
+      catalogIds: item.catalogIds,
+      quantity: item.quantity,
+      instanceIndex: item.instanceIndex,
+      ...(item.slotAlternativeId === undefined
+        ? {}
+        : { slotAlternativeId: item.slotAlternativeId }),
+      ...(item.parentCatalogId === undefined
+        ? {}
+        : { parentCatalogId: item.parentCatalogId }),
+      ...(item.moduleLevel === undefined
+        ? {}
+        : { moduleLevel: item.moduleLevel }),
+    } satisfies EquipmentCatalogVariantV1,
+    [FLAG_KEYS.equipmentCatalogSource]: {
+      schemaVersion: 1,
+      pack: item.mapped.pack,
+      documentId: item.mapped.documentId,
+      compendiumVersion: KNIGHT_COMPENDIUM_VERSION,
+      knightSystemVersion: systemVersion(),
+    } satisfies EquipmentCatalogSourceV1,
+  };
+}
+
 export function compendiumAvailabilityWarning(): string | null {
   const module = gameModules()?.get(KNIGHT_COMPENDIUM_MODULE_ID);
   if (!module?.active) return "equipment_compendium_missing";
@@ -374,8 +519,45 @@ export async function applyEquipment(
       .map((selection) => selection.catalogId)
       .filter((id) => KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1[id] === undefined),
   );
+  // The armour slot. Several armours that are not twins: none is touched and
+  // none imported. One the step does not manage (the items lane's, or one made
+  // by hand): the same armour is adopted (the step's flags stamped, every flag
+  // it has kept); another is replaced as the step replaces its own, unless it
+  // holds what a delete would lose for good.
+  const armour = desired.find((item) => item.mapped.itemType === "armure");
+  let holdArmour = false;
+  let adopt: ActorItemLike | undefined;
+  const replaced: ActorItemLike[] = [];
+  if (armour) {
+    const armours = await foldArmourTwins(actor, warnings);
+    const [slot] = armours;
+    if (armours.length > 1) {
+      warnings.push(
+        `equipment_armour_conflict:${armours.map(docId).join("+")}`,
+      );
+      holdArmour = true;
+    } else if (slot && itemCatalogIDs(slot).length === 0) {
+      if (!isArmourOf(slot, armour.catalogIds.at(-1)!)) {
+        if (armourGuarded(slot)) {
+          warnings.push(`equipment_armour_guarded:${docId(slot)}`);
+          holdArmour = true;
+        } else replaced.push(slot);
+      } else if (
+        typeof actor.updateEmbeddedDocuments === "function" &&
+        foundryId.test(docId(slot))
+      ) {
+        adopt = slot;
+        retainedKeys.add(desiredEquipmentKey(armour));
+      } else {
+        warnings.push(`equipment_unavailable:${armour.catalogIds.join("+")}`);
+        holdArmour = true;
+      }
+    }
+  }
   const managed = contentsOf(actor.items).filter(
-    (item) => itemCatalogIDs(item).length > 0,
+    (item) =>
+      itemCatalogIDs(item).length > 0 &&
+      !(holdArmour && item.type === "armure"),
   );
   const stale: ActorItemLike[] = [];
   for (const item of managed) {
@@ -396,6 +578,7 @@ export async function applyEquipment(
     }
     stale.push(item);
   }
+  stale.push(...replaced);
   // Resolve every replacement before deleting anything: an import that cannot
   // happen (compendium missing or a different version, a document that does
   // not match the fixture) must never cost the actor the Item it replaces.
@@ -406,7 +589,9 @@ export async function applyEquipment(
     return { equipmentCompleteness: "partial", warnings };
   }
   const wanted = desired.filter(
-    (item) => !retainedKeys.has(desiredEquipmentKey(item)),
+    (item) =>
+      !retainedKeys.has(desiredEquipmentKey(item)) &&
+      !(holdArmour && item.mapped.itemType === "armure"),
   );
   // One request per pack, every pack at once.
   const byPack = new Map<string, string[]>();
@@ -463,29 +648,7 @@ export async function applyEquipment(
       sourceFlags[MODULE_ID] !== null
         ? { ...(sourceFlags[MODULE_ID] as Dict) }
         : {};
-    tcFlags[FLAG_KEYS.equipmentCatalogId] = item.catalogIds.at(-1)!;
-    tcFlags[FLAG_KEYS.equipmentCatalogVariant] = {
-      schemaVersion: 1,
-      catalogIds: item.catalogIds,
-      quantity: item.quantity,
-      instanceIndex: item.instanceIndex,
-      ...(item.slotAlternativeId === undefined
-        ? {}
-        : { slotAlternativeId: item.slotAlternativeId }),
-      ...(item.parentCatalogId === undefined
-        ? {}
-        : { parentCatalogId: item.parentCatalogId }),
-      ...(item.moduleLevel === undefined
-        ? {}
-        : { moduleLevel: item.moduleLevel }),
-    } satisfies EquipmentCatalogVariantV1;
-    tcFlags[FLAG_KEYS.equipmentCatalogSource] = {
-      schemaVersion: 1,
-      pack: item.mapped.pack,
-      documentId: item.mapped.documentId,
-      compendiumVersion: KNIGHT_COMPENDIUM_VERSION,
-      knightSystemVersion: systemVersion(),
-    } satisfies EquipmentCatalogSourceV1;
+    Object.assign(tcFlags, equipmentFlags(item));
     sourceFlags[MODULE_ID] = tcFlags;
     source.flags = sourceFlags;
     sources.push(source);
@@ -495,12 +658,31 @@ export async function applyEquipment(
   const deletable = stale.filter(
     (item) => !unresolvedTypes.has(String(item.type)),
   );
+  if (adopt) {
+    await actor.updateEmbeddedDocuments!("Item", [
+      {
+        _id: docId(adopt),
+        ...Object.fromEntries(
+          Object.entries(equipmentFlags(armour!)).map(([key, value]) => [
+            `flags.${MODULE_ID}.${key}`,
+            value,
+          ]),
+        ),
+      },
+    ]);
+    warnings.push(`equipment_armour_adopted:${docId(adopt)}`);
+  }
   if (!(await deleteManagedEquipment(actor, deletable, warnings))) {
     return { equipmentCompleteness: "partial", warnings };
   }
+  for (const item of replaced)
+    if (deletable.includes(item))
+      warnings.push(`equipment_armour_replaced:${docId(item)}`);
   if (sources.length > 0) await actor.createEmbeddedDocuments!("Item", sources);
   return {
-    equipmentCompleteness: warnings.length === 0 ? "complete" : "partial",
+    equipmentCompleteness: warnings.every((warning) => REPAIRED.test(warning))
+      ? "complete"
+      : "partial",
     warnings,
   };
 }

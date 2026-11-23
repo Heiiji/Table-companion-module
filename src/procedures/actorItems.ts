@@ -4,7 +4,12 @@ import { KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1 } from "../refdata/knightCompendiumC
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
 import { pairedAgentUser } from "../setup/identity.js";
-import { compendiumAvailabilityWarning } from "./actorUpsert.equipment.js";
+import { paragraphsHtml } from "../util/html.js";
+import {
+  compendiumAvailabilityWarning,
+  foldArmourTwins,
+  isArmourOf,
+} from "./actorUpsert.equipment.js";
 import { readable } from "./compendium.js";
 import {
   assertKnightUpsertAuthority,
@@ -14,6 +19,9 @@ import {
   FLAG_KEYS,
   flagValue,
   linkedActor,
+  takeoverPatch,
+  bindingOf,
+  sameCharacter,
   type ActorLike,
   type Dict,
 } from "./upsertShared.js";
@@ -24,16 +32,21 @@ import {
   readFields,
   holds,
   sameValue,
+  armourGuarded,
 } from "./actorItems.read.js";
 import {
   type ItemKind,
   FOUNDRY_TYPE,
   type ItemSourceV1,
+  type ItemFieldsV1,
   type ActorItemsOpV1,
   validateKnightActorItemsV1,
   PROCEDURE,
   ACTOR_TYPE,
   type ActorItemsResultV1,
+  OVERDRIVES,
+  SLOT_KEYS,
+  SLOTS,
 } from "./actorItems.validate.js";
 import { fieldPatch } from "./actorItems.patch.js";
 
@@ -50,7 +63,18 @@ import { fieldPatch } from "./actorItems.patch.js";
  * Item is applied, of a renamed one is `item_conflict`. Only the Item named by
  * id or `entryId` is ever touched. Created Items carry the `entryId` flag and
  * never the equipment-catalog flags, so `actor.upsert.v1` never reconciles
- * them away.
+ * them away (its equipment step adopts the armour by type instead).
+ *
+ * The armour (kind `armour`, `add` only) is the actor's FIRST `armure` Item,
+ * the one the Knight system reads. The same armour already there (made by
+ * actor.upsert's equipment step, or copied by hand from the same compendium
+ * document) is adopted: its flags gain the entry id. Another one is replaced: compare-and-set on its
+ * name (`expectedName`), refused with `armour_guarded` when it holds what a
+ * delete would lose for good (applied evolutions, their archives, an active
+ * capacity) unless `force` is set, then deleted and the new armour created.
+ * A re-send after a failure between the delete and the create finds no armour
+ * and creates it; a re-send after the create finds it flagged and writes
+ * nothing. It never writes `system.wear` nor any other Item.
  */
 
 // ------------------------------------------------------------- the procedure
@@ -184,12 +208,168 @@ async function addItem(
   return docId(item);
 }
 
+/** The `armure` source built from the app's fields: no capacities, no
+ * evolutions. */
+function builtArmour(f: ItemFieldsV1): Dict {
+  const overdrives: Dict = {};
+  for (const key of f.overdrives!) {
+    const [aspect, , c] = OVERDRIVES[key].split(".");
+    ((overdrives[aspect] ??= { liste: {} }) as { liste: Dict }).liste[c] = {
+      value: 1,
+    };
+  }
+  return {
+    name: f.name,
+    type: FOUNDRY_TYPE.armour,
+    system: {
+      generation: f.generation,
+      armure: { base: f.armourBase },
+      energie: { base: f.energyBase },
+      champDeForce: { base: f.forceFieldBase },
+      slots: Object.fromEntries(
+        SLOT_KEYS.map((k) => [SLOTS[k], { value: f.slots![k] }]),
+      ),
+      overdrives,
+      description: paragraphsHtml(f.description!),
+    },
+  };
+}
+
+async function addArmour(
+  actor: ActorLike,
+  add: Extract<ActorItemsOpV1, { add: unknown }>["add"],
+  warnings: string[],
+): Promise<string> {
+  const catalogId = (add.source as { catalogId: string }).catalogId;
+  // Module-made twins of one armour (an older module's two lanes) are folded
+  // into one first, so a stuck lane heals at its next add.
+  const armours = (await foldArmourTwins(actor, warnings)) as ItemDoc[];
+  const [current] = armours;
+  if (
+    armours.length === 1 &&
+    flagValue(current, FLAG_KEYS.entryId) === add.entryId &&
+    flagValue(current, FLAG_KEYS.armourCatalogId) === catalogId
+  )
+    return docId(current);
+  if (armours.length > 1)
+    throw new RpcError(
+      "item_conflict",
+      `the Actor carries several armours (${armours.map(docId).join(", ")}): the Knight system reads only the first`,
+    );
+  // The same armour made by actor.upsert's equipment step, or copied by hand
+  // from the same compendium document, is adopted, never replaced: the entry
+  // id and catalog id are stamped, every other flag kept.
+  if (
+    current &&
+    isArmourOf(current, catalogId) &&
+    [undefined, add.entryId].includes(
+      flagValue(current, FLAG_KEYS.entryId) as string | undefined,
+    )
+  ) {
+    if (typeof actor.updateEmbeddedDocuments !== "function")
+      throw new RpcError(
+        "unsupported_runtime",
+        "Actor.updateEmbeddedDocuments is unavailable",
+      );
+    await actor.updateEmbeddedDocuments("Item", [
+      {
+        _id: docId(current),
+        [entryFlagPath]: add.entryId,
+        [`flags.${MODULE_ID}.${FLAG_KEYS.armourCatalogId}`]: catalogId,
+      },
+    ]);
+    return docId(current);
+  }
+  if (current) {
+    if (
+      add.expectedName === undefined ||
+      !sameName(current, add.expectedName, true)
+    )
+      throw new RpcError("item_conflict", "the armour changed in Foundry");
+    if (armourGuarded(current)) {
+      if (add.force !== true)
+        throw new RpcError(
+          "armour_guarded",
+          "the armour has evolutions, archives or an active capacity",
+        );
+      warnings.push("armour_replaced_guarded");
+    }
+    if (typeof actor.deleteEmbeddedDocuments !== "function")
+      throw new RpcError(
+        "unsupported_runtime",
+        "Actor.deleteEmbeddedDocuments is unavailable",
+      );
+  }
+  if (typeof actor.createEmbeddedDocuments !== "function")
+    throw new RpcError(
+      "unsupported_runtime",
+      "Actor.createEmbeddedDocuments is unavailable",
+    );
+  const mapped = KNIGHT_EQUIPMENT_CROSSWALK_V14_0_1[catalogId][0];
+  const doc =
+    compendiumAvailabilityWarning() === null
+      ? await gamePacks()?.get(mapped.pack)?.getDocument(mapped.documentId)
+      : undefined;
+  const fromCompendium = gameItems()?.fromCompendium;
+  // fromCompendium stamps `_stats.compendiumSource` (the Item's identity).
+  const raw = doc
+    ? typeof fromCompendium === "function"
+      ? fromCompendium.call(gameItems(), doc)
+      : doc.toObject()
+    : undefined;
+  let source: Dict;
+  if (isDict(raw) && raw.type === FOUNDRY_TYPE.armour) {
+    source = { ...raw, name: add.item.name };
+    delete source._id;
+    delete source.folder;
+    delete source.ownership;
+  } else {
+    warnings.push("item_built");
+    source = builtArmour(add.item);
+  }
+  // Never the equipment-catalog flags, which would hand the armour to
+  // actor.upsert's reconciliation.
+  source.flags = {
+    ...(isDict(source.flags) ? source.flags : {}),
+    [MODULE_ID]: {
+      [FLAG_KEYS.entryId]: add.entryId,
+      [FLAG_KEYS.armourCatalogId]: catalogId,
+    },
+  };
+  // The new armour is fully prepared above: only now is the old one deleted, so
+  // a swap that cannot be built never leaves the Actor without its armour.
+  if (current) await actor.deleteEmbeddedDocuments!("Item", [docId(current)]);
+  const created = await actor.createEmbeddedDocuments("Item", [source]);
+  const item =
+    (Array.isArray(created)
+      ? (created[0] as ItemDoc | undefined)
+      : undefined) ??
+    actorItems(actor).find(
+      (i) => flagValue(i, FLAG_KEYS.armourCatalogId) === catalogId,
+    );
+  if (!item) throw new Error("Foundry did not return the created Item");
+  return docId(item);
+}
+
 export const actorItemsV1: Procedure = async (payload) => {
   const req = validateKnightActorItemsV1(payload);
   assertKnightUpsertAuthority(PROCEDURE);
   const digest = await canonicalDigest(req);
-  const actor = linkedActor(req, ACTOR_TYPE);
+  const actor = await linkedActor(req, ACTOR_TYPE, { takeover: true });
   const warnings: string[] = [];
+  // Another table's Actor is taken over first: this lane writes Items, not
+  // the Actor, so the binding rides an update of its own, checked by reading
+  // the binding back (Foundry drops a refused update without an error).
+  const takeover = takeoverPatch(actor, req);
+  if (takeover) {
+    await actor.update(takeover);
+    if (!sameCharacter(bindingOf(actor), req))
+      throw new RpcError(
+        "procedure_failed",
+        `${PROCEDURE}: Foundry did not apply the update`,
+      );
+    warnings.push("binding_taken_over");
+  }
   const result = (itemId: string): ActorItemsResultV1 => ({
     schemaVersion: 1,
     resultDocId: docId(actor),
@@ -199,7 +379,12 @@ export const actorItemsV1: Procedure = async (payload) => {
     itemId,
   });
   const op = req.op;
-  if ("add" in op) return result(await addItem(actor, op.add, warnings));
+  if ("add" in op)
+    return result(
+      op.add.kind === "armour"
+        ? await addArmour(actor, op.add, warnings)
+        : await addItem(actor, op.add, warnings),
+    );
 
   const { itemId, kind } = "update" in op ? op.update : op.remove;
   const found = actorItems(actor).find((item) => docId(item) === itemId);

@@ -6,18 +6,23 @@ import {
   type UserLike,
 } from "../foundry/runtime.js";
 import {
+  FLAG_KEYS,
   OWNERSHIP_OBSERVER,
+  bindingOf,
   docId,
   contentsOf,
+  parseStoredResult,
 } from "../procedures/upsertShared.js";
 import { log } from "../util/log.js";
 import { companionAnchorId, pairedAgentUserId, userById } from "./identity.js";
 
-/** Which player characters the Companion user can read. The backend reads the
- * world as that user, so a character it cannot observe never reaches the app. */
+/** Which player characters, and NPCs the app provisioned, the Companion user
+ * can read. The backend reads the world as that user, so a character it cannot
+ * observe never reaches the app. */
 interface CompanionVisibility {
   companion: UserLike & { id: string };
-  /** Actors a player owns: a user who is neither a GM nor the Companion user. */
+  /** Actors a player owns (a user who is neither a GM nor the Companion
+   * user), and NPCs the app provisioned (bound, with that lane's result). */
   total: number;
   /** Those the Companion user cannot observe, in collection order. */
   unseen: ActorLike[];
@@ -42,8 +47,11 @@ export function companionVisibility(): CompanionVisibility | null {
   const players = (gameUsers()?.contents ?? []).filter(
     (user) => !user.isGM && user.id !== companion.id,
   );
-  const characters = contentsOf(actors).filter((actor) =>
-    players.some((user) => can(actor, user, "OWNER")),
+  const characters = contentsOf(actors).filter(
+    (actor) =>
+      players.some((user) => can(actor, user, "OWNER")) ||
+      (bindingOf(actor) !== null &&
+        parseStoredResult(actor, FLAG_KEYS.npcUpsert) !== null),
   );
   return {
     companion: companion as UserLike & { id: string },
@@ -53,7 +61,7 @@ export function companionVisibility(): CompanionVisibility | null {
 }
 
 /**
- * GM only: give the Companion user OBSERVER on the player characters the GM
+ * GM only: give the Companion user OBSERVER on the characters the GM
  * confirmed (`confirmed.unseen`) that are, now, still in the world, still
  * player-owned and still unseen — the world is re-read after the confirmation,
  * and each actor is re-tested just before its update, so a level raised

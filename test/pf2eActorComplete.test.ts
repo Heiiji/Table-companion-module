@@ -11,6 +11,7 @@ import {
   setPath,
   USER_ID,
   type FakeActor,
+  applyUpdate,
 } from "./support/actorUpsertHarness.js";
 
 // SYNTHETIC, shape-only: the pf2e paths these fakes carry are source-derived
@@ -114,8 +115,7 @@ function packs(): Packs {
 function item(source: Record<string, unknown>): Record<string, unknown> {
   const doc: Record<string, unknown> = { ...structuredClone(source) };
   doc.update = vi.fn(async (changes: Record<string, unknown>) => {
-    for (const [key, value] of Object.entries(changes))
-      setPath(doc, key, value);
+    applyUpdate(doc, changes);
   });
   return doc;
 }
@@ -992,5 +992,16 @@ describe("pf2e.actor.complete.v1 replay", () => {
       lores: 1,
     });
     expect(storedFlag(actor)).toMatchObject({ revision: 1 });
+  });
+});
+
+describe("pf2e.actor.complete.v1 after the world is linked again", () => {
+  it("completes the character bound under the old world id, and replays a re-send", async () => {
+    const actor = character();
+    stubWorld([actor]);
+    const first = await run(request());
+    const updates = actor.updates.length;
+    await expect(run(request({ worldId: "world-2" }))).resolves.toEqual(first);
+    expect(actor.updates.length).toBe(updates);
   });
 });

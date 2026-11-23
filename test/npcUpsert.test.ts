@@ -1,15 +1,22 @@
 import { readFileSync } from "node:fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 import {
   npcUpsertV1,
   validateKnightNpcUpsertV1,
   type KnightNpcUpsertV1,
   type NpcUpsertResultV1,
 } from "../src/procedures/npcUpsert.js";
-import { MODULE_ID } from "../src/constants.js";
+import { MODULE_ID, SETTING_AGENT_USER } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
+import {
+  ownershipRefused,
+  stubOperators,
+  applyUpdate,
+} from "./support/actorUpsertHarness.js";
 
 const ACTOR_ID = "actor00000000pnj";
+/** The paired Companion user, which the backend reads the world as. */
+const COMPANION = "companion0000001";
 
 interface PnjSchemaFixture {
   foundryGeneration: number;
@@ -109,18 +116,8 @@ function fakeActor(id = ACTOR_ID, name = "Existing", type = "pnj"): FakeActor {
     updates: [],
     update: async (changes) => {
       actor.updates.push(changes);
-      for (const [key, value] of Object.entries(changes)) {
-        if (key === "name") actor.name = String(value);
-        else if (key === "ownership") {
-          for (const [ownershipKey, level] of Object.entries(
-            value as Record<string, unknown>,
-          )) {
-            if (ownershipKey.startsWith("-="))
-              delete actor.ownership[ownershipKey.slice(2)];
-            else actor.ownership[ownershipKey] = level;
-          }
-        } else setPath(actor as unknown as Record<string, unknown>, key, value);
-      }
+      if (ownershipRefused(changes)) return;
+      applyUpdate(actor as unknown as Record<string, unknown>, changes);
     },
   };
   return actor;
@@ -146,6 +143,7 @@ function stubFoundry(
     version: "3.58.33",
   },
   isGM = true,
+  paired = COMPANION,
 ): ReturnType<typeof vi.fn> {
   const collection = {
     contents: actors,
@@ -178,6 +176,10 @@ function stubFoundry(
     actors: collection,
     system,
     release: { generation },
+    settings: {
+      get: (_scope: string, key: string) =>
+        key === SETTING_AGENT_USER ? paired : "",
+    },
   });
   vi.stubGlobal("Actor", { implementation: { create: createFn } });
   return createFn;
@@ -261,10 +263,13 @@ describe("npc.upsert.v1", () => {
     expect(create).toHaveBeenCalledTimes(1);
     const data = create.mock.calls[0][0] as Record<string, unknown>;
     expect(data.type).toBe("pnj");
-    expect(data.ownership).toEqual({ default: 0 });
-    expect(data.prototypeToken).toEqual({ disposition: -2 });
+    // The Companion user observes it (the backend reads the world as that
+    // user); players get nothing. Its token is linked: an app NPC is one
+    // individual, so damage dealt on the scene lands on this Actor.
+    expect(data.ownership).toEqual({ default: 0, [COMPANION]: 2 });
+    expect(data.prototypeToken).toEqual({ disposition: -2, actorLink: true });
     const actor = actors[0];
-    expect(actor.ownership).toEqual({ default: 0 });
+    expect(actor.ownership).toEqual({ default: 0, [COMPANION]: 2 });
     expect(actor.prototypeToken.disposition).toBe(-2);
     expect(actor.system).toMatchObject({
       aspects: { bete: { value: 7 }, masque: { value: 3 } },
@@ -286,6 +291,59 @@ describe("npc.upsert.v1", () => {
     );
   });
 
+  describe("on Foundry 14", () => {
+    // Foundry adds the creating Gamemaster as OWNER, so the authored update
+    // must replace a map holding a grant the lane removes.
+    function gmCreating(actors: FakeActor[]) {
+      stubOperators();
+      const create = stubFoundry(actors, undefined, 14) as Mock<
+        (data: Record<string, unknown>) => Promise<FakeActor>
+      >;
+      const made = create.getMockImplementation()!;
+      create.mockImplementation(async (data: Record<string, unknown>) => {
+        const actor = await made(data);
+        actor.ownership.gm = 3;
+        return actor;
+      });
+      return create;
+    }
+
+    it("creates with the authored values written and exactly the lane's ownership", async () => {
+      const actors: FakeActor[] = [];
+      gmCreating(actors);
+      const result = (await npcUpsertV1(
+        request() as unknown as Record<string, unknown>,
+        {} as never,
+      )) as NpcUpsertResultV1;
+      expect(result.outcome).toBe("created");
+      expect(actors[0].ownership).toEqual({ default: 0, [COMPANION]: 2 });
+      expect(actors[0].system).toMatchObject({
+        aspects: { chair: { value: 5 }, bete: { value: 7 } },
+        sante: { base: 30, value: 24 },
+      });
+    });
+
+    it("answers procedure_failed when Foundry drops the authored update", async () => {
+      const actors: FakeActor[] = [];
+      const create = gmCreating(actors);
+      const made = create.getMockImplementation()!;
+      create.mockImplementation(async (data: Record<string, unknown>) => {
+        const actor = await made(data);
+        actor.update = async (changes) => {
+          actor.updates.push(changes);
+        };
+        return actor;
+      });
+      await expectRpcError(
+        npcUpsertV1(
+          request() as unknown as Record<string, unknown>,
+          {} as never,
+        ),
+        "procedure_failed",
+      );
+    });
+  });
+
   it("maps visible to ownership LIMITED and disposition NEUTRAL", async () => {
     const actors: FakeActor[] = [];
     stubFoundry(actors);
@@ -295,7 +353,7 @@ describe("npc.upsert.v1", () => {
       {} as never,
     );
 
-    expect(actors[0].ownership).toEqual({ default: 1 });
+    expect(actors[0].ownership).toEqual({ default: 1, [COMPANION]: 2 });
     expect(actors[0].prototypeToken.disposition).toBe(0);
   });
 
@@ -303,7 +361,7 @@ describe("npc.upsert.v1", () => {
     const req = request({ contentRevision: 2_000_000_000_000 });
     const actor = fakeActor();
     binding(actor, req);
-    actor.ownership = { default: 1, user000000000001: 3 };
+    actor.ownership = { default: 1, user000000000001: 3, [COMPANION]: 1 };
     actor.prototypeToken = { disposition: 0 };
     stubFoundry([actor]);
 
@@ -313,9 +371,76 @@ describe("npc.upsert.v1", () => {
     )) as NpcUpsertResultV1;
 
     expect(result.outcome).toBe("updated");
-    expect(actor.ownership).toEqual({ default: 0 });
+    // Hidden from players, still read by the Companion user.
+    expect(actor.ownership).toEqual({ default: 0, [COMPANION]: 2 });
     // The disposition is a creation-time default only; the GM owns it after.
     expect(actor.prototypeToken.disposition).toBe(0);
+  });
+
+  it("never lowers the Companion user's level, and grants nothing before pairing", async () => {
+    const req = request({ contentRevision: 2_000_000_000_000 });
+    const actor = fakeActor();
+    binding(actor, req);
+    actor.ownership = { default: 0, [COMPANION]: 3 };
+    stubFoundry([actor]);
+    await npcUpsertV1(req as unknown as Record<string, unknown>, {} as never);
+    expect(actor.ownership).toEqual({ default: 0, [COMPANION]: 3 });
+
+    const actors: FakeActor[] = [];
+    const create = stubFoundry(actors, undefined, 13, undefined, true, "");
+    await npcUpsertV1(
+      request() as unknown as Record<string, unknown>,
+      {} as never,
+    );
+    expect(
+      (create.mock.calls[0][0] as Record<string, unknown>).ownership,
+    ).toEqual({ default: 0 });
+    expect(actors[0].ownership).toEqual({ default: 0 });
+  });
+
+  it("starts a pool sent without current full on create", async () => {
+    const actors: FakeActor[] = [];
+    stubFoundry(actors);
+    const result = (await npcUpsertV1(
+      request({
+        resources: { health: { max: 30 }, armour: { max: 20, current: 5 } },
+      }) as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+    expect(result.warnings).toEqual([]);
+    expect(actors[0].system).toMatchObject({
+      sante: { base: 30, value: 30 },
+      armure: { base: 20, value: 5 },
+    });
+  });
+
+  it("writes only the maximum of a pool sent without current on an update", async () => {
+    const actors: FakeActor[] = [];
+    stubFoundry(actors);
+    await npcUpsertV1(
+      request() as unknown as Record<string, unknown>,
+      {} as never,
+    );
+    // Damage dealt in Foundry since: the next stat edit must not undo it.
+    setPath(actors[0] as never, "system.sante.value", 3);
+    const updates = actors[0].updates.length;
+    const result = (await npcUpsertV1(
+      request({
+        contentRevision: 1_755_555_556_000,
+        resources: { health: { max: 32 }, energy: { max: 12 } },
+      }) as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+    expect(result.outcome).toBe("updated");
+    expect(actors[0].system).toMatchObject({
+      sante: { base: 32, value: 3 },
+      energie: { base: 12, value: 10 },
+    });
+    const written = actors[0].updates
+      .slice(updates)
+      .flatMap((update) => Object.keys(update));
+    expect(written).not.toContain("system.sante.value");
+    expect(written).not.toContain("system.energie.value");
   });
 
   it("keeps a HOSTILE token disposition set in Foundry on the next upsert", async () => {
@@ -462,6 +587,18 @@ describe("npc.upsert.v1", () => {
       "binding_collision",
     );
 
+    // A copy whose source Foundry recorded (« Duplicate »): the original is
+    // served, the copy untouched.
+    Object.assign(second, {
+      _stats: { duplicateSource: "Actor.actor00000000aaa" },
+    });
+    const served = (await npcUpsertV1(
+      req as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+    expect(served.resultDocId).toBe("actor00000000aaa");
+    expect(second.updates).toHaveLength(0);
+
     const wrongType = fakeActor("actor00000000ccc", "Bound PC", "knight");
     binding(wrongType, req);
     stubFoundry([wrongType]);
@@ -469,6 +606,39 @@ describe("npc.upsert.v1", () => {
       npcUpsertV1(req as unknown as Record<string, unknown>, {} as never),
       "binding_conflict",
     );
+  });
+
+  it("answers binding_lost, never a second Actor, when another table took the NPC over", async () => {
+    const req = request();
+    const taken = fakeActor("actor00000000ddd");
+    taken.flags[MODULE_ID] = {
+      binding: {
+        schemaVersion: 1,
+        worldId: req.worldId,
+        tableId: "table-2",
+        characterId: "npc-9",
+        previous: [
+          {
+            tableId: req.tableId,
+            characterId: req.characterId,
+            at: "2026-11-12T13:05:00.000Z",
+          },
+        ],
+      },
+    };
+    const create = stubFoundry([taken]);
+    await expectRpcError(
+      npcUpsertV1(req as unknown as Record<string, unknown>, {} as never),
+      "binding_lost",
+    );
+    expect(create).not.toHaveBeenCalled();
+    expect(taken.updates).toHaveLength(0);
+    // A table it was never taken from creates its own NPC as before.
+    await npcUpsertV1(
+      { ...req, tableId: "table-5" } as unknown as Record<string, unknown>,
+      {} as never,
+    );
+    expect(create).toHaveBeenCalledTimes(1);
   });
 
   it("requires a GM responder and an admitted Knight runtime", async () => {
@@ -652,7 +822,7 @@ describe("npc.upsert.v1 base (compare-and-set)", () => {
     await upsert(next());
     const flag = (actors[0].flags[MODULE_ID] as Record<string, any>)
       .npcUpsertV1;
-    expect(flag.written["resources.health.current"]).toBe(5);
+    expect(flag.written.resources.health.current).toBe(5);
   });
 
   it("ignores a base for a field the request does not write", async () => {
@@ -695,5 +865,91 @@ describe("npc.upsert.v1 base (compare-and-set)", () => {
       ),
       "base_conflict",
     );
+  });
+});
+
+describe("npc.upsert.v1 after the world is linked again", () => {
+  // The backend mints a new world id when the world is unlinked and linked
+  // again; the table and character ids stay the same.
+  const bindingOfActor = (actor: FakeActor) =>
+    (actor.flags[MODULE_ID] as Record<string, unknown>).binding as Record<
+      string,
+      unknown
+    >;
+
+  it("replays the same revision under the new world id: no second Actor, nothing written", async () => {
+    const actors: FakeActor[] = [];
+    const create = stubFoundry(actors);
+    const first = await npcUpsertV1(
+      request() as unknown as Record<string, unknown>,
+      {} as never,
+    );
+    const writes = actors[0].updates.length;
+
+    const replay = await npcUpsertV1(
+      request({ worldId: "world-2" }) as unknown as Record<string, unknown>,
+      {} as never,
+    );
+    expect(replay).toEqual(first);
+    expect(actors).toHaveLength(1);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(actors[0].updates.length).toBe(writes);
+  });
+
+  it("updates the same Actor on a higher revision and rebinds it to the new world id", async () => {
+    const actors: FakeActor[] = [];
+    stubFoundry(actors);
+    await npcUpsertV1(
+      request() as unknown as Record<string, unknown>,
+      {} as never,
+    );
+    const result = (await npcUpsertV1(
+      request({
+        worldId: "world-2",
+        contentRevision: 1_755_555_556_000,
+      }) as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+    expect(result.outcome).toBe("updated");
+    expect(actors).toHaveLength(1);
+    expect(bindingOfActor(actors[0]).worldId).toBe("world-2");
+  });
+
+  it("prefers the Actor bound under the current world id over an older duplicate, and refuses a third id", async () => {
+    const older = fakeActor("actor00000000aaa");
+    const current = fakeActor("actor00000000bbb");
+    binding(older, request());
+    binding(current, request({ worldId: "world-2" }));
+    const create = stubFoundry([older, current]);
+    const result = (await npcUpsertV1(
+      request({ worldId: "world-2" }) as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+    expect(result.resultDocId).toBe("actor00000000bbb");
+    expect(older.updates).toHaveLength(0);
+    expect(create).not.toHaveBeenCalled();
+
+    await expectRpcError(
+      npcUpsertV1(
+        request({ worldId: "world-3" }) as unknown as Record<string, unknown>,
+        {} as never,
+      ),
+      "binding_collision",
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("never takes an Actor of another table under the same world id", async () => {
+    const elsewhere = fakeActor("actor00000000aaa");
+    binding(elsewhere, request({ tableId: "table-2" }));
+    const actors = [elsewhere];
+    const create = stubFoundry(actors);
+    const result = (await npcUpsertV1(
+      request() as unknown as Record<string, unknown>,
+      {} as never,
+    )) as NpcUpsertResultV1;
+    expect(result.outcome).toBe("created");
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(elsewhere.updates).toHaveLength(0);
   });
 });

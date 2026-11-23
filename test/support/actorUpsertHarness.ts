@@ -126,6 +126,45 @@ export function setPath(
   cursor[parts.at(-1)!] = value;
 }
 
+const isPlain = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" &&
+  v !== null &&
+  !Array.isArray(v) &&
+  (Object.getPrototypeOf(v) === Object.prototype ||
+    Object.getPrototypeOf(v) === null);
+
+function mergeAt(
+  target: Record<string, unknown>,
+  parts: string[],
+  value: unknown,
+): void {
+  const [head, ...rest] = parts;
+  if (rest.length > 0) {
+    if (!isPlain(target[head])) target[head] = {};
+    mergeAt(target[head] as Record<string, unknown>, rest, value);
+  } else if (head.startsWith("-=")) delete target[head.slice(2)];
+  else if (value instanceof ForcedDeletion) delete target[head];
+  else if (value instanceof ForcedReplacement)
+    target[head] = structuredClone(value.value);
+  else if (isPlain(value)) {
+    if (!isPlain(target[head])) target[head] = {};
+    for (const [key, inner] of Object.entries(value))
+      mergeAt(target[head] as Record<string, unknown>, key.split("."), inner);
+  } else target[head] = value;
+}
+
+/** Applies update data the way Foundry does (`expandObject` then
+ * `mergeObject`): a dotted key at ANY depth becomes nested objects, objects
+ * merge recursively, arrays and primitives replace, `-=key` and a
+ * ForcedDeletion delete, a ForcedReplacement replaces the whole value. */
+export function applyUpdate(
+  target: Record<string, unknown>,
+  changes: Record<string, unknown>,
+): void {
+  for (const [key, value] of Object.entries(changes))
+    mergeAt(target, key.split("."), value);
+}
+
 export function hasFixturePath(root: unknown, dotted: string): boolean {
   let cursor = root;
   for (const part of dotted.split(".")) {
@@ -164,6 +203,54 @@ export function wearingArmour(actor: FakeActor): FakeActor {
   return actor;
 }
 
+/** Foundry 14's update operators, as the fakes recognise them. */
+export class ForcedDeletion {}
+export class ForcedReplacement {
+  constructor(readonly value: Record<string, unknown>) {}
+}
+
+/** A Foundry 14 runtime: `foundry.data.operators` is present. */
+export function stubOperators(): void {
+  vi.stubGlobal("foundry", {
+    data: { operators: { ForcedDeletion, ForcedReplacement } },
+  });
+}
+
+function hasOperators(): boolean {
+  const g = globalThis as { foundry?: { data?: { operators?: unknown } } };
+  return g.foundry?.data?.operators !== undefined;
+}
+
+/** Foundry 14 refuses an update whose `ownership` holds a deletion (a
+ * ForcedDeletion or a `-=` key, nested or dotted): it logs the validation
+ * error, writes NOTHING of the update and resolves undefined. */
+export function ownershipRefused(changes: Record<string, unknown>): boolean {
+  if (!hasOperators()) return false;
+  return Object.entries(changes).some(([key, value]) => {
+    if (key.startsWith("ownership."))
+      return value instanceof ForcedDeletion || key.startsWith("ownership.-=");
+    if (key !== "ownership" || value instanceof ForcedReplacement) return false;
+    return Object.entries(value as Record<string, unknown>).some(
+      ([k, v]) => k.startsWith("-=") || v instanceof ForcedDeletion,
+    );
+  });
+}
+
+/** Applies an accepted `ownership` update value: a ForcedReplacement replaces
+ * the map, a plain object merges with `-=key` deleting (before Foundry 14). */
+export function applyOwnership(
+  target: { ownership: Record<string, unknown> },
+  value: unknown,
+): void {
+  if (value instanceof ForcedReplacement) {
+    target.ownership = { ...value.value };
+    return;
+  }
+  for (const [key, level] of Object.entries(value as Record<string, unknown>))
+    if (key.startsWith("-=")) delete target.ownership[key.slice(2)];
+    else target.ownership[key] = level;
+}
+
 export function fakeActor(id = ACTOR_ID, name = "Existing"): FakeActor {
   const actor: FakeActor = {
     id,
@@ -186,23 +273,8 @@ export function fakeActor(id = ACTOR_ID, name = "Existing"): FakeActor {
     update: async (changes) => {
       actor.events.push("update");
       actor.updates.push(changes);
-      for (const [key, value] of Object.entries(changes)) {
-        if (key === "name") actor.name = String(value);
-        else if (key.startsWith("flags."))
-          setPath(actor as unknown as Record<string, unknown>, key, value);
-        else if (key === "ownership") {
-          for (const [ownershipKey, level] of Object.entries(
-            value as Record<string, unknown>,
-          )) {
-            if (ownershipKey.startsWith("-="))
-              delete actor.ownership[ownershipKey.slice(2)];
-            else actor.ownership[ownershipKey] = level;
-          }
-        } else if (key.startsWith("ownership."))
-          setPath(actor as unknown as Record<string, unknown>, key, value);
-        else if (key.startsWith("system."))
-          setPath(actor as unknown as Record<string, unknown>, key, value);
-      }
+      if (ownershipRefused(changes)) return;
+      applyUpdate(actor as unknown as Record<string, unknown>, changes);
     },
     prepareData: () => actor.events.push("prepare"),
     createEmbeddedDocuments: vi.fn(
@@ -213,8 +285,7 @@ export function fakeActor(id = ACTOR_ID, name = "Existing"): FakeActor {
             id: `item${String(actor.items.contents.length).padStart(12, "0")}`,
           };
           item.update = vi.fn(async (changes: Record<string, unknown>) => {
-            for (const [key, value] of Object.entries(changes))
-              setPath(item, key, value);
+            applyUpdate(item, changes);
           });
           actor.items.contents.push(item);
         }
@@ -224,8 +295,7 @@ export function fakeActor(id = ACTOR_ID, name = "Existing"): FakeActor {
       async (_type, data: Record<string, unknown>[]) => {
         for (const { _id, ...changes } of data) {
           const item = actor.items.contents.find((i) => i.id === _id);
-          for (const [key, value] of Object.entries(changes))
-            if (item) setPath(item, key, value);
+          if (item) applyUpdate(item, changes);
         }
       },
     ),

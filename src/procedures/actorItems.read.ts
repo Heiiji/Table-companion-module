@@ -201,3 +201,44 @@ export function holds(
   }
   return sameValue(current[key], value);
 }
+
+// ------------------------------------------------------------ the armour
+
+const anyTrue = (node: unknown): boolean =>
+  node === true || (isDict(node) && Object.values(node).some(anyTrue));
+
+const anyApplied = (node: unknown): boolean =>
+  isDict(node) &&
+  Object.entries(node).some(
+    ([key, value]) =>
+      (key === "applied" && value === true) || anyApplied(value),
+  );
+
+/** Whether deleting this `armure` Item loses data held nowhere else: an
+ * applied evolution (regular or special), a pre-evolution archive, or a
+ * capacity left active. */
+export function armourGuarded(item: ItemDoc): boolean {
+  const sy = item.system;
+  const liste = at(sy, "evolutions.liste");
+  const archivage = at(sy, "archivage");
+  const selected = at(sy, "capacites.selected");
+  const warriorTypes = at(sy, "capacites.selected.type.type");
+  return (
+    (isDict(liste) &&
+      Object.values(liste).some((e) => at(e, "applied") === true)) ||
+    anyApplied(at(sy, "evolutions.special")) ||
+    (isDict(archivage) &&
+      Object.values(archivage).some((v) =>
+        typeof v === "string"
+          ? v !== ""
+          : typeof v === "object" && v !== null && Object.keys(v).length > 0,
+      )) ||
+    (isDict(selected) &&
+      Object.values(selected).some((c) => anyTrue(at(c, "active")))) ||
+    // The Warrior's « type » is active on the chosen type itself.
+    (isDict(warriorTypes) &&
+      Object.values(warriorTypes).some(
+        (t) => at(t, "conflit") === true || at(t, "horsconflit") === true,
+      ))
+  );
+}

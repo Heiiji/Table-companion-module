@@ -15,6 +15,8 @@ import {
   OWNERSHIP_OWNER,
   parseStoredResult,
   PF2E_REQUIREMENT,
+  replayDigests,
+  sameCharacter,
   supportsPf2eActorUpsertV1Runtime,
   valueAt,
   type ActorItemLike,
@@ -52,13 +54,7 @@ function targetActor(req: Pf2eActorCompleteV1): ActorLike {
   const actor = actorCollection().get(req.actorId);
   if (!actor)
     throw new RpcError("actor_not_found", "the character's Actor is gone");
-  const binding = bindingOf(actor);
-  if (
-    actor.type !== ACTOR_TYPE ||
-    binding?.worldId !== req.worldId ||
-    binding.tableId !== req.tableId ||
-    binding.characterId !== req.characterId
-  )
+  if (actor.type !== ACTOR_TYPE || !sameCharacter(bindingOf(actor), req))
     throw new RpcError(
       "binding_conflict",
       "the Actor is not this character's bound character Actor",
@@ -254,7 +250,7 @@ export const pf2eActorCompleteV1: Procedure = async (payload) => {
         "the Actor has a newer completion revision",
       );
     if (previous.revision === req.completionRevision) {
-      if (previous.digest !== digest)
+      if (!(await replayDigests(req, actor, digest)).includes(previous.digest))
         throw new RpcError(
           "revision_conflict",
           "the same completion revision carries different content",

@@ -93,12 +93,92 @@ export const KEY_ENROLL_EVENT = "responseKey.enroll";
  * no handler. */
 export const CAP_ACTOR_RESOURCES_NAME = "actorResourcesNameV1";
 
+/** Capability token advertised alongside `actor.resources.v1`: this build
+ * accepts the optional `wear` / `previousWear` fields on that procedure (deploy
+ * or fold a player character's armour). Apps send a wear only when the world
+ * advertises it. NOT a procedure name — it has no handler. */
+export const CAP_ACTOR_RESOURCES_WEAR = "actorResourcesWearV1";
+
+/** Capability token advertised alongside `actor.items.v1`: this build accepts
+ * the `armour` kind on that procedure's `add` (replace the player character's
+ * armour, with `expectedName` and `force`). Apps send one only when the world
+ * advertises it. NOT a procedure name — it has no handler. */
+export const CAP_ACTOR_ITEMS_ARMOUR = "actorItemsArmourV1";
+
+/** Capability token advertised alongside `actor.resources.v1`: this build
+ * accepts `actorType` "pnj", "creature", "bande" or "vehicule" on that
+ * procedure (health, armour and energy currents on the Actor's own pools) and
+ * pools without `current` on `npc.upsert.v1`. Apps send either only when the
+ * world advertises it, since an older build refuses them. NOT a procedure
+ * name — it has no handler. */
+export const CAP_KNIGHT_NPC_RESOURCES = "knightNpcResourcesV1";
+
+/** Capability token advertised alongside `actor.resources.v1`: on the Knight
+ * lanes (`actor.resources.v1`, `actor.items.v1`, `actor.upsert.v1`,
+ * `npc.upsert.v1`) this build takes over an Actor another table holds (the
+ * binding keeps a `previous` history), answers `binding_lost` to a table that
+ * lost one, and accepts `reclaim` on `actor.resources.v1`. Apps send `reclaim`
+ * only when the world advertises it. NOT a procedure name — it has no
+ * handler. */
+export const CAP_BINDING_TAKEOVER = "bindingTakeoverV1";
+
+/** Capability token advertised with `CAP_BINDING_TAKEOVER`: a `reclaim` on
+ * `actor.resources.v1` takes the binding back and writes no value — the
+ * reclaiming table then reads Foundry's current values. This build accepts a
+ * reclaim row with no values, and ignores (warning `reclaim_values_ignored`)
+ * any an older app still sends with it. Apps send the value-less row only
+ * when the world advertises it, since an older build refuses it. NOT a
+ * procedure name — it has no handler. */
+export const CAP_BINDING_RECLAIM = "bindingReclaimV2";
+
+/** Capability token advertised when both `actor.resources.v1` and
+ * `knight.statistics.v1` are: this build accepts the optional `sheet` group
+ * (with `base.sheet`) on `actor.resources.v1` for a Knight player character —
+ * aspects and characteristics in Foundry's prepared values, unspent
+ * experience, Glory total, age, nickname and major motivation. Apps send it
+ * only when the world advertises it, since an older build refuses the key.
+ * NOT a procedure name — it has no handler. */
+export const CAP_KNIGHT_SHEET_WRITES = "knightSheetWritesV1";
+
+/** Capability token advertised exactly with `CAP_KNIGHT_SHEET_WRITES`: this
+ * build accepts `sheet.gloryCurrent` (the unspent Glory, written as one
+ * « other expense » line the lane owns) on `actor.resources.v1`. Apps send it
+ * only when the world advertises it, since an older build refuses the key.
+ * NOT a procedure name — it has no handler. */
+export const CAP_KNIGHT_SHEET_GLORY = "knightSheetGloryV1";
+
+/** Capability token advertised alongside `knight.attack.v1`: this build
+ * accepts the optional `itemId` on that procedure (a weapon created in Foundry,
+ * found by its Item id when no Item carries the `entryId` flag). Apps send it
+ * only when the world advertises it, since an older build refuses the key.
+ * NOT a procedure name — it has no handler. */
+export const CAP_KNIGHT_ATTACK_ITEM_ID = "knightAttackItemIdV1";
+
+/** Accepts a second bound weapon for an Akimbo attack; not a procedure. */
+export const CAP_KNIGHT_ATTACK_STYLES = "knightAttackStylesV1";
+
 /** Capability token advertised with any lane that takes the optional `base`
  * compare-and-set values (`actor.resources.v1`, `actor.upsert.v1`,
  * `npc.upsert.v1`, `dnd5e.resources.v1`, `pf2e.resources.v1`): apps send a
  * `base` only when the world advertises it, since an older build refuses the
  * key. NOT a procedure name — it has no handler. */
 export const CAP_WRITE_BASE = "writeBaseV1";
+
+/** Capability token advertised alongside `pf2e.resources.v1` when pf2e's
+ * currency APIs are present: this build accepts the optional `coins`,
+ * `customAdds` and `spellcasting` groups (and `base.coins` /
+ * `base.spellcasting`) on that procedure. Apps send them only when the world
+ * advertises it, since an older build refuses the keys. NOT a procedure name —
+ * it has no handler. */
+export const CAP_PF2E_SHEET_WRITES = "pf2eSheetWritesV1";
+
+/** Capability token advertised alongside `pf2e.resources.v1`: this build
+ * accepts `actorType: "npc"` on that procedure, writing a pf2e `npc` Actor's
+ * hit points, temporary hit points, conditions, item quantities and
+ * spellcasting (never hero points, the purse or item adds). Apps send an npc
+ * request only when the world advertises it, since an older build refuses the
+ * actor type. NOT a procedure name — it has no handler. */
+export const CAP_PF2E_NPC_WRITES = "pf2eNpcWritesV1";
 
 /** The lanes that take `base` (the `CAP_WRITE_BASE` token rides them). */
 export const WRITE_BASE_PROCEDURES = [

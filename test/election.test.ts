@@ -10,6 +10,7 @@ interface FakeUser {
   name?: string;
   isGM: boolean;
   active: boolean;
+  role: number;
 }
 
 function setGame(opts: {
@@ -32,6 +33,15 @@ function setGame(opts: {
     users: {
       activeGM: opts.activeGM ?? null,
       contents: opts.users ?? [],
+      getDesignatedUser: (eligible: (user: FakeUser) => boolean) => {
+        const candidates = (opts.users ?? []).filter(eligible);
+        const highestRole = Math.max(...candidates.map((user) => user.role));
+        const firstId = candidates
+          .filter((user) => user.role === highestRole)
+          .map((user) => user.id)
+          .sort()[0];
+        return candidates.find((user) => user.id === firstId) ?? null;
+      },
     },
   });
 }
@@ -42,8 +52,14 @@ const gm = (id: string, active = true): FakeUser => ({
   id,
   isGM: true,
   active,
+  role: 4,
 });
-const player = (id: string): FakeUser => ({ id, isGM: false, active: true });
+const player = (id: string): FakeUser => ({
+  id,
+  isGM: false,
+  active: true,
+  role: 1,
+});
 
 describe("isResponder", () => {
   it("is false for a non-GM", () => {
@@ -98,13 +114,20 @@ describe("isResponder", () => {
     { companionAnchorId: "0-service" },
   ])("with an elevated service user identified by %o", (identity) => {
     it.each([true, false])(
-      "elects only the lowest-id active human GM (service activeGM: %s)",
+      "elects one active human using Foundry's role and ID order (service activeGM: %s)",
       (serviceIsActiveGM) => {
         const service = gm("0-service");
-        const firstHuman = gm("b");
-        const secondHuman = gm("c");
-        const users = [secondHuman, service, gm("a", false), firstHuman];
-        for (const me of [service, firstHuman, secondHuman]) {
+        const firstHuman = gm("B");
+        const secondHuman = gm("b");
+        const assistant = { ...gm("1-assistant"), role: 3 };
+        const users = [
+          secondHuman,
+          service,
+          gm("A", false),
+          assistant,
+          firstHuman,
+        ];
+        for (const me of [service, firstHuman, secondHuman, assistant]) {
           setGame({
             ...identity,
             me,
@@ -115,6 +138,18 @@ describe("isResponder", () => {
         }
       },
     );
+  });
+
+  it("lets an active assistant respond when the service account is the only full GM", () => {
+    const service = gm("0-service");
+    const me = { ...gm("1-assistant"), role: 3 };
+    setGame({
+      me,
+      activeGM: service,
+      users: [service, me],
+      pairedUserId: service.id,
+    });
+    expect(isResponder()).toBe(true);
   });
 
   it("elects a human GM who carries the service user's default name", () => {

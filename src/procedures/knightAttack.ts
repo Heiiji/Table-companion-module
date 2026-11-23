@@ -1,14 +1,6 @@
-import { MODULE_ID, REQUEST_TIMEOUT_MS } from "../constants.js";
-import {
-  canvasTokens,
-  foundryGame,
-  foundryHooks,
-  type Dict,
-  type UserLike,
-} from "../foundry/runtime.js";
+import { canvasTokens, foundryGame, type Dict } from "../foundry/runtime.js";
 import { RpcError } from "../rpc/errors.js";
 import type { Procedure } from "../rpc/registry.js";
-import { isServiceUserId } from "../setup/identity.js";
 import { log } from "../util/log.js";
 import { waitFor, within } from "../util/wait.js";
 import {
@@ -16,6 +8,7 @@ import {
   actorCollection,
   assertKnightUpsertAuthority,
   contentsOf,
+  docId,
   documentId,
   flagValue,
   identifier,
@@ -29,6 +22,32 @@ import {
   uuid,
   type ActorLike,
 } from "./upsertShared.js";
+import {
+  cardAuthor,
+  characterOf,
+  players,
+  stampedCard,
+  visibilityOf,
+  type CardMessage,
+  type Player,
+  type TokenObj,
+} from "./chatCards.js";
+import {
+  CHAT_HOOKS,
+  KNIGHT_STAMP_MS,
+  armStamp,
+  diceOf,
+  join,
+  oneAtATime,
+  replay,
+  stampFlags,
+  stampResult,
+  track,
+  type RollState,
+} from "./knightRollLane.js";
+
+export { laneFlags, messages, type CardMessage } from "./chatCards.js";
+export { facesOf, type RollLike } from "./knightRollLane.js";
 
 /**
  * `knight.attack.v1`: a weapon attack the app started, run by the Knight
@@ -36,7 +55,7 @@ import {
  * so the native card appears with its targets, per-target verdict and effects
  * and the damage / violence buttons. The app composes the pool (dice, flat
  * successes, characteristics, style); the system supplies the weapon (the Item
- * bound by `entryId`), the targets' scores, the dice and the effects. No cost
+ * bound by `entryId`, else the one named by `itemId`), the targets' scores, the dice and the effects. No cost
  * is spent here: the app spends energy and hope itself.
  *
  * Idempotent by `eventId`: a card already stamped with it answers its stored
@@ -49,11 +68,7 @@ export const ATTACK_LANE = "knight.attack";
 export const ATTACK_WAIT_MS = 8_000;
 /** How long the card is still watched, after an unanswered call, to stamp its
  * result for a later import. */
-// ponytail: a card whose flags land after this is never stamped; widen it if
-// a slower roller ever shows up.
-export const ATTACK_STAMP_MS = 60_000;
-/** The chat events after which a card may have changed. */
-const CHAT_HOOKS = ["createChatMessage", "updateChatMessage"] as const;
+export const ATTACK_STAMP_MS = KNIGHT_STAMP_MS;
 
 const STYLE_KEY = /^[A-Za-z0-9_-]{1,32}$/;
 const PAYLOAD_KEYS = [
@@ -70,6 +85,16 @@ const PAYLOAD_KEYS = [
   "targetActorIds",
   "visibility",
 ] as const;
+/** Optional: the weapon's Foundry Item id, for a weapon born in Foundry (no
+ * `entryId` flag). Sent only to a build advertising `knightAttackItemIdV1`. */
+const OPTIONAL_KEYS = [
+  "itemId",
+  "secondaryEntryId",
+  "secondaryItemId",
+  "secondaryAttackId",
+  "dataStyle",
+  "preciseCharacteristic",
+] as const;
 
 const ORIGINS = ["app", "player"] as const;
 const VISIBILITIES = ["public", "gm", "blind", "self"] as const;
@@ -81,6 +106,12 @@ export interface KnightAttackV1 {
   origin: (typeof ORIGINS)[number];
   actorId: string;
   entryId: string;
+  itemId?: string;
+  secondaryEntryId?: string;
+  secondaryItemId?: string;
+  secondaryAttackId?: string;
+  dataStyle?: { type: "degats" | "violence"; value: number };
+  preciseCharacteristic?: string;
   label: string;
   dice: number;
   bonus: number[];
@@ -113,47 +144,17 @@ export interface KnightAttackResultV1 {
   successes: number;
   bonus: number;
   total: number;
-  rollState: "normal" | "exploit" | "epicFail";
+  rollState: RollState;
   targetSource: TargetSource;
   targets: KnightAttackTargetV1[];
 }
 
 // ------------------------------------------------------- structural views
 
-interface TokenObj {
-  id: string;
-  document?: { actorId?: string | null };
-}
-
 interface TokenLayer {
   get(id: string): TokenObj | undefined;
   placeables?: TokenObj[];
   setTargets?(ids: string[], options?: { mode?: string }): void;
-}
-
-interface Player extends UserLike {
-  character?: { id?: string } | string | null;
-  targets?: Iterable<TokenObj>;
-}
-
-export interface RollLike {
-  formula?: string;
-  total?: number;
-  dice?: { results?: { result: number; active?: boolean }[] }[];
-  terms?: { results?: { result: number; active?: boolean }[] }[];
-}
-
-/** A chat message, as the attack lane reads and stamps it. */
-export interface CardMessage {
-  id?: string;
-  flags?: Dict;
-  rolls?: unknown[];
-  content?: string;
-  flavor?: string;
-  speaker?: { actor?: string | null };
-  getFlag?(namespace: string, key: string): unknown;
-  setFlag?(namespace: string, key: string, value: unknown): Promise<unknown>;
-  updateSource?(changes: Dict): unknown;
 }
 
 interface Weapon {
@@ -185,17 +186,84 @@ interface KnightTarget {
 
 // ------------------------------------------------------------- validation
 
-/** The strict payload: every key required, unknown keys refused. */
+/** The strict payload: every key but `itemId` required, unknown keys refused. */
 export function validateKnightAttackV1(payload: unknown): KnightAttackV1 {
-  const p = record(payload, "payload", PAYLOAD_KEYS);
+  const p = record(payload, "payload", [...PAYLOAD_KEYS, ...OPTIONAL_KEYS]);
   for (const key of PAYLOAD_KEYS)
     if (!(key in p)) invalid(`payload.${key} is required`);
   if (typeof p.surprise !== "boolean") invalid("surprise must be a boolean");
+  const dataStyle =
+    "dataStyle" in p
+      ? record(p.dataStyle, "dataStyle", ["type", "value"])
+      : undefined;
+  if (dataStyle && p.style !== "puissant")
+    invalid("dataStyle is only accepted for puissant");
+  if ("preciseCharacteristic" in p && p.style !== "precis")
+    invalid("preciseCharacteristic is only accepted for precis");
+  if (
+    "secondaryEntryId" in p !== "secondaryAttackId" in p ||
+    ("secondaryItemId" in p && !("secondaryEntryId" in p)) ||
+    ("secondaryEntryId" in p &&
+      (p.style !== "akimbo" || p.secondaryEntryId === p.entryId))
+  )
+    invalid("Akimbo needs a different second weapon and its attack mode");
   return {
     eventId: identifier(p.eventId, "eventId", uuid),
     origin: oneOf(p.origin, "origin", ORIGINS),
     actorId: identifier(p.actorId, "actorId", documentId),
     entryId: identifier(p.entryId, "entryId", uuid),
+    ...("itemId" in p
+      ? { itemId: identifier(p.itemId, "itemId", documentId) }
+      : {}),
+    ...("secondaryEntryId" in p
+      ? {
+          secondaryEntryId: identifier(
+            p.secondaryEntryId,
+            "secondaryEntryId",
+            uuid,
+          ),
+          secondaryAttackId: text(
+            p.secondaryAttackId,
+            "secondaryAttackId",
+            120,
+            true,
+          ),
+        }
+      : {}),
+    ...("secondaryItemId" in p
+      ? {
+          secondaryItemId: identifier(
+            p.secondaryItemId,
+            "secondaryItemId",
+            documentId,
+          ),
+        }
+      : {}),
+    ...(dataStyle
+      ? {
+          dataStyle: {
+            type: oneOf(dataStyle.type, "dataStyle.type", [
+              "degats",
+              "violence",
+            ] as const),
+            value: integer(dataStyle.value, "dataStyle.value", 0, 6),
+          },
+        }
+      : {}),
+    ...("preciseCharacteristic" in p
+      ? {
+          preciseCharacteristic: oneOf(
+            p.preciseCharacteristic,
+            "preciseCharacteristic",
+            [
+              "masque_dexterite",
+              "machine_savoir",
+              "bete_instinct",
+              "dame_sang_froid",
+            ] as const,
+          ),
+        }
+      : {}),
     label: text(p.label, "label", 120, true),
     dice: integer(p.dice, "dice", 1, 60),
     bonus: list(p.bonus, "bonus", 10).map((b, i) =>
@@ -236,20 +304,8 @@ function tokens(): TokenLayer | undefined {
   return canvasTokens() as TokenLayer | undefined;
 }
 
-export function messages(): CardMessage[] {
-  return (foundryGame()?.messages?.contents ?? []) as CardMessage[];
-}
-
-export function laneFlags(message: CardMessage): Dict | undefined {
-  const ns = message.flags?.[MODULE_ID];
-  return typeof ns === "object" && ns !== null ? (ns as Dict) : undefined;
-}
-
 function cardOf(eventId: string): CardMessage | undefined {
-  return messages().find((m) => {
-    const ns = laneFlags(m);
-    return ns?.eventId === eventId && ns.lane === ATTACK_LANE;
-  });
+  return stampedCard(eventId, ATTACK_LANE);
 }
 
 export function knightFlags(message: CardMessage): Dict | undefined {
@@ -257,27 +313,6 @@ export function knightFlags(message: CardMessage): Dict | undefined {
   return typeof knight === "object" && knight !== null
     ? (knight as Dict)
     : undefined;
-}
-
-/** The people at the table: not a GM, not the app's service user. */
-function players(): Player[] {
-  return (contentsOf(foundryGame()?.users) as Player[]).filter(
-    (u) => !u.isGM && !isServiceUserId(u.id),
-  );
-}
-
-function characterOf(user: Player): string | undefined {
-  const c = user.character;
-  return typeof c === "string" ? c : (c?.id ?? undefined);
-}
-
-/** The PC's player (the user whose character it is), else an active owner. */
-function playerOf(actor: ActorLike): Player | undefined {
-  const all = players();
-  return (
-    all.find((u) => characterOf(u) === actor.id) ??
-    all.find((u) => u.active && actor.testUserPermission?.(u, "OWNER") === true)
-  );
 }
 
 function onCanvas(ids: Iterable<string>): string[] {
@@ -338,23 +373,6 @@ function gmTargetIds(): string[] {
   );
 }
 
-/** The card's visibility, in place of the GM's own roll mode. */
-function visibilityOf(
-  visibility: KnightAttackV1["visibility"],
-  authorId: string,
-): { whisper: string[]; blind: boolean } {
-  if (visibility === "public") return { whisper: [], blind: false };
-  if (visibility === "self") return { whisper: [authorId], blind: false };
-  // A GM roll also reaches the service user, so the backend, which reads the
-  // world as that user, sees the card and its result; a blind roll stays GM-only.
-  const readers = contentsOf(foundryGame()?.users)
-    .filter(
-      (u) => u.id && (u.isGM || (visibility === "gm" && isServiceUserId(u.id))),
-    )
-    .map((u) => u.id as string);
-  return { whisper: readers, blind: visibility === "blind" };
-}
-
 function cardTimeout(): RpcError {
   return new RpcError(
     "attack_card_timeout",
@@ -363,18 +381,6 @@ function cardTimeout(): RpcError {
 }
 
 // ---------------------------------------------------------------- results
-
-export function facesOf(roll: unknown): number[] {
-  const r = (
-    typeof roll === "string" ? (JSON.parse(roll) as unknown) : roll
-  ) as RollLike | null;
-  const terms = r?.dice?.length ? r.dice : (r?.terms ?? []);
-  return terms.flatMap((t) =>
-    (t.results ?? []).filter((x) => x.active !== false).map((x) => x.result),
-  );
-}
-
-const evens = (faces: number[]) => faces.filter((f) => f % 2 === 0).length;
 
 /** The result of an attack card whose Knight flags have landed. */
 export function buildAttackResult(
@@ -390,13 +396,8 @@ export function buildAttackResult(
   const bonus = (Array.isArray(rollData.bonus) ? rollData.bonus : [])
     .filter((b): b is number => typeof b === "number")
     .reduce((a, b) => a + b, 0);
-  // The first roll is the attack; no odd die means the next one is its
-  // Exploit reroll (a cadence card rolls once per target: the first is read).
-  const rolls = message.rolls ?? [];
-  const faces = rolls.length ? facesOf(rolls[0]) : [];
-  const exploit = faces.length > 0 && faces.every((f) => f % 2 === 0);
-  const exploitFaces = exploit && rolls[1] ? facesOf(rolls[1]) : null;
-  const successes = evens(faces) + evens(exploitFaces ?? []);
+  // A cadence card rolls once per target: the first is read.
+  const { faces, exploitFaces, successes, rollState } = diceOf(message);
   const first = content[0];
   const total =
     typeof first?.total === "number" ? first.total : successes + bonus;
@@ -443,69 +444,28 @@ export function buildAttackResult(
     successes,
     bonus,
     total,
-    rollState: exploit
-      ? "exploit"
-      : faces.length > 0 && successes === 0
-        ? "epicFail"
-        : "normal",
+    rollState,
     targetSource,
     targets,
   };
 }
 
-function storedResult(message: CardMessage): KnightAttackResultV1 | null {
-  const value = flagValue(message, "attackResult");
-  return typeof value === "object" && value !== null
-    ? (value as KnightAttackResultV1)
-    : null;
-}
-
 /** Build and stamp the result once the card's Knight flags are there. */
-async function stamp(
+function stamp(
   message: CardMessage,
   targetSource: TargetSource,
 ): Promise<KnightAttackResultV1> {
-  const result = buildAttackResult(message, targetSource);
-  try {
-    await message.setFlag?.(MODULE_ID, "attackResult", result);
-  } catch (error) {
-    log.warn(`${PROCEDURE}: could not stamp the result`, error);
-  }
-  return result;
+  return stampResult(
+    message,
+    "attackResult",
+    buildAttackResult(message, targetSource),
+  );
 }
 
 const flagsLanded = (eventId: string) => {
   const card = cardOf(eventId);
   return card && Array.isArray(knightFlags(card)?.content) ? card : null;
 };
-
-/** A retry of an attack already on the chat: its stored result, never a new roll. */
-async function replay(eventId: string): Promise<KnightAttackResultV1> {
-  const card = await waitFor(
-    () => {
-      const c = cardOf(eventId);
-      return c && (storedResult(c) || Array.isArray(knightFlags(c)?.content))
-        ? c
-        : null;
-    },
-    CHAT_HOOKS,
-    ATTACK_WAIT_MS,
-  );
-  if (!card) throw cardTimeout();
-  // ponytail: a card left unstamped (the GM reloaded mid-attack) is rebuilt
-  // without its target source; stamp it under the card's flags if it matters.
-  const result =
-    storedResult(card) ??
-    (await stamp(
-      card,
-      (knightFlags(card)?.content as { targets?: unknown[] }[])?.some(
-        (c) => c.targets?.length,
-      )
-        ? "gm"
-        : "none",
-    ));
-  return { ...result, alreadyRolled: true };
-}
 
 async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
   assertKnightUpsertAuthority(PROCEDURE);
@@ -515,22 +475,45 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
       "knight_api_missing",
       `${PROCEDURE}: game.knight.RollKnight is unavailable`,
     );
-  if (cardOf(req.eventId)) return replay(req.eventId);
+  if (cardOf(req.eventId))
+    return replay(
+      ATTACK_LANE,
+      req.eventId,
+      "attackResult",
+      (card) => Array.isArray(knightFlags(card)?.content),
+      // ponytail: a card left unstamped (the GM reloaded mid-attack) is rebuilt
+      // without its target source; stamp it under the card's flags if it matters.
+      (card) =>
+        buildAttackResult(
+          card,
+          (knightFlags(card)?.content as { targets?: unknown[] }[])?.some(
+            (c) => c.targets?.length,
+          )
+            ? "gm"
+            : "none",
+        ),
+      ATTACK_WAIT_MS,
+      cardTimeout,
+    );
   // A retry while this attack's card is still on its way (the first call
   // timed out, its stamping hook still armed): join it, never roll again.
-  const inFlight = rolling.get(req.eventId);
-  if (inFlight) {
-    const result = await within(inFlight, ATTACK_WAIT_MS);
-    if (!result) throw cardTimeout();
-    return { ...result, alreadyRolled: true };
-  }
+  const joined = await join<KnightAttackResultV1>(
+    ATTACK_LANE,
+    req.eventId,
+    ATTACK_WAIT_MS,
+    cardTimeout,
+  );
+  if (joined) return joined;
 
   const actor = actorCollection().get(req.actorId);
   if (!actor)
     throw new RpcError("actor_not_found", `${PROCEDURE}: no such Actor`);
-  const item = contentsOf(actor.items).find(
-    (i) => i.type === "arme" && flagValue(i, FLAG_KEYS.entryId) === req.entryId,
-  );
+  // The app's own weapon (flagged with its row id), else the Foundry-born
+  // weapon the app names by Item id; never by name.
+  const weapons = contentsOf(actor.items).filter((i) => i.type === "arme");
+  const item =
+    weapons.find((i) => flagValue(i, FLAG_KEYS.entryId) === req.entryId) ??
+    (req.itemId ? weapons.find((i) => docId(i) === req.itemId) : undefined);
   if (!item)
     throw new RpcError(
       "weapon_not_found",
@@ -542,51 +525,100 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
     (item.system as { type?: unknown } | undefined)?.type === "distance";
   // ponytail: no module bonuses (`modules = {}`): the dialog's module damage
   // and violence bonuses are not applied; pass them here if the app sends them.
+  const preparedItem = (entry: typeof item) => {
+    const system = structuredClone(entry.system ?? {}) as Dict;
+    if (req.secondaryEntryId && (system.tourelle as Dict | undefined)?.has)
+      throw new RpcError(
+        "weapon_unsupported",
+        "Akimbo does not add turret damage",
+      );
+    if (req.secondaryEntryId && (system.options2mains as Dict | undefined)?.has)
+      (system.options2mains as Dict).actuel = "1main";
+    if (
+      req.preciseCharacteristic &&
+      (system.options2mains as Dict | undefined)?.has
+    )
+      (system.options2mains as Dict).actuel = "2main";
+    return {
+      id: docId(entry),
+      name: (entry as { name?: string }).name,
+      system,
+    };
+  };
   const weapon = isRanged
-    ? builder.prepareWpnDistance(item, {})
-    : builder.prepareWpnContact(item, {});
-  // A barrage weapon posts a card with no attack roll: nothing for the app to
-  // resolve, so it stays on the app's own engine.
+    ? builder.prepareWpnDistance(preparedItem(item), {})
+    : builder.prepareWpnContact(preparedItem(item), {});
+  if (
+    req.preciseCharacteristic &&
+    (isRanged || !weapon.effets?.raw?.includes("deuxmains"))
+  )
+    throw new RpcError(
+      "weapon_unsupported",
+      "Precise requires a two-handed melee weapon",
+    );
+  if (
+    req.dataStyle?.value &&
+    (isRanged || !weapon.effets?.raw?.includes("lourd"))
+  )
+    throw new RpcError(
+      "weapon_unsupported",
+      "Powerful requires a heavy melee weapon",
+    );
+  let secondWpn: Weapon | undefined;
+  if (req.secondaryEntryId) {
+    const second =
+      weapons.find(
+        (i) => flagValue(i, FLAG_KEYS.entryId) === req.secondaryEntryId,
+      ) ??
+      (req.secondaryItemId
+        ? weapons.find((i) => docId(i) === req.secondaryItemId)
+        : undefined);
+    if (!second || docId(second) === docId(item))
+      throw new RpcError(
+        "weapon_not_found",
+        "Akimbo requires a distinct second weapon on the actor",
+      );
+    secondWpn =
+      (second.system as Dict | undefined)?.type === "distance"
+        ? builder.prepareWpnDistance(preparedItem(second), {})
+        : builder.prepareWpnContact(preparedItem(second), {});
+    for (const candidate of [weapon, secondWpn]) {
+      if (
+        [
+          ...(candidate.effets?.raw ?? []),
+          ...(candidate.structurelles?.raw ?? []),
+          ...(candidate.ornementales?.raw ?? []),
+        ].some((e) => e === "deuxmains") ||
+        (candidate as Dict).type === "tourelle"
+      )
+        throw new RpcError(
+          "weapon_unsupported",
+          "Akimbo requires weapons held in one hand",
+        );
+    }
+  }
+  // The request is an attack, never a barrage: turn the option off, as the
+  // sheet's roll dialog defaults it (ranged preparation defaults it on). A
+  // barrage left active (no option to turn off) posts a card with no attack
+  // roll: nothing for the app to resolve, so it stays on the app's engine.
+  for (const option of weapon.options ?? [])
+    if (option.value === "barrage") option.active = false;
   if (effectActive(weapon, "barrage"))
     throw new RpcError(
       "weapon_unsupported",
       `${PROCEDURE}: a barrage weapon has no attack roll`,
     );
   const { ids, source } = resolveTargets(actor, req.targetActorIds);
-  const author = playerOf(actor);
+  const author = cardAuthor(actor, req.visibility, req.origin === "player");
   const authorId = author?.id ?? foundryGame()?.user?.id ?? "";
   const { whisper, blind } = visibilityOf(req.visibility, authorId);
 
-  // The stamping hook lives until it fires or the late-stamp window closes, so
-  // a card created after the answer still carries its eventId. A new attack
-  // for the same actor drops an older unfired hook first: that older card, if
-  // it ever comes, imports as ordinary chat.
-  dropHook(req.actorId);
-  const hooks = foundryHooks();
-  const hookId = hooks?.on("preCreateChatMessage", (doc: CardMessage) => {
-    if (
-      doc.speaker?.actor !== actor.id ||
-      pending.get(req.actorId)?.id !== hookId ||
-      !rollsPool(doc, req.dice)
-    )
-      return;
-    dropHook(req.actorId);
-    doc.updateSource?.({
-      ...(author?.id ? { author: author.id } : {}),
-      whisper,
-      blind,
-      [`flags.${MODULE_ID}`]: {
-        eventId: req.eventId,
-        origin: req.origin,
-        lane: ATTACK_LANE,
-      },
-    });
+  const disarm = armStamp(req.actorId, req.dice, {
+    ...(author?.id ? { author: author.id } : {}),
+    whisper,
+    blind,
+    ...stampFlags(req.eventId, req.origin, ATTACK_LANE),
   });
-  if (hookId !== undefined)
-    pending.set(req.actorId, {
-      id: hookId,
-      timer: setTimeout(() => dropHook(req.actorId), ATTACK_STAMP_MS),
-    });
 
   // Cadence weapons read the GM's own targets: lend them for the roll.
   const layer = tokens();
@@ -595,7 +627,7 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
     readsUserTargets(weapon) && source !== "gm" && !!layer?.setTargets;
   let settle!: (result: KnightAttackResultV1 | null) => void;
   const done = new Promise<KnightAttackResultV1 | null>((r) => (settle = r));
-  rolling.set(req.eventId, done);
+  track(ATTACK_LANE, req.eventId, done);
   try {
     if (lend) layer.setTargets!(ids, { mode: "replace" });
     await new RollKnight(actor, {
@@ -607,16 +639,16 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
       style: req.style,
       surprise: req.surprise,
       targets: ids.map((id) => ({ id })),
-      dataStyle: {},
+      dataStyle: req.dataStyle ?? {},
       dataMod: {
         degats: { dice: 0, fixe: 0 },
         violence: { dice: 0, fixe: 0 },
       },
       maximize: { degats: false, violence: false },
+      ...(secondWpn ? { addFlags: { secondWpn } } : {}),
     }).doRoll({});
   } catch (error) {
-    dropHook(req.actorId); // the roller failed: no card is coming
-    rolling.delete(req.eventId);
+    disarm(); // the roller failed: no card is coming
     settle(null);
     throw error;
   } finally {
@@ -630,58 +662,14 @@ async function attack(req: KnightAttackV1): Promise<KnightAttackResultV1> {
       log.warn(`${PROCEDURE}: stamping failed`, error);
       return null;
     })
-    .then(settle)
-    .finally(() => rolling.delete(req.eventId));
+    .then(settle);
   const result = await within(done, ATTACK_WAIT_MS);
   if (!result) throw cardTimeout();
   return result;
 }
 
-/** Attacks rolled whose card may still land, by eventId: settles with the
- * result once the card is stamped, or null when the late-stamp window closes. */
-const rolling = new Map<string, Promise<KnightAttackResultV1 | null>>();
-
-/** Whether `doc` is the card of a `dice`-die attack: the roller's first roll
- * is the pool itself (`${dice}D6`), so a roll of another size from the same
- * actor is not this attack's card. */
-// ponytail: a GM's own roll of the same actor with the same pool, made while an
-// app attack that posted no card still waits, would match; the system gives the
-// card no other mark before it exists.
-function rollsPool(doc: CardMessage, dice: number): boolean {
-  try {
-    return !!doc.rolls?.length && facesOf(doc.rolls[0]).length === dice;
-  } catch {
-    return false;
-  }
-}
-
-/** The unfired stamping hook of each actor's latest attack. */
-const pending = new Map<
-  string,
-  { id: unknown; timer: ReturnType<typeof setTimeout> }
->();
-
-function dropHook(actorId: string): void {
-  const hook = pending.get(actorId);
-  if (!hook) return;
-  pending.delete(actorId);
-  clearTimeout(hook.timer);
-  foundryHooks()?.off?.("preCreateChatMessage", hook.id);
-}
-
-let queue: Promise<unknown> = Promise.resolve();
-
-/** One attack at a time: the scoped hook and the lent targets are per call.
- * A roll that never settles holds the queue only as long as the backend
- * waits for an answer, so it cannot block every later attack. */
+/** One Knight roll at a time (attacks and tests share the stamp hook). */
 export const knightAttackV1: Procedure = (payload) => {
   const req = validateKnightAttackV1(payload);
-  const run = queue.then(() => attack(req));
-  queue = queue.then(() =>
-    within(
-      run.catch(() => null),
-      REQUEST_TIMEOUT_MS,
-    ),
-  );
-  return run;
+  return oneAtATime(() => attack(req));
 };

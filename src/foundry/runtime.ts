@@ -51,6 +51,9 @@ export interface ActorLike {
   flags?: Dict;
   ownership?: Dict;
   system?: unknown;
+  /** Foundry's document stats: `duplicateSource` is the uuid of the Document
+   * this one was duplicated from (« Duplicate » records it), or null. */
+  _stats?: { duplicateSource?: string | null };
   items?: { contents?: ActorItemLike[] } | Iterable<ActorItemLike>;
   getFlag?(namespace: string, key: string): unknown;
   /** Foundry's own permission test (ownership, `default`, GM role). */
@@ -76,6 +79,15 @@ export interface ActorLike {
     slug: string,
     options: { value: number },
   ): Promise<unknown>;
+  /** pf2e's prepared inventory: its currency APIs (`removeCurrency` answers
+   * false, writing nothing, when the coins are not there). */
+  inventory?: {
+    addCurrency?(coins: Record<string, number>): Promise<unknown>;
+    removeCurrency?(
+      coins: Record<string, number>,
+      options: { byValue: boolean },
+    ): Promise<boolean>;
+  };
 }
 
 /** An ActiveEffect embedded in an Actor. */
@@ -241,6 +253,11 @@ interface CombatsLike {
   [Symbol.iterator]?(): Iterator<CombatLike>;
 }
 
+/** ChatMessage.implementation — the configured ChatMessage document class. */
+interface ChatMessageFactoryLike {
+  create(data: Dict, options?: Dict): Promise<unknown>;
+}
+
 /** Combat.implementation — the configured Combat document class. */
 interface CombatFactoryLike {
   create(data: Dict, options?: Dict): Promise<unknown>;
@@ -262,8 +279,8 @@ interface GameLike {
   version?: string;
   settings?: SettingsLike;
   socket?: SocketLike;
-  /** pf2e's system namespace (the Pathfinder 2e live-counters lane). */
-  pf2e?: { ConditionManager?: Pf2eConditionManagerLike };
+  /** pf2e's system namespace (the live-counters lane; the check lane's `Check`). */
+  pf2e?: { ConditionManager?: Pf2eConditionManagerLike; Check?: unknown };
   /** The Knight system's namespace (its roller, for the attack lane). */
   knight?: { RollKnight?: unknown };
   /** The chat log (`game.messages`). */
@@ -280,18 +297,49 @@ export interface Pf2eConditionManagerLike {
   ): Promise<unknown>;
 }
 
+/** Foundry's FilePicker class, as far as saving a file into the user data. */
+export interface FilePickerLike {
+  /** Resolves the server's response (`path` set on success), `false`,
+   * `undefined` or `{}` on a failure (it does not throw). */
+  upload(
+    source: string,
+    path: string,
+    file: File,
+    body?: object,
+    options?: { notify?: boolean },
+  ): Promise<unknown>;
+  /** Rejects when the directory exists or cannot be created. */
+  createDirectory(
+    source: string,
+    target: string,
+    options?: object,
+  ): Promise<unknown>;
+}
+
 interface FoundryGlobals {
   game?: GameLike;
   /** The rendered canvas; its `tokens` layer is a structural view per caller. */
   canvas?: { tokens?: unknown };
   Actor?: { implementation?: ActorFactoryLike };
   Combat?: { implementation?: CombatFactoryLike };
+  ChatMessage?: { implementation?: ChatMessageFactoryLike };
   Hooks?: HooksLike;
   ui?: { notifications?: NotificationsLike };
   foundry?: {
-    /** Foundry 14+: update operators (`ForcedDeletion` replaces `-=key`). */
-    data?: { operators?: { ForcedDeletion?: new () => unknown } };
+    /** Foundry 14+: update operators (`ForcedDeletion` replaces `-=key`,
+     * `ForcedReplacement` replaces `==key`). */
+    data?: {
+      operators?: {
+        ForcedDeletion?: new () => unknown;
+        ForcedReplacement?: new (value: unknown) => unknown;
+      };
+    };
     applications?: {
+      /** Foundry 13+: `apps.FilePicker`, whose `implementation` is the
+       * configured (`CONFIG.ux.FilePicker`) subclass. */
+      apps?: {
+        FilePicker?: FilePickerLike & { implementation?: FilePickerLike };
+      };
       api?: {
         DialogV2?: DialogV2Class;
         ApplicationV2?: ApplicationV2Class;
@@ -315,6 +363,16 @@ export function deletionEntry(key: string): [string, unknown] {
   return typeof ForcedDeletion !== "undefined"
     ? [key, new ForcedDeletion()]
     : [`-=${key}`, null];
+}
+
+/** Foundry 14's `ForcedReplacement` of a field with `value`, or undefined on
+ * a runtime without the operator. */
+export function forcedReplacement(value: unknown): unknown {
+  const ForcedReplacement =
+    globals().foundry?.data?.operators?.ForcedReplacement;
+  return typeof ForcedReplacement === "undefined"
+    ? undefined
+    : new ForcedReplacement(value);
 }
 
 /** `game`, or undefined outside Foundry. */
@@ -410,6 +468,12 @@ export function combatImplementation(): CombatFactoryLike | undefined {
   return globals().Combat?.implementation;
 }
 
+/** `ChatMessage.implementation`, the class new chat messages are created through. */
+export function chatMessageImplementation():
+  ChatMessageFactoryLike | undefined {
+  return globals().ChatMessage?.implementation;
+}
+
 /** `Actor.implementation`, the class new Actors are created through. */
 export function actorImplementation(): ActorFactoryLike | undefined {
   return globals().Actor?.implementation;
@@ -441,4 +505,11 @@ export function renderTemplateFn():
  * reason (the `foundry` global exists only once `init` runs). */
 export function applicationV2Class(): ApplicationV2Class | undefined {
   return globals().foundry?.applications?.api?.ApplicationV2;
+}
+
+/** The configured FilePicker (`foundry.applications.apps.FilePicker
+ * .implementation`, Foundry 13 and 14), else the base class, else undefined. */
+export function filePickerClass(): FilePickerLike | undefined {
+  const FilePicker = globals().foundry?.applications?.apps?.FilePicker;
+  return FilePicker?.implementation ?? FilePicker;
 }

@@ -7,6 +7,7 @@ import {
 } from "../src/procedures/combatSync.js";
 import { MODULE_ID } from "../src/constants.js";
 import { RpcError } from "../src/rpc/errors.js";
+import { applyUpdate } from "./support/actorUpsertHarness.js";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -70,11 +71,10 @@ class FakeCombat {
     this.updates.push({ changes, options });
     if ("round" in changes) this.round = changes.round as number;
     if ("turn" in changes) this.turn = changes.turn as number | null;
-    const flag = changes[`flags.${MODULE_ID}.combatSync`];
-    if (flag) {
-      const ns = (this.flags[MODULE_ID] ??= {}) as Dict;
-      ns.combatSync = { ...(ns.combatSync as Dict), ...(flag as Dict) };
-    }
+    const flags = Object.fromEntries(
+      Object.entries(changes).filter(([key]) => key.startsWith("flags.")),
+    );
+    applyUpdate(this as unknown as Dict, flags);
   }
   async delete() {
     this.deleted = true;

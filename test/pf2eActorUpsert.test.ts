@@ -7,6 +7,7 @@ import {
 } from "../src/procedures/pf2eActorUpsert.js";
 import {
   fakeActor,
+  stubOperators,
   USER_ID,
   type FakeActor,
 } from "./support/actorUpsertHarness.js";
@@ -326,7 +327,10 @@ describe("pf2e.actor.upsert.v1 creation", () => {
       },
       ownership: { default: 0, [USER_ID]: 3, [COMPANION_ID]: 2 },
     });
-    expect(world.create.mock.calls[0][1]).toEqual({ renderSheet: false });
+    expect(world.create.mock.calls[0][1]).toEqual({
+      renderSheet: false,
+      tableCompanionProvisioning: true,
+    });
     // pf2e's LIMITED default is replaced; player OWNER, Companion OBSERVER.
     const actor = world.actors[0];
     expect(actor.ownership).toEqual({
@@ -342,6 +346,48 @@ describe("pf2e.actor.upsert.v1 creation", () => {
       appliedDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
       equipmentCompleteness: "complete",
       warnings: [],
+    });
+  });
+
+  describe("on Foundry 14", () => {
+    // Foundry adds the creating Gamemaster as OWNER on top of pf2e's LIMITED.
+    function gmCreating(): World {
+      const world = stubWorld();
+      stubOperators();
+      const made = world.create.getMockImplementation()!;
+      world.create.mockImplementation(async (data, options) => {
+        const actor = await made(data, options);
+        actor.ownership.gm = 3;
+        return actor;
+      });
+      return world;
+    }
+
+    it("creates with exactly the lane's ownership", async () => {
+      const world = gmCreating();
+      const result = await run(draft());
+      expect(result.outcome).toBe("created");
+      // pf2e's LIMITED default and the creator's grant are both replaced.
+      expect(world.actors[0].ownership).toEqual({
+        default: 0,
+        [USER_ID]: 3,
+        [COMPANION_ID]: 2,
+      });
+    });
+
+    it("answers procedure_failed when Foundry drops the authored update", async () => {
+      const world = gmCreating();
+      const made = world.create.getMockImplementation()!;
+      world.create.mockImplementation(async (data, options) => {
+        const actor = await made(data, options);
+        actor.update = async (changes) => {
+          actor.updates.push(changes);
+        };
+        return actor;
+      });
+      await expect(run(draft())).rejects.toMatchObject({
+        code: "procedure_failed",
+      });
     });
   });
 
@@ -543,6 +589,23 @@ describe("pf2e.actor.upsert.v1 resolution", () => {
       code: "binding_collision",
     });
   });
+
+  it("serves the named Actor, or the recorded original, when a duplicate carries the binding", async () => {
+    const a = character("actorA0000000001");
+    const b = character("actorB0000000001");
+    bind(a);
+    bind(b);
+    stubWorld([a, b]);
+    const named = await run(draft({ expectedActorId: "actorB0000000001" }));
+    expect(named.resultDocId).toBe("actorB0000000001");
+    await expect(
+      run(draft({ expectedActorId: "actorC0000000001" })),
+    ).rejects.toMatchObject({ code: "binding_collision" });
+
+    Object.assign(b, { _stats: { duplicateSource: "Actor.actorA0000000001" } });
+    const original = await run(draft({ approvedRevision: 2 }));
+    expect(original.resultDocId).toBe("actorA0000000001");
+  });
 });
 
 describe("pf2e.actor.upsert.v1 replay", () => {
@@ -643,5 +706,24 @@ describe("pf2e.actor.upsert.v1 replay", () => {
     expect(types.sort()).toEqual(
       ["ancestry", "background", "class", "heritage"].sort(),
     );
+  });
+});
+
+describe("pf2e.actor.upsert.v1 after the world is linked again", () => {
+  it("creates no second Actor under the new world id: same revision replays, a newer one updates and rebinds", async () => {
+    const world = stubWorld();
+    const first = await run(draft());
+    const actor = world.actors[0];
+    const updates = actor.updates.length;
+    await expect(run(draft({ worldId: "world-2" }))).resolves.toEqual(first);
+    expect(actor.updates.length).toBe(updates);
+
+    await run(draft({ worldId: "world-2", approvedRevision: 2 }));
+    expect(world.create).toHaveBeenCalledTimes(1);
+    expect(world.actors).toHaveLength(1);
+    expect(
+      (actor.flags[MODULE_ID] as { binding: { worldId: string } }).binding
+        .worldId,
+    ).toBe("world-2");
   });
 });

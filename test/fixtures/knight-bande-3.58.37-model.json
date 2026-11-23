@@ -1,0 +1,83 @@
+{
+  "foundryGeneration": 14,
+  "knightSystemVersion": "3.58.37",
+  "actorCreateAPI": "Actor.implementation.create",
+  "source": "Shape only: built from the system's data model defaults, not captured from a live world. The meter paths match the captured pnj fixtures.",
+  "actor": {
+    "_id": "actorban00000000",
+    "name": "Sanitized Knight bande fixture",
+    "type": "bande",
+    "ownership": {
+      "default": 0
+    },
+    "prototypeToken": {
+      "actorLink": false
+    },
+    "system": {
+      "sante": {
+        "base": 0,
+        "mod": 0,
+        "value": 0,
+        "max": 16,
+        "bonus": {
+          "user": 0
+        },
+        "malus": {
+          "user": 0
+        }
+      },
+      "armure": {
+        "base": 0,
+        "mod": 0,
+        "value": 0,
+        "max": 0,
+        "bonus": {
+          "user": 0
+        },
+        "malus": {
+          "user": 0
+        }
+      },
+      "energie": {
+        "base": 0,
+        "mod": 0,
+        "value": 0,
+        "max": 0,
+        "bonus": {
+          "user": 0
+        },
+        "malus": {
+          "user": 0
+        }
+      },
+      "bouclier": {
+        "base": 0,
+        "value": 0
+      },
+      "champDeForce": {
+        "base": 0,
+        "value": 0,
+        "mod": 0
+      },
+      "options": {
+        "bouclier": true,
+        "phase2": false,
+        "notFirstMenu": false,
+        "noSecondMenu": false,
+        "armure": true,
+        "energie": true,
+        "sante": true,
+        "resilience": false,
+        "champDeForce": false
+      },
+      "resilience": {
+        "value": 0,
+        "max": 50
+      },
+      "debordement": {
+        "value": 0,
+        "tour": 1
+      }
+    }
+  }
+}

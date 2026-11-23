@@ -74,6 +74,7 @@ a new code is an additive change.
 | `actor_not_found` | The Actor the request assigns does not exist. |
 | `binding_collision` | More than one Actor carries the same Table Companion binding. |
 | `binding_conflict` | The binding or the expected Actor points at a different Actor than the request. |
+| `binding_lost` | Another table took this Actor over from the request's table and character; nothing is written (a Knight resources write may take it back with `reclaim`). |
 | `deleted_link` | The previously linked Actor no longer exists. |
 | `stale_revision` | The Actor already carries a newer revision than the request. |
 | `revision_conflict` | The same revision was sent again with different content. |
@@ -82,10 +83,27 @@ a new code is an additive change.
 | `level_mismatch` | A Pathfinder 2e completion whose level differs from the Actor's; nothing is written. |
 | `item_conflict` | A Knight Item moved, was renamed or is of another kind in Foundry; nothing is written. |
 | `item_missing` | The Knight Item the request updates is gone. |
+| `armour_guarded` | The Knight armour an add would replace holds applied evolutions, archived data or an active capacity, and the add is not forced; nothing is written. |
+| `wear_conflict` | The Knight armour's wear moved in Foundry first, a capacity holds the ascension, or there is no armour to deploy; nothing is written. |
 | `knight_api_missing` | The Knight system's roller is not available. |
 | `weapon_not_found` | No weapon on the Actor is bound to the attack's entry. |
 | `weapon_unsupported` | The Knight weapon has no attack roll (an active barrage). |
 | `attack_card_timeout` | The Knight attack card did not complete in time; a late card is still stamped with its result. |
+| `actor_unsupported` | The Knight Actor cannot roll this test itself (a vehicle: its tests are its pilot's). |
+| `test_card_timeout` | The Knight test card did not appear in time after the roll. |
+| `followup_outcome_unknown` | Knight may have rolled damage or violence, but no complete card was confirmed; do not roll again locally. |
+| `statistic_not_found` | The Pathfinder 2e Actor has no statistic with the check's slug. |
+| `strike_not_found` | The Pathfinder 2e Actor has no shown strike with that item and slug. |
+| `spell_not_found` | The Pathfinder 2e spell is not on the Actor (or not in that spellcasting entry), or pf2e built no card for it. |
+| `item_not_found` | The Pathfinder 2e item whose card is asked for is not on the Actor, or is not a kind with a card. |
+| `roll_refused` | pf2e did not roll, or Foundry did not create the card; nothing was posted. |
+| `source_not_found` | No source card for the requested Actor carries the source event ID (Pathfinder 2e or Knight). |
+| `reroll_refused` | The source is already a reroll, or pf2e did not reroll the card. |
+| `followup_refused` | Pathfinder 2e cannot produce the requested damage or effect, returned an unusable roll, or created no follow-up card; Knight refused before invoking its roller (missing actor, roller, successful attack section or Hooks). |
+| `invalid_request` | An actor image request failed validation (an op, an id, a size, or a chunk out of order). |
+| `upload_unknown` | The actor image upload is gone (expired, replaced by a newer one, or never begun). |
+| `invalid_image` | The actor image's length, SHA-256 or JPEG signature does not match. |
+| `upload_failed` | Foundry refused the image file or its directory. |
 
 ## Licence
 

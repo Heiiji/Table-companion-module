@@ -7,6 +7,11 @@
       "done": "Terminé",
       "refresh": "Actualiser"
     },
+    "chatMark": {
+      "annulled": "Annulé",
+      "rerolled": "Relancé",
+      "revokedByGM": "Retiré par le MJ"
+    },
     "display": {
       "status": "En jeu"
     },
