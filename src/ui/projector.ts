@@ -44,7 +44,7 @@ export function openProjector(
   return serialized(async () => {
     const Ctor = dialogV2Class();
     if (!Ctor) return false;
-    await closeNow();
+    if (!(await closeNow())) return false;
     try {
       const dialog = new Ctor({
         // A dedicated class hook for the high-contrast projector theme (styles/module.css).
@@ -59,7 +59,7 @@ export function openProjector(
       await dialog.render({ force: true });
       return true;
     } catch (err) {
-      projectorDialog = undefined;
+      if (!projectorDialog?.rendered) projectorDialog = undefined;
       log.error("could not open the projector display", err);
       return false;
     }
@@ -67,18 +67,20 @@ export function openProjector(
 }
 
 /** Close the projector popout if open. Idempotent — pairs every spotlight clear. */
-export function closeProjector(): Promise<void> {
+export function closeProjector(): Promise<boolean> {
   return serialized(closeNow);
 }
 
-async function closeNow(): Promise<void> {
+async function closeNow(): Promise<boolean> {
   const dialog = projectorDialog;
-  projectorDialog = undefined;
   if (dialog?.rendered) {
     try {
       await dialog.close();
     } catch (err) {
       log.warn("could not close the projector display", err);
     }
+    if (dialog.rendered) return false;
   }
+  projectorDialog = undefined;
+  return true;
 }

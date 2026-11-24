@@ -210,11 +210,11 @@ export async function present(view: DisplayView): Promise<DisplayReceipt> {
 }
 
 /** Clear the projection locally and on every other client. */
-export async function clearDisplay(): Promise<DisplayReceipt> {
-  await closeProjector();
+export async function clearDisplay() {
+  const cleared = await closeProjector();
   const sock = gameSocket();
   sock?.emit(CHANNEL, buildClearBroadcast());
-  return { rendered: false, broadcast: sock !== undefined };
+  return { cleared, rendered: !cleared, broadcast: sock !== undefined };
 }
 
 /**
@@ -261,10 +261,8 @@ export const displayShow: Procedure = async (payload) => {
   return { ok: receipt.rendered, ...receipt };
 };
 
-/** display.clear — tear down the projector popout on all clients. `ok` reports
- * the local teardown, which always succeeds (closing is idempotent); the other
- * clients' state remains unknowable for the same reason as in `display.show`. */
+/** Report the observed local teardown; the broadcast has no remote delivery receipt. */
 export const displayClear: Procedure = async () => {
   const receipt = await clearDisplay();
-  return { ok: true, ...receipt };
+  return { ok: receipt.cleared, ...receipt };
 };

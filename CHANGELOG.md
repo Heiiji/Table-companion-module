@@ -4,6 +4,12 @@ All notable changes to this module are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- When a projector window stays open, the module reports the failed close and keeps the window available for a retry. Clearing an already closed projector confirms it is closed.
+
 ## [0.34.2] - 2026-11-23
 
 ### Added

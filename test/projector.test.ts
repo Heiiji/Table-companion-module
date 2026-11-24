@@ -5,7 +5,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 /** A DialogV2 whose render settles a tick later, as Foundry's does: the
  * popout is on screen once `rendered` turns true, until `close`. */
-function stubDialogs() {
+function stubDialogs(closeHook?: () => void) {
   const open = new Set<object>();
   class Dialog {
     rendered = false;
@@ -15,6 +15,7 @@ function stubDialogs() {
       open.add(this);
     }
     async close() {
+      closeHook?.();
       this.rendered = false;
       open.delete(this);
     }
@@ -41,6 +42,21 @@ describe("projector popout", () => {
     expect(open.size).toBe(1);
     await closeProjector();
     expect(open.size).toBe(0);
+  });
+
+  it("retains an open window for retry and refuses to layer a replacement over it", async () => {
+    const close = vi.fn().mockImplementation(() => {
+      throw new Error("close refused");
+    });
+    const open = stubDialogs(close);
+    expect(await openProjector("A", "A")).toBe(true);
+    expect(await closeProjector()).toBe(false);
+    expect(await openProjector("B", "B")).toBe(false);
+    expect(open.size).toBe(1);
+    close.mockImplementation(() => undefined);
+    expect(await closeProjector()).toBe(true);
+    expect(open.size).toBe(0);
+    expect(await closeProjector()).toBe(true);
   });
 
   it("keeps serving after a render fails", async () => {

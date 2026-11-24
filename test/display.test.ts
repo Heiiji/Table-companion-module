@@ -21,7 +21,7 @@ import { closeProjector, openProjector } from "../src/ui/projector.js";
 // see whether a frame was applied or ignored.
 vi.mock("../src/ui/projector.js", () => ({
   openProjector: vi.fn(async () => false),
-  closeProjector: vi.fn(async () => {}),
+  closeProjector: vi.fn(async () => true),
 }));
 
 // game is stubbed so `localize` (reads game.i18n) and the socket helpers resolve.
@@ -257,12 +257,25 @@ describe("display.show / display.clear procedures", () => {
     expect(emitMock()).not.toHaveBeenCalled();
   });
 
-  // Clearing always succeeds locally (closing is idempotent), but `broadcast`
-  // is still only "handed to the relay" — Foundry acknowledges nothing, so the
-  // other clients' state stays unknowable and is never claimed.
   it("display.clear reports the teardown and broadcasts a clear", async () => {
     const res = await displayClear(undefined, {} as never);
-    expect(res).toEqual({ ok: true, rendered: false, broadcast: true });
+    expect(res).toEqual({
+      ok: true,
+      cleared: true,
+      rendered: false,
+      broadcast: true,
+    });
+    expect(emitMock()).toHaveBeenCalledWith(CHANNEL, { tcaDisplay: "clear" });
+  });
+
+  it("still broadcasts a clear when the local window stays open", async () => {
+    vi.mocked(closeProjector).mockResolvedValueOnce(false);
+    expect(await displayClear(undefined, {} as never)).toEqual({
+      ok: false,
+      cleared: false,
+      rendered: true,
+      broadcast: true,
+    });
     expect(emitMock()).toHaveBeenCalledWith(CHANNEL, { tcaDisplay: "clear" });
   });
 
